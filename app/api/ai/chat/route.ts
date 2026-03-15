@@ -632,6 +632,7 @@ export async function POST(req: Request) {
                     enableVisualFeedback: true,
                     onStreamEvent: (event) => send(event),
                     strategyDecision,
+                    projectId,  // ← Required for LangGraph MemorySaver (thread_id)
                   },
                   planResult.analysis,
                   llmProvider
