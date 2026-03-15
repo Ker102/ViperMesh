@@ -49,14 +49,32 @@ export function SessionMonitor() {
         }, 5 * 60 * 1000) // 5 minutes
 
         // 3. Global fetch interceptor for 401 responses
+        // We verify with Supabase before declaring session expired to avoid
+        // false positives during long agent runs (transient 401s, cookie race conditions).
+        let verifying401 = false
         const originalFetch = window.fetch
         window.fetch = async (...args) => {
             const response = await originalFetch(...args)
-            if (response.status === 401) {
+            if (response.status === 401 && !verifying401) {
                 // Check if this is our API route (not an external request)
                 const url = typeof args[0] === "string" ? args[0] : (args[0] as Request)?.url
                 if (url && (url.startsWith("/api") || url.includes("/api/"))) {
-                    setExpired(true)
+                    // Don't trigger on streaming/chat endpoints — they handle errors internally
+                    const isStreamingEndpoint = url.includes("/api/ai/") || url.includes("/api/projects/")
+                    if (!isStreamingEndpoint) {
+                        // Verify with Supabase before showing the banner
+                        verifying401 = true
+                        try {
+                            const { data: { session: currentSession } } = await supabase.auth.getSession()
+                            if (!currentSession) {
+                                setExpired(true)
+                            }
+                        } catch {
+                            // If we can't check, don't show the banner
+                        } finally {
+                            verifying401 = false
+                        }
+                    }
                 }
             }
             return response
