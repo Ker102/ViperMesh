@@ -26,51 +26,68 @@ export function SessionMonitor() {
 
     useEffect(() => {
         const supabase = createClient()
+        let mounted = true
+
+        // Grace period: Don't check for the first 15s after mount to let
+        // Electron fully hydrate the auth session from the server
+        const graceTimeout = setTimeout(() => {
+            // After grace period, the periodic probe becomes active
+        }, 15_000)
+        let gracePeriod = true
+        setTimeout(() => { gracePeriod = false }, 15_000)
 
         // 1. Listen for auth state changes
         const {
             data: { subscription },
         } = supabase.auth.onAuthStateChange((event) => {
-            if (event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
-                if (event === "SIGNED_OUT") {
-                    setExpired(true)
-                }
+            if (event === "SIGNED_OUT" && !gracePeriod && mounted) {
+                setExpired(true)
             }
         })
 
         // 2. Periodic session probe (every 5 minutes)
+        // Use getUser() instead of getSession() — getUser() actually calls
+        // the Supabase server, while getSession() just reads local storage
+        // which may not be populated in Electron.
         const probeInterval = setInterval(async () => {
-            const {
-                data: { session },
-            } = await supabase.auth.getSession()
-            if (!session) {
-                setExpired(true)
+            if (gracePeriod || !mounted) return
+            try {
+                const { data: { user } } = await supabase.auth.getUser()
+                if (!user && mounted) {
+                    setExpired(true)
+                }
+            } catch {
+                // Network error — don't trigger expiry
             }
-        }, 5 * 60 * 1000) // 5 minutes
+        }, 5 * 60 * 1000)
 
         // 3. Global fetch interceptor for 401 responses
-        // We verify with Supabase before declaring session expired to avoid
-        // false positives during long agent runs (transient 401s, cookie race conditions).
+        // Very conservative: only marks session as expired if the Supabase
+        // server confirms the user is not authenticated via getUser().
         let verifying401 = false
         const originalFetch = window.fetch
         window.fetch = async (...args) => {
             const response = await originalFetch(...args)
-            if (response.status === 401 && !verifying401) {
-                // Check if this is our API route (not an external request)
+            if (response.status === 401 && !verifying401 && !gracePeriod && mounted) {
                 const url = typeof args[0] === "string" ? args[0] : (args[0] as Request)?.url
                 if (url && (url.startsWith("/api") || url.includes("/api/"))) {
-                    // Don't trigger on streaming/chat endpoints — they handle errors internally
-                    const isStreamingEndpoint = url.includes("/api/ai/") || url.includes("/api/projects/")
-                    if (!isStreamingEndpoint) {
-                        // Verify with Supabase before showing the banner
+                    // Skip all background/streaming/agent endpoints —
+                    // they handle their own 401 responses in the UI
+                    const isBackgroundEndpoint =
+                        url.includes("/api/ai/") ||
+                        url.includes("/api/projects/") ||
+                        url.includes("/api/mcp/") ||
+                        url.includes("/api/user/") ||
+                        url.includes("/api/generate/")
+                    if (!isBackgroundEndpoint) {
                         verifying401 = true
                         try {
-                            const { data: { session: currentSession } } = await supabase.auth.getSession()
-                            if (!currentSession) {
+                            const { data: { user } } = await supabase.auth.getUser()
+                            if (!user && mounted) {
                                 setExpired(true)
                             }
                         } catch {
-                            // If we can't check, don't show the banner
+                            // Can't verify — don't show the banner
                         } finally {
                             verifying401 = false
                         }
@@ -81,8 +98,10 @@ export function SessionMonitor() {
         }
 
         return () => {
+            mounted = false
             subscription.unsubscribe()
             clearInterval(probeInterval)
+            clearTimeout(graceTimeout)
             window.fetch = originalFetch
         }
     }, [])
