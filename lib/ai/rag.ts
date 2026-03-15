@@ -165,12 +165,34 @@ Respond with ONLY the Python code, no explanations.`
 export function formatContextFromSources(sources: SearchResult[]): string {
     if (sources.length === 0) return ""
 
-    const parts: string[] = ["## Retrieved Context\n"]
+    const guides = sources.filter((s) => s.source === "tool-guides")
+    const scripts = sources.filter((s) => s.source !== "tool-guides")
 
-    for (const source of sources) {
-        parts.push(`---\nSource: ${source.source ?? "unknown"}`)
-        parts.push(source.content)
-        parts.push("")
+    const parts: string[] = []
+
+    // Domain guides first — they provide decision-making knowledge
+    if (guides.length > 0) {
+        parts.push("## Domain Guides\n")
+        parts.push("Use the following domain knowledge to make better decisions about parameter values and tool usage:\n")
+        for (const guide of guides) {
+            const title =
+                (guide.metadata as Record<string, unknown> | null)?.title ??
+                guide.source ??
+                "Guide"
+            parts.push(`### ${title}`)
+            parts.push(guide.content)
+            parts.push("")
+        }
+    }
+
+    // Code script references second
+    if (scripts.length > 0) {
+        parts.push("## Script References\n")
+        for (const script of scripts) {
+            parts.push(`---\nSource: ${script.source ?? "unknown"}`)
+            parts.push(script.content)
+            parts.push("")
+        }
     }
 
     return parts.join("\n")
