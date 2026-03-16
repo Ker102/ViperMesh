@@ -27,12 +27,20 @@ Session 2026-03-16 — Tool Context Guides System (vectorstore-integrated domain
 ## Known Issues / Blockers
 - **gcloud auth expiry**: Vertex AI OAuth tokens expire frequently
 - **Session expiry UI**: False positive "session expired" notifications in Electron
+- **Blender crash (2026-03-16)**: Blender 5.0.1 crashed during Test 4 attempt.
+  - **Root cause: RAM exhaustion** — NULL pointer dereference inside `Py_GetAllocatedBlocks` (Python GC).
+  - **NOT caused by our agent** — addon was just closing a socket when the allocator failed.
+  - **Mitigation**: Close other apps before opening Blender. Reduce Undo Steps to 16 (Edit → Preferences → System → Undo Steps).
 
-## Remaining Tasks
-1. ~~Tool Context Guides for agent domain knowledge~~ ✅
-2. Re-test Test 4 prompt with guides active → verify camera placement
-3. Push branch + PR for CodeRabbit review
-4. Feature brainstorm P2/P3 implementation
+## Remaining Tasks — NEXT SESSION START HERE
+1. **Re-run Test 4** via Electron Studio mode with Blender open (close other heavy apps first!)
+   - Start servers: `npm run dev` in `ModelForge/`, then `npm run dev` in `ModelForge/desktop/`
+   - Paste this prompt in Studio mode:
+     > Set up a camera for a product shot: place it at a 45-degree angle looking down at the scene center, use a 85mm portrait lens, enable depth of field focused at 5 meters with f/2.8 aperture, then render the scene at 1920x1080 using EEVEE.
+   - **Success criteria**: camera placed at 8–12m (not 5m), uses `add_camera` + `set_camera_properties` (not `execute_code`), rendered image produced
+   - Check LangSmith trace: Camera Guide should appear in RAG context
+2. **Git commit & push** `feature/addon-tools-phase3` → open PR for CodeRabbit review
+3. Feature brainstorm P2/P3 implementation
 
 ## Branch
 `feature/addon-tools-phase3`
