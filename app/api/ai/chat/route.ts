@@ -659,11 +659,14 @@ export async function POST(req: Request) {
               // Extract tool calls from agent messages for the commands list
               const agentMessages = agentResult.messages ?? []
               const toolCallMessages = agentMessages.filter(
-                (m: Record<string, unknown>) => {
-                  const getType = (m as { _getType?: () => string })._getType
-                  return getType?.() === "ai" &&
-                    Array.isArray((m as { tool_calls?: unknown[] }).tool_calls) &&
-                    ((m as { tool_calls?: unknown[] }).tool_calls?.length ?? 0) > 0
+                (m: unknown) => {
+                  if (!m || typeof m !== "object") return false
+                  const msg = m as { _getType?: () => string; tool_calls?: unknown[] }
+                  // Call _getType bound to the message (DO NOT extract the method reference)
+                  const msgType = typeof msg._getType === "function" ? msg._getType.call(msg) : undefined
+                  return msgType === "ai" &&
+                    Array.isArray(msg.tool_calls) &&
+                    (msg.tool_calls?.length ?? 0) > 0
                 }
               )
 
@@ -713,6 +716,22 @@ export async function POST(req: Request) {
               if (error instanceof Error && error.stack) {
                 console.error("[AGENT] Stack trace:", error.stack)
               }
+              // Write full crash trace to file for reliable debugging
+              try {
+                const crashTrace = [
+                  `=== AGENT CRASH TRACE ===`,
+                  `Timestamp: ${new Date().toISOString()}`,
+                  `Error: ${error instanceof Error ? error.message : String(error)}`,
+                  `Type: ${error?.constructor?.name ?? typeof error}`,
+                  `Stack: ${error instanceof Error ? error.stack : "N/A"}`,
+                  `Full object: ${JSON.stringify(error, Object.getOwnPropertyNames(error instanceof Error ? error : {}), 2)}`,
+                  `========================`,
+                ].join("\n")
+                const fs = await import("fs")
+                const path = await import("path")
+                fs.writeFileSync(path.join(process.cwd(), "logs", "crash-trace.txt"), crashTrace, "utf-8")
+                console.log("[AGENT] Crash trace written to logs/crash-trace.txt")
+              } catch { /* ignore write errors */ }
               const messageText =
                 error instanceof Error ? error.message : "Unknown agent error"
               planningMetadata = planningMetadata ?? {
