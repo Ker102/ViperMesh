@@ -166,9 +166,10 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                         projectId,
                         conversationId: streamConversationId,
                         message,
-                        // Use autopilot mode so the API runs the planner+executor pipeline
-                        // (studio mode only generates a workflow proposal without executing)
+                        // Studio step execution: skip text streaming + strategy classification
+                        // (the user already chose the tool, we just need the agent to execute it)
                         workflowMode: "autopilot",
+                        studioStep: true,
                     }),
                     signal: abort.signal,
                 })

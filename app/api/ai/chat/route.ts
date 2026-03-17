@@ -24,6 +24,7 @@ import { recordExecutionLog } from "@/lib/orchestration/monitor"
 import { buildSystemPrompt } from "@/lib/orchestration/prompts"
 import { searchFirecrawl, type FirecrawlSearchResult } from "@/lib/firecrawl"
 import { classifyStrategy } from "@/lib/orchestration/strategy-router"
+import type { StrategyDecision } from "@/lib/orchestration/strategy-types"
 import { generateWorkflowProposal } from "@/lib/orchestration/workflow-advisor"
 import { createMonitoringSession, type MonitoringSession } from "@/lib/monitoring"
 import { z } from "zod"
@@ -264,6 +265,7 @@ const chatRequestSchema = z.object({
   message: z.string().min(1).max(2000),
   useLocalModel: z.boolean().optional(),
   workflowMode: z.enum(["autopilot", "studio"]).optional(),
+  studioStep: z.boolean().optional(),
 })
 
 async function ensureConversation({
@@ -337,7 +339,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const { projectId, conversationId, startNew, message, useLocalModel, workflowMode } =
+    const { projectId, conversationId, startNew, message, useLocalModel, workflowMode, studioStep } =
       chatRequestSchema.parse(body)
 
     const project = await prisma.project.findFirst({
@@ -500,23 +502,27 @@ export async function POST(req: Request) {
         let tokenUsage: { promptTokens?: number | null; responseTokens?: number | null; totalTokens?: number | null } | undefined
 
         try {
-          for await (const chunk of streamLlmResponse(llmProvider, {
-            history: trimmedHistory,
-            messages: [
-              {
-                role: "user",
-                content: message,
-              },
-            ],
-            maxOutputTokens: 512,
-            systemPrompt: chatSystemPrompt,
-          })) {
-            if (chunk.textDelta) {
-              assistantText += chunk.textDelta
-              send({ type: "delta", delta: chunk.textDelta })
-            }
-            if (chunk.usage) {
-              tokenUsage = chunk.usage
+          // ── Studio step execution: skip text streaming + strategy classification ──
+          // Studio mode already chose the tool, so we go straight to agent execution.
+          if (!studioStep) {
+            for await (const chunk of streamLlmResponse(llmProvider, {
+              history: trimmedHistory,
+              messages: [
+                {
+                  role: "user",
+                  content: message,
+                },
+              ],
+              maxOutputTokens: 512,
+              systemPrompt: chatSystemPrompt,
+            })) {
+              if (chunk.textDelta) {
+                assistantText += chunk.textDelta
+                send({ type: "delta", delta: chunk.textDelta })
+              }
+              if (chunk.usage) {
+                tokenUsage = chunk.usage
+              }
             }
           }
 
@@ -524,25 +530,37 @@ export async function POST(req: Request) {
           const sceneSnapshotResult = await fetchSceneSummary()
 
           // Strategy classification: determine procedural vs neural vs hybrid
-          monitor.startTimer("strategy_classification")
-          const strategyDecision = await classifyStrategy(message, {
-            sceneContext: sceneSnapshotResult.summary ?? undefined,
-            monitor,
-          })
-          monitor.endTimer("strategy_classification")
-          monitor.info("strategy", `Strategy: ${strategyDecision.strategy} (${(strategyDecision.confidence * 100).toFixed(0)}% confidence)`, {
-            strategy: strategyDecision.strategy,
-            confidence: strategyDecision.confidence,
-            method: strategyDecision.classificationMethod,
-          })
-          send({
-            type: "agent:strategy_classification",
-            timestamp: new Date().toISOString(),
-            strategy: strategyDecision.strategy,
-            confidence: strategyDecision.confidence,
-            reasoning: strategyDecision.reasoning,
-            method: strategyDecision.classificationMethod,
-          })
+          // Skip for studioStep — user already chose the tool
+          let strategyDecision: StrategyDecision
+          if (studioStep) {
+            strategyDecision = {
+              strategy: "procedural",
+              confidence: 1.0,
+              reasoning: "Studio step execution — tool already selected by user",
+              classificationMethod: "user_override",
+            }
+            monitor.info("strategy", "Strategy bypassed for studio step (procedural)")
+          } else {
+            monitor.startTimer("strategy_classification")
+            strategyDecision = await classifyStrategy(message, {
+              sceneContext: sceneSnapshotResult.summary ?? undefined,
+              monitor,
+            })
+            monitor.endTimer("strategy_classification")
+            monitor.info("strategy", `Strategy: ${strategyDecision.strategy} (${(strategyDecision.confidence * 100).toFixed(0)}% confidence)`, {
+              strategy: strategyDecision.strategy,
+              confidence: strategyDecision.confidence,
+              method: strategyDecision.classificationMethod,
+            })
+            send({
+              type: "agent:strategy_classification",
+              timestamp: new Date().toISOString(),
+              strategy: strategyDecision.strategy,
+              confidence: strategyDecision.confidence,
+              reasoning: strategyDecision.reasoning,
+              method: strategyDecision.classificationMethod,
+            })
+          }
 
           let executedCommands: ExecutedCommand[] = []
           let planningMetadata: PlanningMetadata | null = null
@@ -550,8 +568,9 @@ export async function POST(req: Request) {
           let planResult: PlanGenerationResult | null = null
 
           // ── Neural/Hybrid or Studio mode → Guided Workflow (human-in-the-loop) ──
-          const useGuidedWorkflow = workflowMode === "studio" ||
-            strategyDecision.strategy === "neural" || strategyDecision.strategy === "hybrid"
+          // Note: studioStep uses the procedural path directly (bypasses workflow proposal)
+          const useGuidedWorkflow = !studioStep && (workflowMode === "studio" ||
+            strategyDecision.strategy === "neural" || strategyDecision.strategy === "hybrid")
           if (useGuidedWorkflow) {
             try {
               const workflowProposal = await generateWorkflowProposal(
@@ -623,11 +642,16 @@ export async function POST(req: Request) {
                 onStreamEvent: (event) => send(event),
               })
 
+              // Use a unique thread_id to avoid stale MemorySaver state from
+              // prior planner sessions that wrote to the same projectId
+              const threadId = `${projectId}-${Date.now()}`
+              console.log(`[AGENT] Invoking v2 agent, thread_id=${threadId}, prompt length=${agentPrompt.length}`)
+
               const agentResult = await agent.invoke(
                 {
                   messages: [{ role: "user" as const, content: agentPrompt }],
                 },
-                { configurable: { thread_id: projectId } }
+                { configurable: { thread_id: threadId } }
               )
 
               monitor.endTimer("agent_execution")
@@ -685,7 +709,10 @@ export async function POST(req: Request) {
               monitor.error("agent", "Agent execution error", {
                 error: error instanceof Error ? error.message : String(error),
               })
-              console.error("Agent execution error:", error)
+              console.error("[AGENT] Execution error (full stack):", error)
+              if (error instanceof Error && error.stack) {
+                console.error("[AGENT] Stack trace:", error.stack)
+              }
               const messageText =
                 error instanceof Error ? error.message : "Unknown agent error"
               planningMetadata = planningMetadata ?? {

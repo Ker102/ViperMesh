@@ -792,7 +792,18 @@ function createViewportMiddleware(onStreamEvent?: (event: AgentStreamEvent) => v
   return createMiddleware({
     name: "ViewportScreenshotMiddleware",
     wrapToolCall: async (request, handler) => {
-      const result = await handler(request)
+      let result: Awaited<ReturnType<typeof handler>>
+      try {
+        result = await handler(request)
+      } catch (toolError) {
+        // Prevent framework crash — return error as ToolMessage
+        console.error(`[ViewportMiddleware] Tool execution error for ${request.toolCall.name}:`, toolError)
+        const { ToolMessage: TM } = await import("@langchain/core/messages")
+        return new TM({
+          content: `Tool error: ${toolError instanceof Error ? toolError.message : String(toolError)}`,
+          tool_call_id: request.toolCall.id ?? "unknown",
+        })
+      }
 
       // After execute_code, auto-capture viewport
       if (request.toolCall.name === "execute_code") {
@@ -922,8 +933,8 @@ export interface BlenderAgentV2Options {
   onStreamEvent?: (event: AgentStreamEvent) => void
 }
 
-/** Shared checkpointer for session persistence */
-const checkpointer = new MemorySaver()
+// NOTE: MemorySaver is now created per-agent invocation to prevent
+// cross-invocation state corruption (especially across hot-reloads).
 
 /**
  * Create a new LangChain v1 Blender agent.
@@ -980,7 +991,7 @@ export function createBlenderAgentV2(options: BlenderAgentV2Options = {}) {
     tools,
     systemPrompt: dynamicPrompt,
     middleware,
-    checkpointer,
+    checkpointer: new MemorySaver(),
   })
 
   return agent
@@ -991,4 +1002,3 @@ export function createBlenderAgentV2(options: BlenderAgentV2Options = {}) {
 // ============================================================================
 
 export type { AgentStreamEvent }
-export { checkpointer }
