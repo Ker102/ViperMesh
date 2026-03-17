@@ -11,8 +11,7 @@ import {
 import { streamLlmResponse, type LlmProviderSpec } from "@/lib/llm"
 import type { GeminiMessage } from "@/lib/gemini"
 import { createMcpClient } from "@/lib/mcp"
-import { BlenderPlanner } from "@/lib/orchestration/planner"
-import { PlanExecutor, type ExecutionResult } from "@/lib/orchestration/executor"
+// Legacy planner/executor removed — v2 agent handles tool selection directly
 import type {
   ExecutionPlan,
   ExecutionLogEntry,
@@ -116,8 +115,10 @@ function resolveLocalProviderSpec(
   return null
 }
 
-const planner = new BlenderPlanner()
-const planExecutor = new PlanExecutor()
+/** Generate a short unique ID for command tracking */
+function createStubId(): string {
+  return randomUUID().slice(0, 8)
+}
 
 async function fetchSceneSummary(): Promise<{ summary: string | null; raw: unknown }> {
   const client = createMcpClient()
@@ -597,100 +598,102 @@ export async function POST(req: Request) {
             }
           }
 
-          // ── Procedural → Auto-pilot planner + executor (existing flow) ──
+          // ── Procedural → Direct v2 agent (replaces legacy planner+executor) ──
           if (!planningMetadata) {
 
             try {
-              monitor.startTimer("plan_generation")
-              planResult = await planner.generatePlan(
-                message,
+              monitor.startTimer("agent_execution")
+              monitor.info("agent", "Starting direct v2 agent execution (no planner)")
+
+              // Build context-enriched prompt
+              let agentPrompt = message
+              if (sceneSnapshotResult.summary) {
+                agentPrompt = `Current Scene:\n${sceneSnapshotResult.summary}\n\nRequest: ${message}`
+              }
+              if (researchContext?.promptContext) {
+                agentPrompt += `\n\nWeb Research Context:\n${researchContext.promptContext}`
+              }
+
+              // Create the v2 LangGraph agent directly — it has:
+              // - RAG middleware (injects relevant tool-guides from vectorstore)
+              // - Updated system prompt with all direct MCP tools
+              // - ReAct loop for autonomous tool selection
+              const { createBlenderAgentV2 } = await import("@/lib/ai/agents")
+              const agent = createBlenderAgentV2({
+                allowPolyHaven: assetConfig.allowPolyHaven,
+                allowSketchfab: assetConfig.allowSketchfab,
+                allowHyper3d: assetConfig.allowHyper3d,
+                useRAG: true,
+                onStreamEvent: (event) => send(event),
+              })
+
+              const agentResult = await agent.invoke(
                 {
-                  sceneSummary: sceneSnapshotResult.summary ?? undefined,
-                  allowHyper3dAssets: assetConfig.allowHyper3d,
-                  allowSketchfabAssets: assetConfig.allowSketchfab,
-                  allowPolyHavenAssets: assetConfig.allowPolyHaven,
-                  researchContext: researchContext?.promptContext,
-                  strategyDecision,
+                  messages: [{ role: "user" as const, content: agentPrompt }],
                 },
-                llmProvider
+                { configurable: { thread_id: projectId } }
               )
 
-              if (planResult && planResult.plan) {
-                monitor.endTimer("plan_generation")
-                monitor.info("planner", `Plan generated: ${planResult.plan.steps.length} steps`, {
-                  summary: planResult.plan.planSummary,
-                  stepCount: planResult.plan.steps.length,
-                  retries: planResult.retries ?? 0,
-                })
+              monitor.endTimer("agent_execution")
 
-                monitor.startTimer("plan_execution")
-                const executionResult = await planExecutor.executePlan(
-                  planResult.plan,
-                  message,
-                  {
-                    ...assetConfig,
-                    enableVisualFeedback: true,
-                    onStreamEvent: (event) => send(event),
-                    strategyDecision,
-                    projectId,  // ← Required for LangGraph MemorySaver (thread_id)
-                  },
-                  planResult.analysis,
-                  llmProvider
-                )
-                executionLogs = executionResult.logs
-                monitor.endTimer("plan_execution")
-                monitor.info("executor", `Execution complete: ${executionResult.success ? "SUCCESS" : "FAILED"}`, {
-                  completedSteps: executionResult.completedSteps.length,
-                  failedSteps: executionResult.failedSteps.length,
-                })
-                executedCommands = buildExecutedCommandsFromPlan(planResult.plan, executionResult)
-                planningMetadata = {
-                  planSummary: planResult.plan.planSummary,
-                  planSteps: planResult.plan.steps,
-                  rawPlan: planResult.rawResponse,
-                  retries: planResult.retries ?? 0,
-                  executionSuccess: executionResult.success,
-                  errors: planResult.errors,
-                  executionLog: executionResult.logs,
-                  sceneSnapshot: sceneSnapshotResult.summary,
-                  analysis: planResult.analysis,
-                  researchSummary: researchContext?.promptContext,
-                  researchSources: researchContext?.sources,
-                  strategyDecision,
+              // Extract tool calls from agent messages for the commands list
+              const agentMessages = agentResult.messages ?? []
+              const toolCallMessages = agentMessages.filter(
+                (m: Record<string, unknown>) => {
+                  const getType = (m as { _getType?: () => string })._getType
+                  return getType?.() === "ai" &&
+                    Array.isArray((m as { tool_calls?: unknown[] }).tool_calls) &&
+                    ((m as { tool_calls?: unknown[] }).tool_calls?.length ?? 0) > 0
                 }
+              )
 
-                if (!executionResult.success) {
-                  planningMetadata.executionSuccess = false
+              // Build executed commands from agent tool calls
+              for (const msg of toolCallMessages) {
+                const aiMsg = msg as { tool_calls?: Array<{ name: string; args: Record<string, unknown> }> }
+                for (const tc of aiMsg.tool_calls ?? []) {
+                  executedCommands.push({
+                    id: createStubId(),
+                    tool: tc.name,
+                    description: `Agent called ${tc.name}`,
+                    status: "executed",
+                    confidence: 0.8,
+                    arguments: tc.args ?? {},
+                  })
                 }
-              } else if (planResult) {
-                const previousLogs = executionLogs
-                planningMetadata = {
-                  planSummary: "Plan generation failed",
-                  planSteps: [],
-                  rawPlan: planResult.rawResponse,
-                  retries: planResult.retries ?? 0,
-                  executionSuccess: false,
-                  errors: planResult.errors,
-                  fallbackUsed: false,
-                  executionLog: previousLogs,
-                  sceneSnapshot: sceneSnapshotResult.summary,
-                  analysis: planResult.analysis,
-                  researchSummary: researchContext?.promptContext,
-                  researchSources: researchContext?.sources,
-                }
-                executedCommands = []
-              } else {
-                throw new Error("Planner returned no result")
+              }
+
+              const agentSuccess = toolCallMessages.length > 0
+              monitor.info("agent", `Agent complete: ${executedCommands.length} tool calls`, {
+                tools: executedCommands.map(c => c.tool),
+                success: agentSuccess,
+              })
+
+              planningMetadata = {
+                planSummary: `Direct agent execution: ${executedCommands.length} tool calls`,
+                planSteps: executedCommands.map((c, i) => ({
+                  stepNumber: i + 1,
+                  action: c.tool,
+                  parameters: c.arguments,
+                  rationale: c.description,
+                  expectedOutcome: `Tool ${c.tool} executed`,
+                })),
+                rawPlan: JSON.stringify(executedCommands, null, 2),
+                retries: 0,
+                executionSuccess: agentSuccess,
+                sceneSnapshot: sceneSnapshotResult.summary,
+                researchSummary: researchContext?.promptContext,
+                researchSources: researchContext?.sources,
+                strategyDecision,
               }
             } catch (error) {
-              monitor.error("planner", "Planning pipeline error", {
+              monitor.error("agent", "Agent execution error", {
                 error: error instanceof Error ? error.message : String(error),
               })
-              console.error("Planning pipeline error:", error)
+              console.error("Agent execution error:", error)
               const messageText =
-                error instanceof Error ? error.message : "Unknown planning error"
+                error instanceof Error ? error.message : "Unknown agent error"
               planningMetadata = planningMetadata ?? {
-                planSummary: "Planner error",
+                planSummary: "Agent error",
                 planSteps: [],
                 rawPlan: "",
                 retries: 0,
@@ -699,13 +702,12 @@ export async function POST(req: Request) {
                 fallbackUsed: false,
                 executionLog: executionLogs,
                 sceneSnapshot: sceneSnapshotResult.summary,
-                analysis: planResult?.analysis,
                 researchSummary: researchContext?.promptContext,
                 researchSources: researchContext?.sources,
               }
               executedCommands = []
             }
-          } // ← closing brace for procedural fallback block
+          } // ← closing brace for procedural block
 
 
 

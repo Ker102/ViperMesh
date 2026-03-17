@@ -839,13 +839,26 @@ function createRAGMiddleware() {
 
       if (lastUserMsg) {
         const msg = lastUserMsg as unknown as Record<string, unknown>
-        const content = typeof msg.content === "string"
-          ? msg.content
-          : ""
+        const rawUserContent = msg.content
+        const content = typeof rawUserContent === "string"
+          ? rawUserContent
+          : Array.isArray(rawUserContent)
+            ? (rawUserContent as Array<{ text?: string }>).map((c) => c.text ?? "").join("")
+            : ""
 
         if (content) {
           try {
-            const results = await similaritySearch(content, { limit: 3 })
+            console.log(`[RAG] Searching for context: "${content.slice(0, 80)}..."`)
+
+            // Wrap similarity search with 10s timeout to prevent hanging on stale Prisma connections
+            const searchPromise = similaritySearch(content, { limit: 3 })
+            const timeoutPromise = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("RAG search timed out after 10s")), 10_000)
+            )
+            const results = await Promise.race([searchPromise, timeoutPromise])
+
+            console.log(`[RAG] Found ${results.length} results:`, results.map(r => `${r.source}(${r.similarity.toFixed(3)})`).join(", "))
+
             if (results.length > 0) {
               const context = formatContextFromSources(results)
               const ragBlock = `\n<rag_context>\nRelevant Blender script references:\n${context}\n</rag_context>`
@@ -859,9 +872,13 @@ function createRAGMiddleware() {
                     ((m as Record<string, unknown>)._getType as () => string)() === "system") ||
                   (m as Record<string, unknown>).role === "system"
                 if (idx === 0 && isSystem) {
-                  const original = typeof (m as Record<string, unknown>).content === "string"
-                    ? (m as Record<string, unknown>).content as string
-                    : ""
+                  const rawContent = (m as Record<string, unknown>).content
+                  const original = typeof rawContent === "string"
+                    ? rawContent
+                    : Array.isArray(rawContent)
+                      ? (rawContent as Array<{ text?: string }>).map((c) => c.text ?? "").join("")
+                      : ""
+                  console.log(`[RAG] Injecting ${context.length} chars of context into system message (original: ${original.length} chars)`)
                   return new SystemMessage(original + ragBlock)
                 }
                 return m
@@ -872,7 +889,8 @@ function createRAGMiddleware() {
                 messages: updatedMessages,
               })
             }
-          } catch {
+          } catch (err) {
+            console.warn(`[RAG] Non-fatal error:`, err instanceof Error ? err.message : err)
             // RAG failure is non-fatal — continue without context
           }
         }
