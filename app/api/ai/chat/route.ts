@@ -115,10 +115,6 @@ function resolveLocalProviderSpec(
   return null
 }
 
-/** Generate a short unique ID for command tracking */
-function createStubId(): string {
-  return randomUUID().slice(0, 8)
-}
 
 async function fetchSceneSummary(): Promise<{ summary: string | null; raw: unknown }> {
   const client = createMcpClient()
