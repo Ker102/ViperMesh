@@ -878,12 +878,14 @@ function createRAGMiddleware() {
               // prepending a new SystemMessage — LangGraph requires the system
               // message to be first and only one.
               const updatedMessages = messages.map((m, idx) => {
-                const isSystem =
-                  (typeof (m as Record<string, unknown>)._getType === "function" &&
-                    ((m as Record<string, unknown>)._getType as () => string)() === "system") ||
-                  (m as Record<string, unknown>).role === "system"
+                const mRec = m as unknown as Record<string, unknown>
+                // Call _getType BOUND to message — unbound call crashes (this.type → undefined)
+                const msgType = typeof mRec._getType === "function"
+                  ? (mRec._getType as () => string).call(m)
+                  : undefined
+                const isSystem = msgType === "system" || mRec.role === "system"
                 if (idx === 0 && isSystem) {
-                  const rawContent = (m as Record<string, unknown>).content
+                  const rawContent = (m as unknown as Record<string, unknown>).content
                   const original = typeof rawContent === "string"
                     ? rawContent
                     : Array.isArray(rawContent)
@@ -902,6 +904,9 @@ function createRAGMiddleware() {
             }
           } catch (err) {
             console.warn(`[RAG] Non-fatal error:`, err instanceof Error ? err.message : err)
+            if (err instanceof Error && err.stack) {
+              console.warn(`[RAG] Stack:`, err.stack.split("\n").slice(0, 5).join("\n"))
+            }
             // RAG failure is non-fatal — continue without context
           }
         }
