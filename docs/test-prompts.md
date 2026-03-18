@@ -176,6 +176,68 @@ light to have double its current energy, and make the cube bright orange.
 
 ---
 
+### Test 9: Full Production Scene (Stress Test)
+**Tests:** `get_scene_info`, `execute_code`, `create_material`, `assign_material`, `add_modifier`, `shade_smooth`, `add_light`, `add_camera`, `set_camera_properties`, `set_render_settings`, `move_to_collection`, `set_visibility`, `rename_object`, `render_image`
+```
+Start by checking what's already in the scene. Then build a product showcase:
+
+1. Create a circular pedestal (flattened cylinder, radius 1.5m, height 0.1m) and
+   give it a glossy dark marble material (very dark gray, roughness 0.1).
+2. Place three different primitive objects on TOP of the pedestal, evenly spaced
+   in a triangle pattern: a UV sphere (radius 0.3), a cone (radius 0.25, height 0.5),
+   and a torus (major radius 0.3, minor radius 0.1). Smooth-shade all three.
+3. Give each object a distinct metallic material: gold sphere, copper cone,
+   silver torus.
+4. Add a subdivision surface modifier (level 2) to the sphere to make it
+   perfectly round.
+5. Add three-point lighting: a strong key light (warm white, 500W) from
+   the front-right at 45°, a softer fill light (200W, cool blue tint) from
+   the left, and a rim light (300W) from behind.
+6. Set up a camera with a 50mm lens at a 30° downward angle, about 5 meters
+   from the pedestal center. Enable DOF focused on the pedestal with f/2.8.
+7. Organize: move all three showcase objects into a collection called "Products"
+   and hide the default cube if it exists.
+8. Set render to EEVEE at 1920x1080 and render the final image.
+```
+**What to verify:**
+- Agent called `get_scene_info` first (scene awareness)
+- Pedestal exists as cylinder with correct dimensions
+- All 3 objects are ON the pedestal surface (z ≈ 0.1 + half their height), not floating
+- Each object has a unique metallic material (gold, copper, silver)
+- Sphere has subdivision modifier and is smooth-shaded
+- Three-point lighting present (3 separate lights with different energies)
+- Camera: 50mm lens, ~5m from origin, DOF at f/2.8
+- "Products" collection exists with the 3 objects inside
+- Default cube hidden or absent
+- `render_image` called exactly **once** (dedup should prevent duplicates)
+- **Timing target:** < 120 seconds, ≤ 15 tool calls
+
+---
+
+### Test 10: Spatial Reasoning & Aesthetic Judgement (No Exact Values)
+**Tests:** Model's ability to infer correct positions, proportions, materials, and lighting without being told exact numbers
+```
+Build a simple outdoor park bench scene. There should be a wooden bench that
+looks like a real park bench — proper proportions, sitting height, with a backrest.
+Place a street lamp next to it that's taller than a person would be. Put a small
+trash can on the other side of the bench. Everything should sit on a flat ground
+plane. Light the scene as if it's a warm sunset — golden light coming from a low
+angle. Set up a camera that frames the whole scene nicely and render it.
+```
+**What to verify (subjective — judge by eye):**
+- Bench looks proportional (seat height ~0.45-0.5m, reasonable width ~1.5m, has a backrest)
+- Street lamp is tall (>2m, ideally ~3-4m) — NOT the same height as the bench
+- Trash can is small relative to the bench (~0.5-0.8m tall)
+- Objects are positioned side by side, not overlapping or stacked
+- Everything sits ON the ground plane (z ≈ 0 for bases), nothing floating
+- Ground plane exists and is large enough to extend under all objects
+- Lighting looks warm/golden, coming from a low angle (not overhead noon sun)
+- Camera frames the entire scene — all objects visible, nothing cut off
+- Materials make visual sense: wood-like for bench, metal for lamp, etc.
+- **This test has NO right answer** — the goal is to see how close the model's spatial intuition is to what a human would expect
+
+---
+
 ## AI Model Availability Analysis
 
 The table below shows which tool categories currently have or could benefit from

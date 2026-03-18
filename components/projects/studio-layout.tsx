@@ -168,7 +168,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                         message,
                         // Studio step execution: skip text streaming + strategy classification
                         // (the user already chose the tool, we just need the agent to execute it)
-                        workflowMode: "autopilot",
+                        workflowMode: "studio",
                         studioStep: true,
                     }),
                     signal: abort.signal,

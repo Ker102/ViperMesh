@@ -452,6 +452,7 @@ export async function POST(req: Request) {
       )
     }
 
+    const currentMode = workflowMode ?? "autopilot"
     const historyMessages = await prisma.message.findMany({
       where: { conversationId: resolvedConversationId },
       orderBy: { createdAt: "desc" },
@@ -459,11 +460,19 @@ export async function POST(req: Request) {
       select: {
         role: true,
         content: true,
+        mcpResults: true,
       },
     })
 
+    // Filter out messages from the other mode to prevent context pollution
     const trimmedHistory: GeminiMessage[] = historyMessages
       .reverse()
+      .filter((msg) => {
+        const results = msg.mcpResults as Record<string, unknown> | null
+        const msgMode = results?.workflowMode as string | undefined
+        // Keep messages with no mode tag (legacy) or matching mode
+        return !msgMode || msgMode === currentMode
+      })
       .map((msg) => ({
         role: msg.role === "assistant" ? "assistant" : "user",
         content: msg.content,
@@ -914,6 +923,7 @@ export async function POST(req: Request) {
                 conversationId: resolvedConversationId,
                 role: "user",
                 content: message,
+                mcpResults: { workflowMode: currentMode } as unknown as Prisma.InputJsonValue,
               },
               select: {
                 id: true,
@@ -930,6 +940,7 @@ export async function POST(req: Request) {
                 content: assistantText,
                 mcpCommands: executedCommands as unknown as Prisma.InputJsonValue,
                 mcpResults: {
+                  workflowMode: currentMode,
                   tokens: tokenUsage,
                   plan: planningMetadata ?? undefined,
                   commands: executedCommands.map((command) => ({
