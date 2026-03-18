@@ -24,7 +24,7 @@ import { formatContextFromSources } from "@/lib/ai/rag"
 import type { AgentStreamEvent } from "@/lib/orchestration/types"
 import { getAddonPromptHints } from "@/lib/ai/addon-registry"
 
-import { readFileSync, readdirSync, existsSync } from "fs"
+import { readFileSync } from "fs"
 import path from "path"
 
 // ============================================================================
@@ -42,76 +42,11 @@ try {
 }
 
 // ============================================================================
-// Tool-Guide Binding (loaded from disk at module init, mapped to tool names)
-// ============================================================================
-
-/**
- * Map of MCP tool names → full guide markdown content.
- * Built once at module load from `data/tool-guides/*.md` files using
- * their YAML frontmatter `triggered_by` field.
- *
- * Example: { "set_camera_properties" → "<full camera guide content>",
- *            "add_camera" → "<same camera guide content>", ... }
- */
-const TOOL_GUIDE_MAP: Record<string, string> = {}
-
-try {
-  const guidesDir = path.join(process.cwd(), "data", "tool-guides")
-  if (existsSync(guidesDir)) {
-    const files = readdirSync(guidesDir).filter((f) => f.endsWith(".md"))
-    for (const file of files) {
-      const raw = readFileSync(path.join(guidesDir, file), "utf-8")
-
-      // Parse triggered_by from YAML frontmatter
-      const triggeredByMatch = raw.match(/triggered_by:\s*\[([^\]]*)\]/)
-      if (!triggeredByMatch) continue
-
-      const toolNames = triggeredByMatch[1]
-        .split(",")
-        .map((s) => s.trim().replace(/^["']|["']$/g, ""))
-        .filter(Boolean)
-
-      // Strip YAML frontmatter to get pure markdown body
-      const body = raw.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim()
-      if (!body) continue
-
-      // Map each triggered tool name to this guide's content
-      for (const toolName of toolNames) {
-        TOOL_GUIDE_MAP[toolName] = body
-      }
-    }
-    console.log(
-      `[ToolGuides] Loaded ${files.length} guides, mapped to ${Object.keys(TOOL_GUIDE_MAP).length} tool names`
-    )
-  }
-} catch (error) {
-  console.warn("[ToolGuides] Failed to load tool guides:", error)
-}
-
-/**
- * Enhance a tool's description by appending its domain guide.
- * If no guide exists for this tool, returns the base description unchanged.
- */
-function withGuide(toolName: string, baseDescription: string): string {
-  const guide = TOOL_GUIDE_MAP[toolName]
-  if (!guide) return baseDescription
-  return (
-    baseDescription +
-    "\n\n--- DOMAIN GUIDE ---\n" +
-    "The following domain knowledge MUST be consulted when using this tool. " +
-    "Follow these rules and reference values exactly:\n\n" +
-    guide
-  )
-}
-
-// ============================================================================
 // MCP Tool Wrappers
 // ============================================================================
 
 /**
  * Execute an MCP command and return a stringified result for the agent.
- * Includes the applied parameters in the response so the agent can verify
- * what was configured without needing to call get_scene_info.
  */
 async function executeMcpCommand(
   commandType: string,
@@ -126,17 +61,7 @@ async function executeMcpCommand(
     if (response.status === "error") {
       return JSON.stringify({ error: response.message ?? "MCP command failed" })
     }
-    // Include the applied parameters in the result so the agent
-    // knows exactly what was set without re-querying the scene
-    const result = response.result ?? response.raw ?? { status: "ok" }
-    const appliedParams = Object.fromEntries(
-      Object.entries(params).filter(([, v]) => v !== undefined && v !== null)
-    )
-    return JSON.stringify({
-      ...( typeof result === "object" ? result : { status: result }),
-      _applied: appliedParams,
-      _command: commandType,
-    })
+    return JSON.stringify(response.result ?? response.raw ?? { status: "ok" })
   } catch (error) {
     return JSON.stringify({
       error: error instanceof Error ? error.message : String(error),
@@ -516,12 +441,12 @@ const assignMaterial = tool(
   {
     name: "assign_material",
     description:
-      "Assign a material to a Blender object. By default replaces slot 0 so the material " +
-      "is immediately visible. Use slot_index for a specific slot, or slot_index=-1 to append.",
+      "Assign an existing material to a Blender object. Appends to a new slot by default, " +
+      "or replaces at a specific slot_index.",
     schema: z.object({
       object_name: z.string().describe("Target object name"),
       material_name: z.string().describe("Material name to assign"),
-      slot_index: z.number().optional().describe("Slot index to replace (default: 0, use -1 to append)"),
+      slot_index: z.number().optional().describe("Slot index to replace (omit to append)"),
     }),
   }
 )
@@ -853,16 +778,6 @@ const ALL_TOOLS = [
   importGeneratedAsset,
 ]
 
-// ── Bind domain guides to tool descriptions ──
-// Each tool whose name appears in TOOL_GUIDE_MAP gets the full guide
-// appended to its description. This happens once at module load time.
-for (const t of ALL_TOOLS) {
-  const guide = TOOL_GUIDE_MAP[t.name]
-  if (guide) {
-    t.description = withGuide(t.name, t.description)
-  }
-}
-
 // ============================================================================
 // Middleware
 // ============================================================================
@@ -873,98 +788,11 @@ for (const t of ALL_TOOLS) {
  * Auto-captures a screenshot after every `execute_code` call and logs it
  * as a vision event. Replaces the manual hack in the old executor.ts.
  */
-/**
- * Dedup Middleware — prevents the agent from calling the same tool
- * with identical arguments redundantly. Handles TWO scenarios:
- *
- * 1. Sequential duplicates: same tool+args after a previous success → cached result
- * 2. Parallel duplicates: same tool+args sent simultaneously by LLM → coalesced
- *
- * If the previous/in-flight call failed, retries are allowed.
- */
-function createDedupMiddleware() {
-  // Cache of last successful result per tool
-  const lastCalls = new Map<string, { argsHash: string; result: unknown; failed: boolean }>()
-  // In-flight calls: key = "toolName:argsHash" → promise of result
-  const inFlight = new Map<string, Promise<unknown>>()
-
-  return createMiddleware({
-    name: "DedupMiddleware",
-    wrapToolCall: async (request, handler) => {
-      const toolName = request.toolCall.name
-      const argsHash = JSON.stringify(request.toolCall.args ?? {})
-      const flightKey = `${toolName}:${argsHash}`
-
-      // Check 1: Sequential duplicate — same tool+args already succeeded
-      const lastCall = lastCalls.get(toolName)
-      if (lastCall && lastCall.argsHash === argsHash && !lastCall.failed) {
-        console.log(`[Dedup] Skipping duplicate: ${toolName} (identical args, previous call succeeded)`)
-        const { ToolMessage: TM } = await import("@langchain/core/messages")
-        return new TM({
-          content: JSON.stringify({
-            _skipped_duplicate: true,
-            _message: `${toolName} already executed successfully with these exact parameters. No action needed.`,
-          }),
-          tool_call_id: request.toolCall.id ?? "unknown",
-        })
-      }
-
-      // Check 2: Parallel duplicate — same call already in-flight
-      if (inFlight.has(flightKey)) {
-        console.log(`[Dedup] Coalescing parallel call: ${toolName} (waiting for in-flight result)`)
-        const existingResult = await inFlight.get(flightKey)
-        const { ToolMessage: TM } = await import("@langchain/core/messages")
-        return new TM({
-          content: JSON.stringify({
-            _skipped_duplicate: true,
-            _message: `${toolName} was already executing with these parameters. Returning the result.`,
-          }),
-          tool_call_id: request.toolCall.id ?? "unknown",
-        })
-      }
-
-      // Execute the tool, tracking it as in-flight
-      let resolveInFlight: (v: unknown) => void
-      const flightPromise = new Promise((resolve) => { resolveInFlight = resolve })
-      inFlight.set(flightKey, flightPromise)
-
-      let result: Awaited<ReturnType<typeof handler>>
-      let failed = false
-      try {
-        result = await handler(request)
-        const content = typeof result === "object" && "content" in result ? String(result.content) : ""
-        failed = content.includes('"error"')
-      } catch (error) {
-        failed = true
-        throw error
-      } finally {
-        // Cache result and clear in-flight
-        lastCalls.set(toolName, { argsHash, result: result!, failed })
-        resolveInFlight!(result!)
-        inFlight.delete(flightKey)
-      }
-
-      return result
-    },
-  })
-}
-
 function createViewportMiddleware(onStreamEvent?: (event: AgentStreamEvent) => void) {
   return createMiddleware({
     name: "ViewportScreenshotMiddleware",
     wrapToolCall: async (request, handler) => {
-      let result: Awaited<ReturnType<typeof handler>>
-      try {
-        result = await handler(request)
-      } catch (toolError) {
-        // Prevent framework crash — return error as ToolMessage
-        console.error(`[ViewportMiddleware] Tool execution error for ${request.toolCall.name}:`, toolError)
-        const { ToolMessage: TM } = await import("@langchain/core/messages")
-        return new TM({
-          content: `Tool error: ${toolError instanceof Error ? toolError.message : String(toolError)}`,
-          tool_call_id: request.toolCall.id ?? "unknown",
-        })
-      }
+      const result = await handler(request)
 
       // After execute_code, auto-capture viewport
       if (request.toolCall.name === "execute_code") {
@@ -1003,85 +831,33 @@ function createRAGMiddleware() {
   return createMiddleware({
     name: "RAGContextMiddleware",
     wrapModelCall: async (request, handler) => {
-      // Debug breadcrumb: is this middleware being called at all?
-      const messages = request.messages ?? []
-      const msgTypes = messages.map((m) => {
-        const mRec = m as unknown as Record<string, unknown>
-        if (typeof mRec._getType === "function") {
-          try { return (mRec._getType as () => string).call(m) } catch { return "unknown" }
-        }
-        return (mRec.role as string) ?? "no-type"
-      })
-      console.log(`[RAG] wrapModelCall invoked — ${messages.length} messages, types: [${msgTypes.join(", ")}]`)
-
       // Extract the latest user message to use as search query
+      const messages = request.messages ?? []
       const lastUserMsg = [...messages]
         .reverse()
         .find((m) => isHumanMessage(m))
 
-      if (!lastUserMsg) {
-        console.log(`[RAG] No human message found — skipping RAG`)
-      }
-
       if (lastUserMsg) {
         const msg = lastUserMsg as unknown as Record<string, unknown>
-        const rawUserContent = msg.content
-        const content = typeof rawUserContent === "string"
-          ? rawUserContent
-          : Array.isArray(rawUserContent)
-            ? (rawUserContent as Array<{ text?: string }>).map((c) => c.text ?? "").join("")
-            : ""
+        const content = typeof msg.content === "string"
+          ? msg.content
+          : ""
 
         if (content) {
           try {
-            console.log(`[RAG] Searching for context: "${content.slice(0, 80)}..."`)
-
-            // Wrap similarity search with 10s timeout to prevent hanging on stale Prisma connections
-            const searchPromise = similaritySearch(content, { limit: 3 })
-            const timeoutPromise = new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error("RAG search timed out after 10s")), 10_000)
-            )
-            const results = await Promise.race([searchPromise, timeoutPromise])
-
-            console.log(`[RAG] Found ${results.length} results:`, results.map(r => `${r.source}(${r.similarity.toFixed(3)})`).join(", "))
-
+            const results = await similaritySearch(content, { limit: 3 })
             if (results.length > 0) {
               const context = formatContextFromSources(results)
-              const ragBlock = `\n<rag_context>\nRelevant Blender script references:\n${context}\n</rag_context>`
-
-              // Append RAG context to the existing system message instead of
-              // prepending a new SystemMessage — LangGraph requires the system
-              // message to be first and only one.
-              const updatedMessages = messages.map((m, idx) => {
-                const mRec = m as unknown as Record<string, unknown>
-                // Call _getType BOUND to message — unbound call crashes (this.type → undefined)
-                const msgType = typeof mRec._getType === "function"
-                  ? (mRec._getType as () => string).call(m)
-                  : undefined
-                const isSystem = msgType === "system" || mRec.role === "system"
-                if (idx === 0 && isSystem) {
-                  const rawContent = (m as unknown as Record<string, unknown>).content
-                  const original = typeof rawContent === "string"
-                    ? rawContent
-                    : Array.isArray(rawContent)
-                      ? (rawContent as Array<{ text?: string }>).map((c) => c.text ?? "").join("")
-                      : ""
-                  console.log(`[RAG] Injecting ${context.length} chars of context into system message (original: ${original.length} chars)`)
-                  return new SystemMessage(original + ragBlock)
-                }
-                return m
-              })
-
+              // Inject RAG context as a system message hint
+              const ragMessage = new SystemMessage(
+                `\n<rag_context>\nRelevant Blender script references:\n${context}\n</rag_context>`
+              )
               return handler({
                 ...request,
-                messages: updatedMessages,
+                messages: [ragMessage, ...messages],
               })
             }
-          } catch (err) {
-            console.warn(`[RAG] Non-fatal error:`, err instanceof Error ? err.message : err)
-            if (err instanceof Error && err.stack) {
-              console.warn(`[RAG] Stack:`, err.stack.split("\n").slice(0, 5).join("\n"))
-            }
+          } catch {
             // RAG failure is non-fatal — continue without context
           }
         }
@@ -1113,8 +889,8 @@ export interface BlenderAgentV2Options {
   onStreamEvent?: (event: AgentStreamEvent) => void
 }
 
-// NOTE: MemorySaver is now created per-agent invocation to prevent
-// cross-invocation state corruption (especially across hot-reloads).
+/** Shared checkpointer for session persistence */
+const checkpointer = new MemorySaver()
 
 /**
  * Create a new LangChain v1 Blender agent.
@@ -1154,9 +930,8 @@ export function createBlenderAgentV2(options: BlenderAgentV2Options = {}) {
     }
   }
 
-  // Build middleware stack (dedup runs first to catch duplicates before side effects)
+  // Build middleware stack
   const middleware = [
-    createDedupMiddleware(),
     createViewportMiddleware(onStreamEvent),
   ]
 
@@ -1172,7 +947,7 @@ export function createBlenderAgentV2(options: BlenderAgentV2Options = {}) {
     tools,
     systemPrompt: dynamicPrompt,
     middleware,
-    checkpointer: new MemorySaver(),
+    checkpointer,
   })
 
   return agent
@@ -1183,3 +958,4 @@ export function createBlenderAgentV2(options: BlenderAgentV2Options = {}) {
 // ============================================================================
 
 export type { AgentStreamEvent }
+export { checkpointer }

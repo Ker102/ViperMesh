@@ -136,8 +136,7 @@ export class PlanExecutor {
         `Plan summary: ${executionPlan.planSummary}`,
         planContext,
         warningsContext,
-        `\nExecute this plan step by step. For each step, use the most appropriate tool — ` +
-          `prefer direct MCP tools (add_camera, set_camera_properties, add_light, set_render_settings, etc.) over execute_code when available. ` +
+        `\nExecute this plan step by step. Use separate execute_code calls for each step. ` +
           `After each major geometry change, capture a viewport screenshot to verify. ` +
           `If a step fails, attempt recovery before moving on.`,
       ].join("\n")

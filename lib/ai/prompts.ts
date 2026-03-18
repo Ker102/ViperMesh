@@ -58,82 +58,38 @@ FOR NON-execute_code TOOLS:
 - Example: {{"action": "get_object_info", "parameters": {{"name": "Planet_Earth"}}, ...}}
 - Example: {{"action": "download_polyhaven_asset", "parameters": {{"asset_id": "rock_ground", "asset_type": "textures"}}, ...}}
 
-MCP TOOL REFERENCE (all available commands — use EXACT parameter names):
+MCP TOOL REFERENCE (all available commands):
 
 ── READ-ONLY (no scene changes) ──────────────────────────────
 • get_scene_info — No params. Returns: object names, types, materials_count, lights, active camera. USE FIRST in every plan.
-• get_object_info — Params: {{"name": "ObjectName"}}. Returns: transforms, dimensions, materials, modifiers.
-• get_all_object_info — Params: {{"max_objects": 50, "start_index": 0}}. Paginated list of ALL objects with full details.
-• get_viewport_screenshot — No params. Captures viewport image for visual verification.
-• list_materials — No params. Lists all materials with node counts and object assignments.
-• list_installed_addons — No params. Lists enabled Blender addons. Call early to discover extra capabilities.
+• get_object_info — Params: {{"name": "ObjectName"}}. Returns: transforms, dimensions, materials, modifiers. Use to verify positions after creation.
+• get_all_object_info — Params: {{"max_objects": 50, "start_index": 0}}. Returns: paginated list of ALL objects. Use when editing to discover existing scene state.
+• get_viewport_screenshot — Params: {{"max_size": 800, "format": "png"}} (all optional). Returns: base64 image of viewport. Use for visual verification. WARNING: Do NOT use 'width' or 'height' — they are not valid parameters.
 
-── SCENE MANAGEMENT ──────────────────────────────────────────
-• execute_code — Params: {{"description": "detailed natural-language description"}}. A SEPARATE AI generates Python. THE MOST POWERFUL TOOL — use for complex geometry, animation, procedural effects.
-• delete_object — Params: {{"name": "ObjectName"}}. Deletes object and cleans up data.
-• set_object_transform — Params: {{"name": "Obj", "location": [x,y,z], "rotation": [x,y,z], "scale": [x,y,z]}}. Rotation in degrees. All arrays optional.
-• rename_object — Params: {{"name": "OldName", "new_name": "NewName"}}.
-• duplicate_object — Params: {{"name": "Obj", "new_name": "Copy", "linked": false}}. new_name and linked optional.
-• join_objects — Params: {{"names": ["Obj1", "Obj2"]}}. First name = target. Merges meshes.
-
-── MODIFIER & MESH TOOLS ─────────────────────────────────────
-• add_modifier — Params: {{"name": "Obj", "modifier_type": "SUBSURF", "modifier_name": "MyMod", "properties": {{"levels": 2}}}}. Types: SUBSURF, MIRROR, BEVEL, BOOLEAN, ARRAY, SOLIDIFY, DECIMATE. modifier_name and properties optional.
-• apply_modifier — Params: {{"name": "Obj", "modifier": "ModifierName"}}. Bakes modifier permanently.
-• apply_transforms — Params: {{"name": "Obj", "location": true, "rotation": true, "scale": true}}. All booleans optional, default true.
-• shade_smooth — Params: {{"name": "Obj", "smooth": true, "angle": 30}}. smooth and angle optional.
-
-── ORGANIZATION & EXPORT ──────────────────────────────────────
-• parent_set — Params: {{"child_name": "Child", "parent_name": "Parent", "parent_type": "OBJECT"}}. parent_type optional.
-• parent_clear — Params: {{"name": "Child", "keep_transform": true}}. keep_transform optional.
-• set_origin — Params: {{"name": "Obj", "origin_type": "ORIGIN_GEOMETRY", "center": "MEDIAN"}}. Both optional.
-• move_to_collection — Params: {{"name": "Obj", "collection_name": "MyCol", "create_new": true}}. create_new optional.
-• set_visibility — Params: {{"name": "Obj", "hide_viewport": true, "hide_render": false}}. Both optional.
-• export_object — Params: {{"names": ["Obj1"], "filepath": "/tmp/model.glb", "file_format": "GLB"}}. Formats: GLB, GLTF, FBX, OBJ, STL.
-
-── MATERIAL TOOLS ─────────────────────────────────────────────
-• create_material — Params: {{"name": "MatName", "color": [R,G,B], "metallic": 0.5, "roughness": 0.3}}. Creates Principled BSDF. color/metallic/roughness optional. PREFER THIS over execute_code for simple materials.
-• assign_material — Params: {{"object_name": "Obj", "material_name": "MatName", "slot_index": 0}}. Default replaces slot 0. Use slot_index=-1 to append.
-
-── LIGHTING TOOLS ──────────────────────────────────────────────
-• add_light — Params: {{"light_type": "POINT", "name": "KeyLight", "location": [x,y,z], "energy": 1000, "color": [R,G,B]}}. Types: POINT, SUN, SPOT, AREA. All optional. PREFER THIS over execute_code for lighting.
-• set_light_properties — Params: {{"name": "LightName", "energy": 500, "color": [R,G,B], "shadow_soft_size": 0.5}}. Also: spot_size, spot_blend (SPOT), size (AREA). All optional.
-
-── CAMERA TOOLS ────────────────────────────────────────────────
-• add_camera — Params: {{"name": "MainCam", "location": [x,y,z], "rotation": [x,y,z], "lens": 50, "sensor_width": 36}}. Rotation in degrees. All optional.
-• set_camera_properties — Params: {{"name": "CamName", "lens": 50, "dof_use": true, "dof_focus_distance": 5, "dof_aperture_fstop": 2.8, "set_active": true}}. Also: sensor_width, clip_start, clip_end. All optional.
-
-── RENDER TOOLS ────────────────────────────────────────────────
-• set_render_settings — Params: {{"engine": "EEVEE", "resolution_x": 1920, "resolution_y": 1080, "samples": 64, "file_format": "PNG"}}. Engine: EEVEE or CYCLES. Also: resolution_percentage, use_denoising, film_transparent, output_path. All optional.
-• render_image — Params: {{"output_path": "/tmp/render.png", "file_format": "PNG"}}. Both optional (uses scene settings if omitted).
+── WRITE (modifies scene) ────────────────────────────────────
+• execute_code — Params: {{"description": "detailed natural-language description"}}. A SEPARATE AI generates Python from your description. THE MOST POWERFUL TOOL — use for all geometry, materials, lighting, camera, animation, modifiers.
 
 ── POLYHAVEN ASSETS (requires addon toggle) ──────────────────
-• get_polyhaven_categories — Params: {{"asset_type": "hdris|textures|models"}}.
-• search_polyhaven_assets — Params: {{"asset_type": "textures", "categories": "wood"}}. categories optional.
-• download_polyhaven_asset — Params: {{"asset_id": "rock_ground", "asset_type": "textures", "resolution": "1k"}}. resolution optional.
-• set_texture — Params: {{"object_name": "Floor", "texture_id": "rock_ground"}}. Apply previously downloaded texture.
+• get_polyhaven_categories — Params: {{"asset_type": "hdris|textures|models"}}. Returns: category list.
+• search_polyhaven_assets — Params: {{"asset_type": "textures", "categories": "wood"}} (categories optional). Returns: asset IDs and names.
+• download_polyhaven_asset — Params: {{"asset_id": "rock_ground", "asset_type": "textures", "resolution": "1k"}} (resolution optional, default "1k"). Downloads + imports the asset. For textures, apply with set_texture afterward.
+• set_texture — Params: {{"object_name": "Floor", "texture_id": "rock_ground"}}. Applies a previously downloaded texture to the named object.
 
 ── NEURAL 3D GENERATION (requires addon toggle) ──────────────
-• create_rodin_job — Params: {{"text_prompt": "a wooden chair"}} or {{"images": [["path", "filename"]]}}.
+• create_rodin_job — Params: {{"text_prompt": "a wooden chair"}} or {{"images": [["path", "filename"]]}}. Starts async generation.
 • poll_rodin_job_status — Params: {{"subscription_key": "key_from_create"}}. Poll until status="Completed".
-• import_generated_asset — Params: {{"task_uuid": "uuid", "name": "ImportedModel"}}. Imports completed mesh.
+• import_generated_asset — Imports the latest completed neural mesh into scene.
 
 ── SKETCHFAB (requires addon toggle) ─────────────────────────
-• search_sketchfab_models — Params: {{"query": "medieval sword", "downloadable": true}}.
-• download_sketchfab_model — Params: {{"uid": "model_uid"}}.
+• search_sketchfab_models — Params: {{"query": "medieval sword", "count": 10, "downloadable": true}}. Returns: model UIDs and names.
+• download_sketchfab_model — Params: {{"uid": "model_uid"}}. Downloads + imports the model.
 
 ── STATUS CHECKS ─────────────────────────────────────────────
-• get_polyhaven_status — No params. Check if PolyHaven integration is enabled.
-• get_hyper3d_status — No params. Check if Hyper3D Rodin is enabled.
-• get_sketchfab_status — No params. Check if Sketchfab is enabled with API key.
+• get_polyhaven_status — No params. Returns: whether PolyHaven integration is enabled.
+• get_hyper3d_status — No params. Returns: whether Hyper3D Rodin is enabled and configured.
+• get_sketchfab_status — No params. Returns: whether Sketchfab is enabled and has API key.
 
-TOOL SELECTION GUIDELINES:
-- PREFER DIRECT TOOLS over execute_code when available:
-  • Materials: create_material + assign_material (not execute_code)
-  • Lighting: add_light + set_light_properties (not execute_code)
-  • Camera: add_camera + set_camera_properties (not execute_code)
-  • Modifiers: add_modifier (not execute_code)
-  • Transforms: set_object_transform (not execute_code)
-- USE execute_code ONLY for: complex geometry creation, procedural effects, animations, things no dedicated tool handles.
+PLANNING TIPS:
 - For TEXTURES: search_polyhaven_assets → download_polyhaven_asset → set_texture (3 steps).
 - For HDRI LIGHTING: download_polyhaven_asset with asset_type="hdris" sets up world environment automatically.
 - For NEURAL MESHES: create_rodin_job → poll_rodin_job_status (loop) → import_generated_asset (3 steps).

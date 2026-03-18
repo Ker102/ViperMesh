@@ -12,8 +12,11 @@
 
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
-import { createBlenderAgentV2 } from "@/lib/ai/agents"
+import { createMcpClient } from "@/lib/mcp"
+import { BlenderPlanner } from "@/lib/orchestration/planner"
+import { PlanExecutor } from "@/lib/orchestration/executor"
 import type { WorkflowStepAction, WorkflowStepResult, WorkflowStep } from "@/lib/orchestration/workflow-types"
+import type { LlmProviderSpec } from "@/lib/llm"
 import { z } from "zod"
 
 // ---------------------------------------------------------------------------
@@ -111,7 +114,8 @@ if imported:
 
 async function executeBlenderAgentStep(
     step: NonNullable<z.infer<typeof RequestSchema>["step"]>,
-    userRequest: string
+    userRequest: string,
+    llmProvider?: LlmProviderSpec
 ): Promise<WorkflowStepResult> {
     const startTime = Date.now()
 
@@ -119,48 +123,56 @@ async function executeBlenderAgentStep(
         // Create a focused sub-request for this specific step
         const focusedRequest = `${step.description}. Context: the user is working on "${userRequest}". Focus only on this specific task: ${step.title}.`
 
-        console.log(`[WorkflowStep] Executing blender agent step: "${step.title}"`)
+        const mcpClient = createMcpClient()
 
-        // Call the v2 LangGraph agent directly — it has:
-        // - RAG middleware (injects relevant tool-guides from vectorstore)
-        // - Updated system prompt with all direct MCP tools
-        // - ReAct loop for autonomous tool selection
-        const agent = createBlenderAgentV2({
-            allowPolyHaven: true,
-            allowSketchfab: false,
-            allowHyper3d: false,
-            useRAG: true,
-        })
+        try {
+            const planner = new BlenderPlanner()
+            const planResult = await planner.generatePlan(
+                focusedRequest,
+                {
+                    allowHyper3dAssets: false,
+                    allowSketchfabAssets: false,
+                    allowPolyHavenAssets: true,
+                },
+                llmProvider
+            )
 
-        const result = await agent.invoke(
-            {
-                messages: [{ role: "user" as const, content: focusedRequest }],
-            },
-            { configurable: { thread_id: `workflow-step-${Date.now()}` } }
-        )
+            if (!planResult?.plan) {
+                return {
+                    stepId: "",
+                    status: "failed",
+                    error: "Failed to generate a plan for this step",
+                    durationMs: Date.now() - startTime,
+                }
+            }
 
-        // Check if the agent produced any tool calls / responses
-        const messages = result.messages ?? []
-        const hasToolCalls = messages.some(
-            (m: Record<string, unknown>) =>
-                (m as { _getType?: () => string })._getType?.() === "ai" &&
-                Array.isArray((m as { tool_calls?: unknown[] }).tool_calls) &&
-                ((m as { tool_calls?: unknown[] }).tool_calls?.length ?? 0) > 0
-        )
+            const executor = new PlanExecutor()
+            const executionResult = await executor.executePlan(
+                planResult.plan,
+                focusedRequest,
+                {
+                    allowHyper3d: false,
+                    allowSketchfab: false,
+                    allowPolyHaven: true,
+                    enableVisualFeedback: true,
+                },
+                planResult.analysis,
+                llmProvider
+            )
 
-        console.log(`[WorkflowStep] Agent completed: ${messages.length} messages, tool calls: ${hasToolCalls}`)
-
-        return {
-            stepId: "",
-            status: hasToolCalls ? "completed" : "failed",
-            message: hasToolCalls
-                ? `Blender agent completed: ${step.title}`
-                : undefined,
-            error: hasToolCalls ? undefined : "Blender agent produced no tool calls",
-            durationMs: Date.now() - startTime,
+            return {
+                stepId: "",
+                status: executionResult.success ? "completed" : "failed",
+                message: executionResult.success
+                    ? `Blender agent completed: ${step.title}`
+                    : undefined,
+                error: executionResult.success ? undefined : "Blender agent execution failed",
+                durationMs: Date.now() - startTime,
+            }
+        } finally {
+            await mcpClient.close()
         }
     } catch (error) {
-        console.error(`[WorkflowStep] Blender agent step failed:`, error)
         return {
             stepId: "",
             status: "failed",

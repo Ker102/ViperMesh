@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useRef, useEffect } from "react"
+import { useState, useCallback, useRef } from "react"
 import { StudioSidebar } from "./studio-sidebar"
 import { StudioWorkspace } from "./studio-workspace"
 import { StudioAdvisor } from "./studio-advisor"
@@ -12,81 +12,12 @@ interface StudioLayoutProps {
     projectId: string
 }
 
-// ── API persistence helpers (replaces localStorage) ─────────────
-async function fetchPersistedSteps(projectId: string): Promise<WorkflowTimelineStep[]> {
-    try {
-        const res = await fetch(`/api/projects/studio-session?projectId=${projectId}`)
-        if (!res.ok) return []
-        const data = await res.json()
-        const steps = data.steps as WorkflowTimelineStep[] | undefined
-        if (!Array.isArray(steps)) return []
-        // Steps that were "running" when the page closed can't be resumed — mark as failed
-        return steps.map((step) =>
-            step.status === "running"
-                ? { ...step, status: "failed" as const, error: step.error ?? "Session interrupted" }
-                : step
-        )
-    } catch {
-        return []
-    }
-}
-
-async function savePersistedSteps(projectId: string, steps: WorkflowTimelineStep[]) {
-    try {
-        // Strip monitoring logs before saving to keep payload reasonable
-        const slim = steps.map(({ monitoringLogs, ...rest }) => rest)
-        await fetch("/api/projects/studio-session", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ projectId, steps: slim }),
-        })
-    } catch (err) {
-        console.warn("[StudioLayout] Failed to persist steps:", err)
-    }
-}
-
-async function deletePersistedSteps(projectId: string) {
-    try {
-        await fetch(`/api/projects/studio-session?projectId=${projectId}`, { method: "DELETE" })
-    } catch (err) {
-        console.warn("[StudioLayout] Failed to delete steps:", err)
-    }
-}
-
 export function StudioLayout({ projectId }: StudioLayoutProps) {
     const [activeCategory, setActiveCategory] = useState("shape")
     const [assistantOpen, setAssistantOpen] = useState(false)
     const [workflowSteps, setWorkflowSteps] = useState<WorkflowTimelineStep[]>([])
-    const [stepsLoading, setStepsLoading] = useState(true)
     const [selectedStepId, setSelectedStepId] = useState<string | null>(null)
     const abortControllerRef = useRef<AbortController | null>(null)
-    const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const initialLoadDone = useRef(false)
-
-    // ── Load steps from API on mount ─────────────────────────────
-    useEffect(() => {
-        let cancelled = false
-        fetchPersistedSteps(projectId).then((steps) => {
-            if (!cancelled) {
-                setWorkflowSteps(steps)
-                setStepsLoading(false)
-                initialLoadDone.current = true
-            }
-        })
-        return () => { cancelled = true }
-    }, [projectId])
-
-    // ── Debounced save to API ────────────────────────────────────
-    useEffect(() => {
-        if (!initialLoadDone.current) return // Don't save until initial load completes
-        if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-        saveTimerRef.current = setTimeout(() => {
-            savePersistedSteps(projectId, workflowSteps)
-        }, 500)
-        return () => {
-            if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-        }
-    }, [workflowSteps, projectId])
 
     // ── Helpers ──────────────────────────────────────────────────
 
@@ -166,10 +97,9 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                         projectId,
                         conversationId: streamConversationId,
                         message,
-                        // Studio step execution: skip text streaming + strategy classification
-                        // (the user already chose the tool, we just need the agent to execute it)
-                        workflowMode: "studio",
-                        studioStep: true,
+                        // Use autopilot mode so the API runs the planner+executor pipeline
+                        // (studio mode only generates a workflow proposal without executing)
+                        workflowMode: "autopilot",
                     }),
                     signal: abort.signal,
                 })
@@ -353,13 +283,6 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         executeStep(first.id, prompt)
     }, [workflowSteps, executeStep])
 
-    const handleClearTimeline = useCallback(() => {
-        abortControllerRef.current?.abort()
-        setWorkflowSteps([])
-        setSelectedStepId(null)
-        deletePersistedSteps(projectId)
-    }, [projectId])
-
     const handleToolRunNow = useCallback(
         (tool: ToolEntry, inputs: Record<string, string>) => {
             const stepId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
@@ -444,7 +367,6 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                 onRemoveStep={handleRemoveStep}
                 onStepClick={handleStepClick}
                 onRunAll={handleRunAll}
-                onClearTimeline={handleClearTimeline}
             />
         </div>
     )

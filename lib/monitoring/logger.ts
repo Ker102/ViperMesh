@@ -34,7 +34,6 @@ export type LogNamespace =
     | "mcp"
     | "workflow"
     | "system"
-    | "agent"
 
 export interface LogEntry {
     timestamp: string
@@ -117,7 +116,6 @@ const NAMESPACE_LABELS: Record<LogNamespace, string> = {
     mcp: "MCP ",
     workflow: "WKFL",
     system: "SYS ",
-    agent: "AGNT",
 }
 
 // ============================================================================

@@ -175,13 +175,11 @@ print("Created TestCube with red material")
   console.log()
   console.log(yellow("▸ Phase 2: PolyHaven Tools"))
 
-  await test("Get PolyHaven categories", "get_polyhaven_categories", {
-    asset_type: "textures"
-  })
+  await test("Get PolyHaven categories", "get_polyhaven_categories")
 
   await test("Search PolyHaven — wood", "search_polyhaven_assets", {
-    asset_type: "textures",
-    categories: "wood"
+    query: "wood",
+    type: "textures"
   })
 
   await test("Get PolyHaven status", "get_polyhaven_status")

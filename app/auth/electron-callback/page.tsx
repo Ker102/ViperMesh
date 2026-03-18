@@ -85,11 +85,11 @@ function ElectronCallbackContent() {
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0f1a] via-[#111827] to-[#0a1628]">
-            <div className="bg-slate-900/60 backdrop-blur-xl border border-teal-500/20 rounded-2xl p-10 max-w-md w-full mx-4 text-center shadow-2xl shadow-black/30">
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+            <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-8 max-w-md w-full mx-4 text-center shadow-2xl">
                 {/* Logo */}
-                <div className="mb-8">
-                    <div className="w-16 h-16 mx-auto bg-gradient-to-br from-teal-600 to-teal-400 rounded-2xl flex items-center justify-center shadow-lg shadow-teal-500/25">
+                <div className="mb-6">
+                    <div className="w-16 h-16 mx-auto bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
                         <span className="text-2xl font-bold text-white">M</span>
                     </div>
                     <h1 className="mt-4 text-xl font-semibold text-white">ModelForge</h1>
@@ -99,20 +99,20 @@ function ElectronCallbackContent() {
                 <div className="space-y-4">
                     {status === "loading" && (
                         <>
-                            <Loader2 className="w-12 h-12 mx-auto text-teal-400 animate-spin" />
+                            <Loader2 className="w-12 h-12 mx-auto text-blue-500 animate-spin" />
                             <p className="text-slate-300">{message}</p>
                         </>
                     )}
 
                     {status === "success" && (
                         <>
-                            <CheckCircle className="w-12 h-12 mx-auto text-teal-400" />
-                            <p className="text-teal-300 font-medium">{message}</p>
+                            <CheckCircle className="w-12 h-12 mx-auto text-green-500" />
+                            <p className="text-green-400 font-medium">{message}</p>
                             <p className="text-sm text-slate-400">
                                 If the app doesn&apos;t open automatically,{" "}
                                 <button
                                     onClick={tryFallbackRedirect}
-                                    className="text-teal-400 hover:text-teal-300 underline transition-colors"
+                                    className="text-blue-400 hover:text-blue-300 underline"
                                 >
                                     click here
                                 </button>
@@ -122,12 +122,12 @@ function ElectronCallbackContent() {
 
                     {status === "error" && (
                         <>
-                            <XCircle className="w-12 h-12 mx-auto text-red-400" />
+                            <XCircle className="w-12 h-12 mx-auto text-red-500" />
                             <p className="text-red-400 font-medium">Authentication Failed</p>
                             <p className="text-sm text-slate-400">{message}</p>
                             <button
                                 onClick={() => window.close()}
-                                className="mt-4 px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition-colors border border-slate-600/50"
+                                className="mt-4 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
                             >
                                 Close Window
                             </button>
@@ -142,8 +142,8 @@ function ElectronCallbackContent() {
 export default function ElectronCallbackPage() {
     return (
         <Suspense fallback={
-            <div className="min-h-screen bg-[#0a0f1a] flex items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-teal-400" />
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
             </div>
         }>
             <ElectronCallbackContent />

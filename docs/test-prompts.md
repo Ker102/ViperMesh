@@ -1,240 +1,85 @@
-# ModelForge Blender Agent — Stress Test Prompts
+# ModelForge Blender Agent — Test Prompts & AI Model Analysis
 
-## How to Use
+## Test Prompts by Tool Category
 
-Run each prompt one at a time in Studio mode. After each prompt completes,
-verify the result visually in Blender and note any issues before moving on.
-
-**Reset scene between tests** (type in Studio): `Delete everything and start with a default cube`
+Each prompt below is designed to test a specific tool category in the Studio mode.
+Run them one at a time and verify the agent completes the task correctly.
 
 ---
 
-### Test 1: Materials + Lighting Basics
-**Tests:** `create_material`, `assign_material`, `add_light`, `set_light_properties`
+### 1. Shape (Geometry Generation)
 ```
-Make the default cube a glossy red metallic material (like a sports car),
-then add a large soft area light above it and a blue-tinted fill light
-from the lower right.
+Create a low-poly medieval sword with a detailed cross-guard and pommel.
+The blade should be slightly tapered and about 1.2 meters long.
 ```
-**What to verify:**
-- Cube should have a red metallic material (not matte, should reflect light)
-- Two new lights visible in scene outliner
-- Agent should use `create_material` + `assign_material`, NOT `execute_code` for the material
-- Agent should use `add_light` for each light, NOT `execute_code`
 
----
-
-### Test 2: Multi-Object Scene with Transforms
-**Tests:** `execute_code`, `duplicate_object`, `rename_object`, `set_object_transform`, `create_material`, `assign_material`
+### 2. Cleanup (Mesh Optimization)
 ```
-Create a display podium scene: make a flat cylinder as a pedestal in the center,
-place three different colored spheres on top of it spaced evenly apart (red, green, blue),
-and name them Ball_Red, Ball_Green, and Ball_Blue.
+Clean up the mesh in the scene: remove duplicate vertices, recalculate normals
+to face outward, remove any loose vertices or edges, and apply smooth shading.
 ```
-**What to verify:**
-- Pedestal cylinder should be flat and centered
-- Three named spheres sitting ON the pedestal (not floating)
-- Each sphere should have its own colored material
-- Scene outliner shows all named objects
 
----
-
-### Test 3: Modifier Chain + Smooth Shading
-**Tests:** `add_modifier`, `shade_smooth`, `create_material`, `assign_material`
+### 3. Unwrap (UV Mapping)
 ```
-Take the default cube and turn it into a smooth organic shape: add a subdivision
-surface modifier (level 3), apply smooth shading, and give it a jade-green
-semi-translucent material with slight subsurface scattering.
+UV unwrap all mesh objects in the scene using Smart UV Project with an island
+margin of 0.02. Make sure each object has a proper UV map named "UVMap".
 ```
-**What to verify:**
-- Cube should look like a smooth rounded shape (SubSurf level 3)
-- Smooth shaded (no facets visible)
-- Green material with some translucency
-- Modifier visible in properties panel
 
----
-
-### Test 4: Camera Setup + Render
-**Tests:** `add_camera`, `set_camera_properties`, `set_render_settings`, `render_image`
+### 4. Paint (Materials & Texturing)
 ```
-Set up a camera for a product shot: place it at a 45-degree angle looking down
-at the scene center, use a 85mm portrait lens, enable depth of field focused
-at 5 meters with f/2.8 aperture, then render the scene at 1920x1080 using EEVEE.
+Apply a realistic brushed gold material to the sword blade with subtle
+anisotropic reflections, and a dark leather wrap material to the grip
+with a bump texture for stitching detail.
 ```
-**What to verify:**
-- Camera appears in scene at correct angle (~45°)
-- Camera distance from origin is **8–12m** (location like `(6, -6, 5)` = ~9.8m ✓)
-- Switch to camera view (Numpad 0) — subject should occupy 30–70% of the frame
-- `execute_code` is acceptable for Track To constraint setup (no direct tool for constraints)
-- Render settings panel shows 1920×1080, EEVEE
-- A rendered image should be produced
-- **Timing target:** < 60 seconds, ≤ 5 tool calls
 
----
-
-### Test 4b: Multi-Camera Cinematic Rig
-**Tests:** Camera placement at different focal lengths, scene composition, multiple cameras
+### 5. Skeleton (Rigging)
 ```
-Create a cinematic scene with three cameras:
-1. A wide establishing shot using a 24mm lens from position (3, -2, 1.7) aimed at the center
-2. A dramatic low-angle hero shot with a 35mm lens from below looking up
-3. A tight product close-up with a 135mm telephoto lens from far away
-Set each camera with appropriate names. Make camera 3 the active render camera
-and render the scene at 2K resolution (2560x1440) using EEVEE.
+Add a simple armature to the sword with 3 bones: a root bone at the pommel,
+a blade bone spanning the blade length, and a tip bone at the blade end.
+Parent the mesh to the armature with automatic weights.
 ```
-**What to verify:**
-- Scene has 3 cameras with distinct names
-- Camera 1: near `(3, -2, 1.7)`, lens=24mm — wide shot
-- Camera 2: low position (z < 1m), lens=35mm — dramatic angle, ~5-7m distance
-- Camera 3: far away (**12-20m** for 135mm telephoto), active render camera
-- Render output at 2560×1440
-- Agent should use Track To constraints or equivalent for aiming
-- **Timing target:** < 120 seconds
 
----
-
-### Test 4c: Architectural Interior Setup
-**Tests:** Wide-angle camera in tight space, proper framing without distortion
+### 6. Motion (Animation)
 ```
-Set up the scene as if we're photographing an interior room. Place a camera at
-eye level (1.7m height) using a 24mm wide-angle lens. The camera should be at
-position (3, -1, 1.7) looking into the room toward (0, 5, 1.5). Enable depth
-of field with focus at 4 meters and f/5.6 for mostly-sharp results. Set render
-to Cycles with 128 samples and denoising enabled, output at 1920x1080.
+Create a spinning animation for the sword: rotate it 360 degrees around the
+Z-axis over 120 frames with ease-in-out interpolation. Set the timeline to
+start at frame 1 and end at frame 120.
 ```
-**What to verify:**
-- Camera at eye level (z ≈ 1.7m), lens=24mm
-- Camera distance from target is 3-5m (correct for 24mm wide angle)
-- DOF: focus_distance=4m, f_stop=5.6
-- Render engine is Cycles, samples=128, denoising on
-- Agent should NOT place camera far away (it's 24mm, not telephoto)
-- **Timing target:** < 60 seconds, ≤ 5 tool calls
 
----
-
-### Test 5: Organization + Export Pipeline
-**Tests:** `duplicate_object`, `move_to_collection`, `rename_object`, `export_object`, `set_visibility`
+### 7. Effects (Particles & Physics)
 ```
-Duplicate the cube, move the original into a collection called "Archive" and hide it
-in the viewport. Rename the duplicate to "HeroCube". Then export only HeroCube
-as a GLB file.
+Add a particle system to emit small golden sparkle particles from the blade
+edge. Use a short lifetime of 15 frames, random velocity, and a small emissive
+material so they glow. Emit about 100 particles per frame.
 ```
-**What to verify:**
-- "Archive" collection should exist in outliner
-- Original cube should be hidden (eye icon off)
-- "HeroCube" should be visible
-- GLB file should exist on disk
-- Agent should use `move_to_collection`, `set_visibility`, `export_object` directly
 
----
-
-### Test 6: Complex Scene from Scratch (Full Pipeline)
-**Tests:** `execute_code`, `create_material`, `assign_material`, `add_light`, `add_camera`, `set_render_settings`, `shade_smooth`, `add_modifier`
+### 8. Lighting (Scene Illumination)
 ```
-Build a desktop scene: create a wooden table (flat box, 2m x 1m x 0.05m, raised
-to 0.75m height), place a metallic silver laptop on it (simplified box shape),
-and add a coffee mug next to it (cylinder with handle). Give each object
-appropriate materials. Add warm overhead lighting and render the scene.
+Set up a three-point lighting rig: a warm key light (3500K) at 45 degrees
+from front-left, a cool fill light (6500K) at lower intensity from the right,
+and a subtle rim light from behind. Use area lights for soft shadows.
 ```
-**What to verify:**
-- Table at correct height (0.75m)
-- Laptop and mug ON the table surface (not floating, not clipping through)
-- Each object has a distinct material
-- Scene is properly lit (not too dark, not blown out)
-- Rendered image produced
 
----
-
-### Test 7: PolyHaven HDRI + Material
-**Tests:** `search_polyhaven_assets`, `download_polyhaven_asset`, `create_material`, `assign_material`
+### 9. Scene (Environment Setup)
 ```
-Search PolyHaven for a studio HDRI and apply it as the scene background.
-Then make the default cube a mirror-like chrome material so it reflects
-the HDRI environment.
+Create a simple studio backdrop: add a curved plane as an infinity cove behind
+the sword, set the world background to a dark gradient, and position the camera
+at a 30-degree angle looking slightly down at the sword.
 ```
-**What to verify:**
-- Background should show a studio environment (not pink, not black)
-- Cube should be highly reflective (chrome look)
-- HDRI reflections visible on the cube surface
-- In rendered mode, the environment should be visible
 
----
-
-### Test 8: Edit Existing Scene (Non-Destructive)
-**Tests:** `get_scene_info`, `get_object_info`, `set_object_transform`, `set_light_properties`, `create_material`, `assign_material`
+### 10. Render (Output Configuration)
 ```
-Look at the current scene and tell me what objects are in it, then make these
-changes without deleting anything: move the cube 2 units up, change any existing
-light to have double its current energy, and make the cube bright orange.
+Configure Cycles render settings: set resolution to 1920x1080, samples to 256,
+enable denoising with OpenImageDenoise, set film to transparent background,
+and configure the output format as PNG with 16-bit color depth.
 ```
-**What to verify:**
-- Agent should call `get_scene_info` first to discover the scene
-- Cube should move up (Z increased by 2) but not be recreated
-- Light energy should be doubled from whatever it was
-- Cube color changes to orange
-- No objects deleted — everything else preserved
 
----
-
-### Test 9: Full Production Scene (Stress Test)
-**Tests:** `get_scene_info`, `execute_code`, `create_material`, `assign_material`, `add_modifier`, `shade_smooth`, `add_light`, `add_camera`, `set_camera_properties`, `set_render_settings`, `move_to_collection`, `set_visibility`, `rename_object`, `render_image`
+### 11. Export (File Output)
 ```
-Start by checking what's already in the scene. Then build a product showcase:
-
-1. Create a circular pedestal (flattened cylinder, radius 1.5m, height 0.1m) and
-   give it a glossy dark marble material (very dark gray, roughness 0.1).
-2. Place three different primitive objects on TOP of the pedestal, evenly spaced
-   in a triangle pattern: a UV sphere (radius 0.3), a cone (radius 0.25, height 0.5),
-   and a torus (major radius 0.3, minor radius 0.1). Smooth-shade all three.
-3. Give each object a distinct metallic material: gold sphere, copper cone,
-   silver torus.
-4. Add a subdivision surface modifier (level 2) to the sphere to make it
-   perfectly round.
-5. Add three-point lighting: a strong key light (warm white, 500W) from
-   the front-right at 45°, a softer fill light (200W, cool blue tint) from
-   the left, and a rim light (300W) from behind.
-6. Set up a camera with a 50mm lens at a 30° downward angle, about 5 meters
-   from the pedestal center. Enable DOF focused on the pedestal with f/2.8.
-7. Organize: move all three showcase objects into a collection called "Products"
-   and hide the default cube if it exists.
-8. Set render to EEVEE at 1920x1080 and render the final image.
+Export the sword mesh as a glTF 2.0 binary (.glb) file with embedded textures.
+Include only the mesh and materials, not the lights or camera. Apply modifiers
+before export.
 ```
-**What to verify:**
-- Agent called `get_scene_info` first (scene awareness)
-- Pedestal exists as cylinder with correct dimensions
-- All 3 objects are ON the pedestal surface (z ≈ 0.1 + half their height), not floating
-- Each object has a unique metallic material (gold, copper, silver)
-- Sphere has subdivision modifier and is smooth-shaded
-- Three-point lighting present (3 separate lights with different energies)
-- Camera: 50mm lens, ~5m from origin, DOF at f/2.8
-- "Products" collection exists with the 3 objects inside
-- Default cube hidden or absent
-- `render_image` called exactly **once** (dedup should prevent duplicates)
-- **Timing target:** < 120 seconds, ≤ 15 tool calls
-
----
-
-### Test 10: Spatial Reasoning & Aesthetic Judgement (No Exact Values)
-**Tests:** Model's ability to infer correct positions, proportions, materials, and lighting without being told exact numbers
-```
-Build a simple outdoor park bench scene. There should be a wooden bench that
-looks like a real park bench — proper proportions, sitting height, with a backrest.
-Place a street lamp next to it that's taller than a person would be. Put a small
-trash can on the other side of the bench. Everything should sit on a flat ground
-plane. Light the scene as if it's a warm sunset — golden light coming from a low
-angle. Set up a camera that frames the whole scene nicely and render it.
-```
-**What to verify (subjective — judge by eye):**
-- Bench looks proportional (seat height ~0.45-0.5m, reasonable width ~1.5m, has a backrest)
-- Street lamp is tall (>2m, ideally ~3-4m) — NOT the same height as the bench
-- Trash can is small relative to the bench (~0.5-0.8m tall)
-- Objects are positioned side by side, not overlapping or stacked
-- Everything sits ON the ground plane (z ≈ 0 for bases), nothing floating
-- Ground plane exists and is large enough to extend under all objects
-- Lighting looks warm/golden, coming from a low angle (not overhead noon sun)
-- Camera frames the entire scene — all objects visible, nothing cut off
-- Materials make visual sense: wood-like for bench, metal for lamp, etc.
-- **This test has NO right answer** — the goal is to see how close the model's spatial intuition is to what a human would expect
 
 ---
 

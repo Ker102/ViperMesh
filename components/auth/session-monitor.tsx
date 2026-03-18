@@ -26,82 +26,45 @@ export function SessionMonitor() {
 
     useEffect(() => {
         const supabase = createClient()
-        let mounted = true
-
-        // Grace period: Don't check for the first 15s after mount to let
-        // Electron fully hydrate the auth session from the server
-        const graceTimeout = setTimeout(() => {
-            // After grace period, the periodic probe becomes active
-        }, 15_000)
-        let gracePeriod = true
-        setTimeout(() => { gracePeriod = false }, 15_000)
 
         // 1. Listen for auth state changes
         const {
             data: { subscription },
         } = supabase.auth.onAuthStateChange((event) => {
-            if (event === "SIGNED_OUT" && !gracePeriod && mounted) {
-                setExpired(true)
+            if (event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
+                if (event === "SIGNED_OUT") {
+                    setExpired(true)
+                }
             }
         })
 
         // 2. Periodic session probe (every 5 minutes)
-        // Use getUser() instead of getSession() — getUser() actually calls
-        // the Supabase server, while getSession() just reads local storage
-        // which may not be populated in Electron.
         const probeInterval = setInterval(async () => {
-            if (gracePeriod || !mounted) return
-            try {
-                const { data: { user } } = await supabase.auth.getUser()
-                if (!user && mounted) {
-                    setExpired(true)
-                }
-            } catch {
-                // Network error — don't trigger expiry
+            const {
+                data: { session },
+            } = await supabase.auth.getSession()
+            if (!session) {
+                setExpired(true)
             }
-        }, 5 * 60 * 1000)
+        }, 5 * 60 * 1000) // 5 minutes
 
         // 3. Global fetch interceptor for 401 responses
-        // Very conservative: only marks session as expired if the Supabase
-        // server confirms the user is not authenticated via getUser().
-        let verifying401 = false
         const originalFetch = window.fetch
         window.fetch = async (...args) => {
             const response = await originalFetch(...args)
-            if (response.status === 401 && !verifying401 && !gracePeriod && mounted) {
+            if (response.status === 401) {
+                // Check if this is our API route (not an external request)
                 const url = typeof args[0] === "string" ? args[0] : (args[0] as Request)?.url
                 if (url && (url.startsWith("/api") || url.includes("/api/"))) {
-                    // Skip all background/streaming/agent endpoints —
-                    // they handle their own 401 responses in the UI
-                    const isBackgroundEndpoint =
-                        url.includes("/api/ai/") ||
-                        url.includes("/api/projects/") ||
-                        url.includes("/api/mcp/") ||
-                        url.includes("/api/user/") ||
-                        url.includes("/api/generate/")
-                    if (!isBackgroundEndpoint) {
-                        verifying401 = true
-                        try {
-                            const { data: { user } } = await supabase.auth.getUser()
-                            if (!user && mounted) {
-                                setExpired(true)
-                            }
-                        } catch {
-                            // Can't verify — don't show the banner
-                        } finally {
-                            verifying401 = false
-                        }
-                    }
+                    setExpired(true)
                 }
             }
             return response
         }
 
         return () => {
-            mounted = false
             subscription.unsubscribe()
             clearInterval(probeInterval)
-            clearTimeout(graceTimeout)
             window.fetch = originalFetch
         }
     }, [])

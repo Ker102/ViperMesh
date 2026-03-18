@@ -140,18 +140,12 @@ function startAuthCallbackServer() {
         res.end(`
           <!DOCTYPE html>
           <html>
-          <head>
-            <meta charset="utf-8">
-            <title>Authentication Failed - ModelForge</title>
-          </head>
-          <body style="background:linear-gradient(135deg,#0a0f1a 0%,#111827 50%,#0a1628 100%);color:#f1f5f9;font-family:'Inter',system-ui,-apple-system,sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0">
-            <div style="text-align:center;background:rgba(15,23,42,0.6);border:1px solid rgba(239,68,68,0.2);border-radius:20px;padding:48px 40px;max-width:420px;width:90%;backdrop-filter:blur(20px);box-shadow:0 25px 50px rgba(0,0,0,0.3)">
-              <div style="width:64px;height:64px;margin:0 auto 20px;background:linear-gradient(135deg,#ef4444,#dc2626);border-radius:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(239,68,68,0.25)">
-                <span style="font-size:28px;font-weight:700;color:#fff">!</span>
-              </div>
-              <h1 style="color:#f87171;font-size:22px;font-weight:600;margin:0 0 12px">Authentication Failed</h1>
-              <p style="color:#94a3b8;font-size:14px;margin:0 0 8px">${error}</p>
-              <p style="color:#64748b;font-size:13px;margin:0">You can close this window.</p>
+          <head><title>Authentication Failed</title></head>
+          <body style="background:#1e293b;color:#f8fafc;font-family:system-ui;display:flex;justify-content:center;align-items:center;height:100vh;margin:0">
+            <div style="text-align:center">
+              <h1>❌ Authentication Failed</h1>
+              <p>${error}</p>
+              <p>You can close this window.</p>
             </div>
           </body>
           </html>
@@ -172,18 +166,11 @@ function startAuthCallbackServer() {
         res.end(`
           <!DOCTYPE html>
           <html>
-          <head>
-            <meta charset="utf-8">
-            <title>Authentication Successful - ModelForge</title>
-          </head>
-          <body style="background:linear-gradient(135deg,#0a0f1a 0%,#111827 50%,#0a1628 100%);color:#f1f5f9;font-family:'Inter',system-ui,-apple-system,sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0">
-            <div style="text-align:center;background:rgba(15,23,42,0.6);border:1px solid rgba(13,148,136,0.2);border-radius:20px;padding:48px 40px;max-width:420px;width:90%;backdrop-filter:blur(20px);box-shadow:0 25px 50px rgba(0,0,0,0.3)">
-              <div style="width:64px;height:64px;margin:0 auto 20px;background:linear-gradient(135deg,#0d9488,#14b8a6);border-radius:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(13,148,136,0.3)">
-                <span style="font-size:28px;font-weight:700;color:#fff">M</span>
-              </div>
-              <h1 style="color:#2dd4bf;font-size:22px;font-weight:600;margin:0 0 12px">&#x2714; Authentication Successful!</h1>
-              <p style="color:#94a3b8;font-size:14px;margin:0 0 8px">You can close this window and return to ModelForge.</p>
-              <p style="color:#64748b;font-size:12px;margin:0">This window will close automatically...</p>
+          <head><title>Authentication Successful</title></head>
+          <body style="background:#1e293b;color:#f8fafc;font-family:system-ui;display:flex;justify-content:center;align-items:center;height:100vh;margin:0">
+            <div style="text-align:center">
+              <h1 style="color:#22c55e">✓ Authentication Successful!</h1>
+              <p>You can close this window and return to ModelForge.</p>
               <script>setTimeout(() => window.close(), 2000)</script>
             </div>
           </body>
@@ -307,8 +294,20 @@ app.on("ready", async () => {
       await startBundledServer()
     }
 
-    // Note: Session cookies are preserved across restarts for better dev experience.
-    // If you hit auth redirect loops, manually clear via: session.defaultSession.clearStorageData()
+    // In development, clear any stale session cookies to prevent redirect loops
+    if (IS_DEV) {
+      const { session } = require("electron")
+      const port = process.env.PORT || DEFAULT_PORT
+      await session.defaultSession.clearStorageData({
+        storages: ["cookies"],
+        origin: `http://127.0.0.1:${port}`
+      })
+      await session.defaultSession.clearStorageData({
+        storages: ["cookies"],
+        origin: `http://localhost:${port}`
+      })
+      console.log(`[Desktop] Cleared dev session cookies (port ${port})`)
+    }
 
     // Start local auth callback server (for OAuth tokens from browser)
     startAuthCallbackServer()

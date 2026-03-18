@@ -1,0 +1,204 @@
+[dotenv@17.2.3] injecting env (0) from .env -- tip: ÔÜÖ´©Å  write to custom object with { processEnv: myObject }
+­ƒÜÇ Starting ingestion from C:\Users\krist\Desktop\Cursor-Projects\Projects\modelforge\ModelForge\data\blender-scripts...
+­ƒº╣ Clearing existing documents for source: blender-scripts...
+­ƒôé Found 135 Python files
+­ƒôä Prepared: action_utils.py (Action/Animation Utilities) [utility]
+­ƒôä Prepared: animation_utils.py (Animation Utilities) [utility]
+­ƒôä Prepared: api_version_compatibility.py (Blender Python API Version Compatibility Guide) [utility]
+­ƒôä Prepared: armature_utils.py (Armature and Rigging Utilities) [utility]
+­ƒôä Prepared: auto_retopology.py (Automated Retopology Pipeline) [utility]
+­ƒôä Prepared: auto_rigify.py (Automated Rigify Rigging Pipeline) [utility]
+­ƒôä Prepared: auto_uv_unwrap.py (Automated UV Unwrap Pipeline) [utility]
+­ƒôä Prepared: batch_utils.py (Batch Operations Utilities) [utility]
+ÔÜá´©Å Could not parse metadata in blender_api_pitfalls.py: Unexpected token 'B', "Blender Py"... is not valid JSON
+­ƒôä Prepared: blender_api_pitfalls.py (Untitled) [utility]
+­ƒôä Prepared: bone_utils.py (Bone Helper Utilities) [utility]
+­ƒôä Prepared: boolean_utils.py (Boolean Operations Utilities) [utility]
+­ƒôä Prepared: camera_composition.py (Camera Composition and Cinematography) [utility]
+­ƒôä Prepared: camera_utils.py (Camera Utilities) [utility]
+­ƒôä Prepared: clean_utils.py (Scene Cleanup Utilities) [utility]
+­ƒôä Prepared: collection_utils.py (Collection Management Utilities) [utility]
+­ƒôä Prepared: compositing_utils.py (Compositing Utilities) [utility]
+­ƒôä Prepared: constraint_utils.py (Constraint Utilities) [utility]
+­ƒôä Prepared: curve_utils.py (Curve and Path Utilities) [utility]
+­ƒôä Prepared: data_utils.py (Data Management Utilities) [utility]
+ÔÜá´©Å Could not parse metadata in displacement_textures.py: Unexpected token 'D', "Displaceme"... is not valid JSON
+­ƒôä Prepared: displacement_textures.py (Untitled) [utility]
+­ƒôä Prepared: driver_utils.py (Driver Utilities) [utility]
+­ƒôä Prepared: emission_materials.py (Emission Material Best Practices) [utility]
+­ƒôä Prepared: export_utils.py (Export Pipeline Utilities) [utility]
+­ƒôä Prepared: geometry_nodes_utils.py (Geometry Nodes Utilities) [utility]
+­ƒôä Prepared: geonodes_utils.py (Geometry Nodes Utilities) [utility]
+­ƒôä Prepared: grease_pencil_utils.py (Grease Pencil Utilities) [utility]
+ÔÜá´©Å Could not parse metadata in hdri_lighting.py: Unexpected token 'H', "HDRI Envir"... is not valid JSON
+­ƒôä Prepared: hdri_lighting.py (Untitled) [utility]
+­ƒôä Prepared: image_utils.py (Image and Texture Utilities) [utility]
+ÔÜá´©Å Could not parse metadata in import_neural_mesh.py: Unexpected token 'I', "Import Neu"... is not valid JSON
+­ƒôä Prepared: import_neural_mesh.py (Untitled) [utility]
+ÔÜá´©Å Could not parse metadata in interior_rooms.py: Unexpected token 'I', "Interior R"... is not valid JSON
+­ƒôä Prepared: interior_rooms.py (Untitled) [utility]
+­ƒôä Prepared: io_utils.py (Import/Export Utilities) [utility]
+­ƒôä Prepared: lighting_recipes.py (Professional Lighting Recipes for Blender) [utility]
+­ƒôä Prepared: lighting_utils.py (Lighting Utilities) [utility]
+­ƒôä Prepared: mask_utils.py (Mask Utilities) [utility]
+­ƒôä Prepared: material_presets.py (Material Presets) [utility]
+­ƒôä Prepared: material_utils.py (Material and Color Management) [utility]
+­ƒôä Prepared: mesh_editing_utils.py (Mesh Editing Utilities) [utility]
+­ƒôä Prepared: mesh_utils.py (Create Basic Mesh Primitives) [utility]
+­ƒôä Prepared: model_export.py (Production Model Export Pipeline) [utility]
+­ƒôä Prepared: modifier_utils.py (Modifier Utilities) [utility]
+­ƒôä Prepared: node_material_utils.py (Node Material Utilities) [utility]
+­ƒôä Prepared: object_utils.py (Object Operations Utilities) [utility]
+­ƒôä Prepared: particle_utils.py (Particle System Utilities) [utility]
+­ƒôä Prepared: pbr_texture_loader.py (PBR Texture Loader and Baker) [utility]
+­ƒôä Prepared: photorealistic_materials.py (Untitled) [utility]
+ÔÜá´©Å Could not parse metadata in photorealistic_materials.py: Unexpected token 'P', "Photoreali"... is not valid JSON
+ÔÜá´©Å Could not parse metadata in professional_materials.py: Unexpected token 'P', "Profession"... is not valid JSON
+ÔÜá´©Å Could not parse metadata in render_settings.py: Unexpected token 'P', "Profession"... is not valid JSON
+­ƒôä Prepared: physics_utils.py (Physics Simulation Utilities) [utility]
+­ƒôä Prepared: procedural_animation.py (Procedural Animation Patterns) [utility]
+­ƒôä Prepared: procedural_shader_recipes.py (Procedural Shader Node Recipes) [utility]
+­ƒôä Prepared: professional_materials.py (Untitled) [utility]
+­ƒôä Prepared: render_settings.py (Untitled) [utility]
+­ƒôä Prepared: render_utils.py (Render Utilities) [utility]
+­ƒôä Prepared: scene_composition.py (Scene Composition and Professional Layout) [utility]
+­ƒôä Prepared: scene_utils.py (Lighting and Camera Setup) [utility]
+­ƒôä Prepared: sculpt_utils.py (Sculpt Utilities) [utility]
+­ƒôä Prepared: selection_utils.py (Object Selection Utilities) [utility]
+­ƒôä Prepared: shader_node_utils.py (Shader Node Utilities) [utility]
+­ƒôä Prepared: shape_key_utils.py (Shape Key Utilities) [utility]
+­ƒôä Prepared: tasks\animation\camera_rigs.py (Camera Rig Presets) [tasks/animation]
+­ƒôä Prepared: tasks\animation\camera_shake.py (Camera Shake Effect) [tasks/animation]
+­ƒôä Prepared: tasks\animation\turntable.py (Product Turntable Animation) [tasks/animation]
+­ƒôä Prepared: tasks\animation\walk_cycle.py (Walk Cycle Animation) [tasks/animation]
+­ƒôä Prepared: tasks\architecture\interior_room.py (Interior Room Generator) [tasks/architecture]
+­ƒôä Prepared: tasks\architecture\procedural_building.py (Procedural Building Generator) [tasks/architecture]
+­ƒôä Prepared: tasks\characters\humanoid_armature.py (Humanoid Armature Generator) [tasks/characters]
+­ƒôä Prepared: tasks\characters\simple_character.py (Simple Character Body) [tasks/characters]
+­ƒôä Prepared: tasks\effects\explosion_particles.py (Particle Explosion Effect) [tasks/effects]
+­ƒôä Prepared: tasks\effects\glow_bloom.py (Glow and Bloom Effect) [tasks/effects]
+­ƒôä Prepared: tasks\effects\lightning_effect.py (Lightning Effect Generator) [tasks/effects]
+­ƒôä Prepared: tasks\effects\magic_spell.py (Magic Spell Effect) [tasks/effects]
+­ƒôä Prepared: tasks\effects\muzzle_flash.py (Muzzle Flash Effect) [tasks/effects]
+­ƒôä Prepared: tasks\effects\portal_effect.py (Portal Effect) [tasks/effects]
+­ƒôä Prepared: tasks\effects\rain_effect.py (Rain Effect Generator) [tasks/effects]
+­ƒôä Prepared: tasks\effects\smoke_fire.py (Smoke and Fire Effects) [tasks/effects]
+­ƒôä Prepared: tasks\effects\spark_effect.py (Spark Effect Generator) [tasks/effects]
+­ƒôä Prepared: tasks\environment\campfire_generator.py (Campfire Generator) [tasks/environment]
+­ƒôä Prepared: tasks\environment\cloud_generator.py (Cloud Generator) [tasks/environment]
+­ƒôä Prepared: tasks\environment\grass_generator.py (Grass and Foliage Generator) [tasks/environment]
+­ƒôä Prepared: tasks\environment\ground_generator.py (Ground Plane Generator) [tasks/environment]
+­ƒôä Prepared: tasks\environment\mushroom_generator.py (Mushroom Generator) [tasks/environment]
+­ƒôä Prepared: tasks\environment\signpost_generator.py (Signpost Generator) [tasks/environment]
+­ƒôä Prepared: tasks\environment\street_lamp_generator.py (Street Lamp Generator) [tasks/environment]
+­ƒôä Prepared: tasks\environment\terrain_scatter.py (Terrain Scatter System) [tasks/environment]
+­ƒôä Prepared: tasks\environment\tree_generator.py (Tree Generator) [tasks/environment]
+­ƒôä Prepared: tasks\environment\water_generator.py (Water Plane Generator) [tasks/environment]
+­ƒôä Prepared: tasks\environment\well_generator.py (Well Generator) [tasks/environment]
+­ƒôä Prepared: tasks\lighting\hdri_setup.py (HDRI Lighting Setup) [tasks/lighting]
+­ƒôä Prepared: tasks\lighting\outdoor_sun.py (Create Outdoor Sun Lighting) [tasks/lighting]
+­ƒôä Prepared: tasks\lighting\studio_three_point.py (Studio Three-Point Lighting Setup) [tasks/lighting]
+­ƒôä Prepared: tasks\modeling\axe_generator.py (Axe Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\banner_generator.py (Banner Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\barrel_generator.py (Barrel Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\book_generator.py (Book Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\bottle_generator.py (Bottle Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\bow_generator.py (Bow and Arrow Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\candle_generator.py (Candle Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\chair_generator.py (Chair Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\chest_generator.py (Treasure Chest Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\coin_generator.py (Coin Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\crate_generator.py (Crate and Box Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\door_generator.py (Door Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\fence_generator.py (Fence Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\food_generator.py (Food Props Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\gem_generator.py (Gem and Crystal Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\helmet_generator.py (Helmet Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\key_generator.py (Key Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\ladder_generator.py (Ladder Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\lamp_generator.py (Lamp Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\lantern_generator.py (Lantern Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\potion_generator.py (Potion Bottle Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\rock_generator.py (Low Poly Rock Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\scroll_generator.py (Scroll Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\shelf_generator.py (Shelf Unit Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\shield_generator.py (Shield Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\staff_generator.py (Staff and Wand Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\stairs_generator.py (Stairs Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\sword_generator.py (Low Poly Sword Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\table_generator.py (Procedural Table Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\torch_generator.py (Torch Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\modeling\window_generator.py (Window Generator) [tasks/modeling]
+­ƒôä Prepared: tasks\rendering\cycles_gpu_setup.py (Cycles GPU Rendering Setup) [tasks/rendering]
+­ƒôä Prepared: tasks\rendering\eevee_setup.py (Eevee Optimized Setup) [tasks/rendering]
+­ƒôä Prepared: tasks\rendering\product_shot.py (Product Photography Shot Setup) [tasks/rendering]
+­ƒôä Prepared: tasks\rendering\toon_setup.py (NPR/Toon Rendering Setup) [tasks/rendering]
+­ƒôä Prepared: tasks\vehicles\simple_car.py (Create Simple Car with Wheels) [tasks/vehicles]
+­ƒôä Prepared: texture_paint_utils.py (Texture Paint Utilities) [utility]
+­ƒôä Prepared: text_utils.py (3D Text Utilities) [utility]
+­ƒôä Prepared: timeline_utils.py (Timeline and Playback Utilities) [utility]
+­ƒôä Prepared: transform_utils.py (Object Transformations) [utility]
+­ƒôä Prepared: uv_utils.py (UV Mapping Utilities) [utility]
+­ƒôä Prepared: vertex_group_utils.py (Vertex Group Utilities) [utility]
+­ƒôä Prepared: vibrant_color_palettes.py (Vibrant Color Palettes for Blender Materials) [utility]
+­ƒôä Prepared: viewport_utils.py (Viewport Utilities) [utility]
+ÔÜá´©Å Could not parse metadata in volumetric_effects.py: Unexpected token 'V', "Volumetric"... is not valid JSON
+­ƒôä Prepared: volumetric_effects.py (Untitled) [utility]
+­ƒôä Prepared: weight_paint_utils.py (Weight Paint Utilities) [utility]
+­ƒôä Prepared: world_utils.py (World Settings Utilities) [utility]
+­ƒôñ Ingesting 135 documents...
+   Processing batch 1/14...
+   Processing batch 2/14...
+   Processing batch 3/14...
+   Processing batch 4/14...
+   Processing batch 5/14...
+   Processing batch 6/14...
+   Processing batch 7/14...
+   Processing batch 8/14...
+   Processing batch 9/14...
+   Processing batch 10/14...
+   Processing batch 11/14...
+   Processing batch 12/14...
+   Processing batch 13/14...
+   Processing batch 14/14...
+Ô£à Successfully ingested 135 documents.
+   ­ƒôè Summary:
+      - animation: 10
+      - utility: 10
+      - rigging: 4
+      - topology: 1
+      - uv: 2
+      - automation: 1
+      - modeling: 32
+      - camera: 2
+      - clean: 1
+      - organization: 1
+      - compositing: 2
+      - constraints: 1
+      - curves: 1
+      - scene: 3
+      - materials: 7
+      - io: 2
+      - geometry_nodes: 1
+      - nodes: 1
+      - drawing: 1
+      - texturing: 2
+      - lighting: 5
+      - material: 1
+      - mesh: 3
+      - export: 1
+      - modifiers: 1
+      - object: 1
+      - particles: 1
+      - physics: 1
+      - rendering: 5
+      - sculpting: 1
+      - selection: 1
+      - architecture: 2
+      - characters: 2
+      - effects: 9
+      - environment: 12
+      - vehicles: 1
+      - text: 1
+      - transform: 1
+      - interface: 1

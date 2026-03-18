@@ -1,0 +1,5 @@
+{
+  "message": "Gemini Embedding API error 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/text-embedding-004 is not found for API version v1beta, or is not supported for embedContent. Call ListModels to see the list of available models and their supported methods.\",\n    \"status\": \"NOT_FOUND\"\n  }\n}\n",
+  "stack": "Error: Gemini Embedding API error 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/text-embedding-004 is not found for API version v1beta, or is not supported for embedContent. Call ListModels to see the list of available models and their supported methods.\",\n    \"status\": \"NOT_FOUND\"\n  }\n}\n\n    at embedTexts (C:\\Users\\krist\\Desktop\\Cursor-Projects\\Projects\\modelforge\\ModelForge\\lib\\ai\\embeddings.ts:61:19)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async addDocuments (C:\\Users\\krist\\Desktop\\Cursor-Projects\\Projects\\modelforge\\ModelForge\\lib\\ai\\vectorstore.ts:67:22)\n    at async ingest (C:\\Users\\krist\\Desktop\\Cursor-Projects\\Projects\\modelforge\\ModelForge\\scripts\\ingest-blender-docs.ts:114:25)",
+  "error": {}
+}
