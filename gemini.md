@@ -31,13 +31,19 @@ Session 2026-03-18 — Fix Agent Crash & Separate Studio/Autopilot Pipelines
 ## Known Issues / Blockers
 - **Pre-existing lint errors**: `ExecutionResult` (route.ts:190), `.filter()` type mismatch (route.ts:644), `analysis` on never (route.ts:729), `skipped` status type (studio-layout:254)
 - **gcloud auth expiry**: Vertex AI OAuth tokens expire frequently
-- **LangSmith tracing**: Not producing traces — investigate env var loading
+
+## LangSmith Tracing Fix ✅ (2026-03-18)
+- Added `LANGSMITH_ENDPOINT=https://api.smith.langchain.com` to `.env` / `.env.example`
+- Added `[LangSmith] Config:` diagnostic log in `route.ts` POST handler
+- Added `runName`, `tags`, `metadata` to `agent.invoke()` for dashboard identification
+- Needs runtime verification on next agent execution
 
 ## Remaining Tasks
 1. **Test the fix** — clear .next cache, run Test 4 from Studio mode
 2. Verify no strategy classification in Pipeline Monitor
 3. Verify RAG logs appear and agent executes without crash
-4. **Git push** `feature/addon-tools-phase3` → PR for CodeRabbit review
+4. Verify LangSmith traces appear in dashboard
+5. **Git push** `feature/addon-tools-phase3` → PR for CodeRabbit review
 
 ## Branch
 `feature/addon-tools-phase3`
