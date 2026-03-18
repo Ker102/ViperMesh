@@ -62,11 +62,53 @@ at the scene center, use a 85mm portrait lens, enable depth of field focused
 at 5 meters with f/2.8 aperture, then render the scene at 1920x1080 using EEVEE.
 ```
 **What to verify:**
-- Camera appears in scene at correct angle
-- Switch to camera view (Numpad 0) — should frame the scene nicely
-- Agent should use `add_camera` + `set_camera_properties`, NOT `execute_code`
-- Render settings panel shows 1920x1080, EEVEE
+- Camera appears in scene at correct angle (~45°)
+- Camera distance from origin is **8–12m** (location like `(6, -6, 5)` = ~9.8m ✓)
+- Switch to camera view (Numpad 0) — subject should occupy 30–70% of the frame
+- `execute_code` is acceptable for Track To constraint setup (no direct tool for constraints)
+- Render settings panel shows 1920×1080, EEVEE
 - A rendered image should be produced
+- **Timing target:** < 60 seconds, ≤ 5 tool calls
+
+---
+
+### Test 4b: Multi-Camera Cinematic Rig
+**Tests:** Camera placement at different focal lengths, scene composition, multiple cameras
+```
+Create a cinematic scene with three cameras:
+1. A wide establishing shot using a 24mm lens from position (3, -2, 1.7) aimed at the center
+2. A dramatic low-angle hero shot with a 35mm lens from below looking up
+3. A tight product close-up with a 135mm telephoto lens from far away
+Set each camera with appropriate names. Make camera 3 the active render camera
+and render the scene at 2K resolution (2560x1440) using EEVEE.
+```
+**What to verify:**
+- Scene has 3 cameras with distinct names
+- Camera 1: near `(3, -2, 1.7)`, lens=24mm — wide shot
+- Camera 2: low position (z < 1m), lens=35mm — dramatic angle, ~5-7m distance
+- Camera 3: far away (**12-20m** for 135mm telephoto), active render camera
+- Render output at 2560×1440
+- Agent should use Track To constraints or equivalent for aiming
+- **Timing target:** < 120 seconds
+
+---
+
+### Test 4c: Architectural Interior Setup
+**Tests:** Wide-angle camera in tight space, proper framing without distortion
+```
+Set up the scene as if we're photographing an interior room. Place a camera at
+eye level (1.7m height) using a 24mm wide-angle lens. The camera should be at
+position (3, -1, 1.7) looking into the room toward (0, 5, 1.5). Enable depth
+of field with focus at 4 meters and f/5.6 for mostly-sharp results. Set render
+to Cycles with 128 samples and denoising enabled, output at 1920x1080.
+```
+**What to verify:**
+- Camera at eye level (z ≈ 1.7m), lens=24mm
+- Camera distance from target is 3-5m (correct for 24mm wide angle)
+- DOF: focus_distance=4m, f_stop=5.6
+- Render engine is Cycles, samples=128, denoising on
+- Agent should NOT place camera far away (it's 24mm, not telephoto)
+- **Timing target:** < 60 seconds, ≤ 5 tool calls
 
 ---
 
