@@ -102,8 +102,9 @@ async function main() {
   } else {
     const existingCount = await getDocumentCount(SOURCE_TAG)
     if (existingCount > 0) {
-      console.log(`⚠️  Found ${existingCount} existing tool-guide documents.`)
-      console.log(`   Use --force to delete and re-ingest.\n`)
+      console.error(`⚠️  Found ${existingCount} existing tool-guide documents.`)
+      console.error(`   Re-run with --force to delete and re-ingest.`)
+      process.exit(1)
     }
   }
 

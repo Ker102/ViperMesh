@@ -82,7 +82,7 @@ For objects around a center point:
 ### Rules
 - Use `create_new: true` to create collections on the fly
 - An object can exist in multiple collections (but usually shouldn't)
-- Hide collections with `set_visibility` to declutter the viewport
+- **Note:** `set_visibility` only works on **objects**, not collections. To hide an entire collection, use Blender's UI or `execute_blender_code` to set `bpy.data.collections['Name'].hide_viewport = True`
 
 ## ORIGIN PLACEMENT
 

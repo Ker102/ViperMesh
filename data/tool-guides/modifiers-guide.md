@@ -13,15 +13,15 @@ blender_version: "4.0+"
 
 | Modifier | Type Enum | Purpose | Key Properties |
 |---|---|---|---|
-| **SUBSURF** | Subdivision Surface | Smooth mesh, add detail | `levels` (viewport), `render_levels` |
-| **BEVEL** | Bevel | Rounded edges | `width`, `segments`, `limit_method` |
-| **MIRROR** | Mirror | Symmetry | `use_axis` [X,Y,Z], `use_clip`, `merge_threshold` |
-| **BOOLEAN** | Boolean ops | Cut/join meshes | `operation`, `object`, `solver` |
-| **ARRAY** | Repeat pattern | `count`, `relative_offset_displace` |
-| **SOLIDIFY** | Add thickness | `thickness`, `offset` |
-| **DECIMATE** | Reduce polygons | `ratio`, `decimate_type` |
-| **SMOOTH** | Smooth vertices | `factor`, `iterations` |
-| **WIREFRAME** | Wire mesh | `thickness` |
+| **SUBSURF** | `SUBSURF` | Smooth mesh, add detail | `levels` (viewport), `render_levels` |
+| **BEVEL** | `BEVEL` | Rounded edges | `width`, `segments`, `limit_method` |
+| **MIRROR** | `MIRROR` | Symmetry | `use_axis` [X,Y,Z], `use_clip`, `merge_threshold` |
+| **BOOLEAN** | `BOOLEAN` | Cut/join meshes | `operation`, `object`, `solver` |
+| **ARRAY** | `ARRAY` | Repeat pattern | `count`, `relative_offset_displace` |
+| **SOLIDIFY** | `SOLIDIFY` | Add thickness | `thickness`, `offset` |
+| **DECIMATE** | `DECIMATE` | Reduce polygons | `ratio`, `decimate_type` |
+| **SMOOTH** | `SMOOTH` | Smooth vertices | `factor`, `iterations` |
+| **WIREFRAME** | `WIREFRAME` | Wire mesh | `thickness` |
 
 ## SUBDIVISION SURFACE GUIDELINES
 
