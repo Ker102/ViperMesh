@@ -726,20 +726,22 @@ export async function POST(req: Request) {
               for (const msg of toolCallMessages) {
                 const aiMsg = msg as { tool_calls?: Array<{ name: string; args: Record<string, unknown> }> }
                 for (const tc of aiMsg.tool_calls ?? []) {
+                  const args = tc.args ?? {}
+                  console.log(`[Agent] Tool: ${tc.name} | Args: ${JSON.stringify(args)}`)
                   executedCommands.push({
                     id: createStubId(),
                     tool: tc.name,
                     description: `Agent called ${tc.name}`,
                     status: "executed",
                     confidence: 0.8,
-                    arguments: tc.args ?? {},
+                    arguments: args,
                   })
                 }
               }
 
               const agentSuccess = toolCallMessages.length > 0
               monitor.info("agent", `Agent complete: ${executedCommands.length} tool calls`, {
-                tools: executedCommands.map(c => c.tool),
+                tools: executedCommands.map(c => ({ name: c.tool, args: c.arguments })),
                 success: agentSuccess,
               })
 

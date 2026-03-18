@@ -110,6 +110,8 @@ function withGuide(toolName: string, baseDescription: string): string {
 
 /**
  * Execute an MCP command and return a stringified result for the agent.
+ * Includes the applied parameters in the response so the agent can verify
+ * what was configured without needing to call get_scene_info.
  */
 async function executeMcpCommand(
   commandType: string,
@@ -124,7 +126,17 @@ async function executeMcpCommand(
     if (response.status === "error") {
       return JSON.stringify({ error: response.message ?? "MCP command failed" })
     }
-    return JSON.stringify(response.result ?? response.raw ?? { status: "ok" })
+    // Include the applied parameters in the result so the agent
+    // knows exactly what was set without re-querying the scene
+    const result = response.result ?? response.raw ?? { status: "ok" }
+    const appliedParams = Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== null)
+    )
+    return JSON.stringify({
+      ...( typeof result === "object" ? result : { status: result }),
+      _applied: appliedParams,
+      _command: commandType,
+    })
   } catch (error) {
     return JSON.stringify({
       error: error instanceof Error ? error.message : String(error),
