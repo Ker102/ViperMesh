@@ -47,23 +47,24 @@ function StartOAuthContent() {
     }, [searchParams])
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-            <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-8 max-w-md w-full mx-4 text-center shadow-2xl">
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0f1a] via-[#111827] to-[#0a1628]">
+            <div className="bg-slate-900/60 backdrop-blur-xl border border-teal-500/20 rounded-2xl p-10 max-w-md w-full mx-4 text-center shadow-2xl shadow-black/30">
                 {/* Logo */}
-                <div className="mb-6">
-                    <div className="w-16 h-16 mx-auto bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <div className="mb-8">
+                    <div className="w-16 h-16 mx-auto bg-gradient-to-br from-teal-600 to-teal-400 rounded-2xl flex items-center justify-center shadow-lg shadow-teal-500/25">
                         <span className="text-2xl font-bold text-white">M</span>
                     </div>
                     <h1 className="mt-4 text-xl font-semibold text-white">ModelForge</h1>
                 </div>
 
                 {error ? (
-                    <div className="text-red-400">
-                        <p>Error: {error}</p>
+                    <div className="space-y-3">
+                        <p className="text-red-400 font-medium">Error</p>
+                        <p className="text-sm text-slate-400">{error}</p>
                     </div>
                 ) : (
                     <div className="space-y-4">
-                        <Loader2 className="w-12 h-12 mx-auto text-blue-500 animate-spin" />
+                        <Loader2 className="w-12 h-12 mx-auto text-teal-400 animate-spin" />
                         <p className="text-slate-300">Redirecting to sign in...</p>
                     </div>
                 )}
@@ -75,8 +76,8 @@ function StartOAuthContent() {
 export default function StartOAuthPage() {
     return (
         <Suspense fallback={
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-                <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0f1a] via-[#111827] to-[#0a1628]">
+                <Loader2 className="w-12 h-12 text-teal-400 animate-spin" />
             </div>
         }>
             <StartOAuthContent />

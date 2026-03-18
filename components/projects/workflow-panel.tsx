@@ -21,7 +21,7 @@ const TOOL_ICONS: Record<string, string> = {
 
 const TOOL_LABELS: Record<string, string> = {
     neural: "Neural AI",
-    blender_agent: "Blender Agent β",
+    blender_agent: "Blender Agent",
     manual: "Manual",
 }
 
@@ -111,6 +111,11 @@ function StepCard({
                 <div>
                     <span className="text-xs font-medium text-foreground">
                         Recommended: {toolLabel}
+                        {step.recommendedTool === "blender_agent" && (
+                            <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-wider bg-teal-500/15 text-teal-400 border border-teal-500/25">
+                                Beta
+                            </span>
+                        )}
                     </span>
                     <p className="text-[11px] text-muted-foreground leading-tight">
                         {step.toolReasoning}

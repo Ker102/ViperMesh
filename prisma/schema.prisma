@@ -99,8 +99,22 @@ model Project {
   conversations Conversation[]
   snapshots     ProjectSnapshot[]
   usageLogs     UsageLog[]
+  studioSession StudioSession?
 
   @@map("projects")
+}
+
+// Studio workflow session persistence (replaces localStorage)
+model StudioSession {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId String   @unique @db.Uuid
+  steps     Json     @db.JsonB // WorkflowTimelineStep[] (monitoring logs stripped)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("studio_sessions")
 }
 
 // Conversations table
