@@ -201,14 +201,24 @@ export function formatContextFromSources(sources: SearchResult[]): string {
     return parts.join("\n")
 }
 
-// ── Deterministic Tool-Guide Injection ──
-// These small, hand-crafted domain guides are ALWAYS injected into the agent
-// prompt — no vector search needed since we know exactly which files to load.
+// ── Selective Tool-Guide Injection ──
+// These hand-crafted domain guides provide task-specific knowledge (camera
+// positioning, render settings, etc.). We only inject guides that are RELEVANT
+// to the user's request — not all 7 (~30KB) every time.
 
 const TOOL_GUIDES_DIR = path.join(process.cwd(), "data", "tool-guides")
 
-/** Cached tool-guide contents (loaded once, reused across requests) */
-let toolGuidesCache: string | null = null
+interface ToolGuideEntry {
+    filename: string
+    title: string
+    category: string
+    tags: string[]
+    triggeredBy: string[]
+    content: string   // markdown body (frontmatter stripped)
+}
+
+/** Cached parsed guide entries (loaded once from disk) */
+let guidesIndex: ToolGuideEntry[] | null = null
 
 /**
  * Strip YAML frontmatter (--- ... ---) from a markdown string.
@@ -219,59 +229,134 @@ function stripFrontmatter(content: string): string {
 }
 
 /**
- * Load ALL tool-guide markdown files from `data/tool-guides/` directory.
- * Files are read from disk once and cached in memory for all subsequent requests.
- *
- * Returns a formatted context block ready for system prompt injection, or
- * an empty string if no guides are found or the directory doesn't exist.
+ * Parse YAML frontmatter values from a markdown string.
+ * Simple regex-based parser — no YAML library needed for flat key-value pairs.
  */
-export function loadToolGuides(): string {
-    if (toolGuidesCache !== null) return toolGuidesCache
+function parseFrontmatter(content: string): Record<string, string> {
+    const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+    if (!match) return {}
+    const meta: Record<string, string> = {}
+    for (const line of match[1].split(/\r?\n/)) {
+        const kv = line.match(/^(\w+):\s*(.+)$/)
+        if (kv) {
+            meta[kv[1]] = kv[2].trim()
+        }
+    }
+    return meta
+}
 
+/**
+ * Parse a YAML array value like ["a", "b", "c"] into a string array.
+ */
+function parseYamlArray(value: string | undefined): string[] {
+    if (!value) return []
+    const match = value.match(/\[([^\]]*)\]/)
+    if (!match) return [value]
+    return match[1]
+        .split(",")
+        .map((s) => s.trim().replace(/^["']|["']$/g, ""))
+        .filter(Boolean)
+}
+
+/**
+ * Load and index all tool-guide files from disk (cached).
+ */
+function ensureGuidesIndex(): ToolGuideEntry[] {
+    if (guidesIndex !== null) return guidesIndex
+
+    guidesIndex = []
     try {
         if (!fs.existsSync(TOOL_GUIDES_DIR)) {
             console.warn(`[RAG] Tool-guides directory not found: ${TOOL_GUIDES_DIR}`)
-            toolGuidesCache = ""
-            return ""
+            return guidesIndex
         }
 
-        const files = fs.readdirSync(TOOL_GUIDES_DIR)
-            .filter((f) => f.endsWith(".md"))
-            .sort()
-
-        if (files.length === 0) {
-            toolGuidesCache = ""
-            return ""
-        }
-
-        const parts: string[] = [
-            "## Tool Domain Guides\n",
-            "IMPORTANT: Use the following domain knowledge to make correct decisions about parameter values, positioning, and tool usage. These guides contain critical rules that MUST be followed.\n",
-        ]
+        const files = fs.readdirSync(TOOL_GUIDES_DIR).filter((f) => f.endsWith(".md"))
 
         for (const file of files) {
             const filePath = path.join(TOOL_GUIDES_DIR, file)
             const raw = fs.readFileSync(filePath, "utf-8")
-            const content = stripFrontmatter(raw)
-            if (content.length > 0) {
-                parts.push(content)
-                parts.push("") // blank line separator
-            }
+            const meta = parseFrontmatter(raw)
+            const body = stripFrontmatter(raw)
+
+            if (body.length === 0) continue
+
+            guidesIndex.push({
+                filename: file,
+                title: meta.title?.replace(/^["']|["']$/g, "") ?? file,
+                category: meta.category?.replace(/^["']|["']$/g, "") ?? "",
+                tags: parseYamlArray(meta.tags),
+                triggeredBy: parseYamlArray(meta.triggered_by),
+                content: body,
+            })
         }
 
-        toolGuidesCache = parts.join("\n")
-        console.log(`[RAG] Loaded ${files.length} tool-guide files (${toolGuidesCache.length} chars) from disk`)
-        return toolGuidesCache
+        console.log(`[RAG] Indexed ${guidesIndex.length} tool-guide files from disk`)
     } catch (error) {
-        console.error(`[RAG] Failed to load tool guides:`, error)
-        toolGuidesCache = ""
-        return ""
+        console.error(`[RAG] Failed to index tool guides:`, error)
     }
+
+    return guidesIndex
+}
+
+/**
+ * Load only the tool-guides that are RELEVANT to the user's message.
+ *
+ * Matching logic:
+ * - Check if any of the guide's `tags`, `triggeredBy`, or `category`
+ *   appear as keywords in the user's message (case-insensitive).
+ * - Returns a formatted context block with only matched guides.
+ *
+ * @returns {{ context: string, count: number }} The formatted context and count of matched guides
+ */
+export function loadRelevantToolGuides(userMessage: string): { context: string; count: number } {
+    const guides = ensureGuidesIndex()
+    if (guides.length === 0) return { context: "", count: 0 }
+
+    const messageLower = userMessage.toLowerCase()
+
+    // Build a set of keywords to match: tags + triggeredBy + category
+    const matched = guides.filter((guide) => {
+        const keywords = [
+            ...guide.tags,
+            ...guide.triggeredBy,
+            guide.category,
+        ].filter(Boolean)
+
+        return keywords.some((kw) => {
+            const kwLower = kw.toLowerCase()
+            // Match whole words or snake_case tool names
+            // e.g. "camera" matches "set up a camera", "set_camera_properties" matches tool name
+            return messageLower.includes(kwLower)
+        })
+    })
+
+    if (matched.length === 0) {
+        console.log(`[RAG] No tool-guides matched for: "${userMessage.slice(0, 60)}..."`)
+        return { context: "", count: 0 }
+    }
+
+    const parts: string[] = [
+        "## Task-Specific Domain Guides\n",
+        "IMPORTANT: Use the following domain knowledge to make correct decisions about parameter values, positioning, and tool usage. These guides contain critical rules that MUST be followed.\n",
+    ]
+
+    for (const guide of matched) {
+        parts.push(guide.content)
+        parts.push("") // blank line separator
+    }
+
+    const context = parts.join("\n")
+    console.log(
+        `[RAG] Matched ${matched.length}/${guides.length} tool-guides: ${matched.map((g) => g.filename).join(", ")} (${context.length} chars)`
+    )
+    return { context, count: matched.length }
 }
 
 /**
  * Invalidate the tool-guide cache (call after re-ingesting or editing guides).
  */
 export function invalidateToolGuidesCache(): void {
-    toolGuidesCache = null
+    guidesIndex = null
 }
+

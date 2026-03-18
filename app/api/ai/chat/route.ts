@@ -24,7 +24,7 @@ import { recordExecutionLog } from "@/lib/orchestration/monitor"
 import { buildSystemPrompt } from "@/lib/orchestration/prompts"
 import { searchFirecrawl, type FirecrawlSearchResult } from "@/lib/firecrawl"
 import { similaritySearch } from "@/lib/ai/vectorstore"
-import { formatContextFromSources, loadToolGuides } from "@/lib/ai/rag"
+import { formatContextFromSources, loadRelevantToolGuides } from "@/lib/ai/rag"
 import { classifyStrategy } from "@/lib/orchestration/strategy-router"
 import type { StrategyDecision } from "@/lib/orchestration/strategy-types"
 import { generateWorkflowProposal } from "@/lib/orchestration/workflow-advisor"
@@ -642,12 +642,13 @@ export async function POST(req: Request) {
               try {
                 monitor.startTimer("rag_search")
 
-                // Step 1: Deterministic tool-guide injection (from disk, cached)
-                const toolGuidesContext = loadToolGuides()
+                // Step 1: Selective tool-guide injection (from disk, cached index)
+                // Only inject guides whose tags/triggeredBy match the user's message
+                const { context: toolGuidesContext, count: guideCount } = loadRelevantToolGuides(message)
                 if (toolGuidesContext) {
                   agentPrompt += `\n\n${toolGuidesContext}`
-                  ragDocCount += 7 // 7 guide files loaded
-                  console.log(`[RAG] Injected tool-guides from disk (${toolGuidesContext.length} chars)`)
+                  ragDocCount += guideCount
+                  console.log(`[RAG] Injected ${guideCount} relevant tool-guides (${toolGuidesContext.length} chars)`)
                 }
 
                 // Step 2: Vector search for supplemental blender script examples
@@ -665,8 +666,8 @@ export async function POST(req: Request) {
                   agentPrompt += `\n\n${scriptContext}`
                 }
 
-                monitor.info("rag", `Injected ${ragDocCount} total docs (guides + scripts)`, {
-                  toolGuides: toolGuidesContext ? true : false,
+                monitor.info("rag", `Injected ${ragDocCount} total docs (${guideCount} guides + ${ragResults.length} scripts)`, {
+                  guideCount,
                   scriptResults: ragResults.map((r) => ({ source: r.source, similarity: r.similarity.toFixed(3) })),
                 })
                 monitor.trackRAGRetrieval(ragDocCount, ragDocCount, false)
