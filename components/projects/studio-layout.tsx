@@ -35,11 +35,14 @@ async function savePersistedSteps(projectId: string, steps: WorkflowTimelineStep
     try {
         // Strip monitoring logs before saving to keep payload reasonable
         const slim = steps.map(({ monitoringLogs, ...rest }) => rest)
-        await fetch("/api/projects/studio-session", {
+        const res = await fetch("/api/projects/studio-session", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ projectId, steps: slim }),
         })
+        if (!res.ok) {
+            console.warn(`[StudioLayout] Failed to persist steps: HTTP ${res.status}`)
+        }
     } catch (err) {
         console.warn("[StudioLayout] Failed to persist steps:", err)
     }

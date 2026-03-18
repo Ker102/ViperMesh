@@ -14,7 +14,7 @@ blender_version: "4.0+"
 | Type | Behavior | Best For | Key Properties |
 |---|---|---|---|
 | **POINT** | Emits light in all directions from a point | Lamps, candles, fill lights | `energy`, `shadow_soft_size` |
-| **SUN** | Parallel rays, position doesn't matter (only rotation) | Outdoor scenes, directional key light | `energy` (1–5 for EEVEE), `angle` |
+| **SUN** | Parallel rays, position doesn't matter (only rotation) | Outdoor scenes, directional key light | `energy` (1–5 for EEVEE), `shadow_soft_size` |
 | **SPOT** | Cone of light from a point | Stage lighting, focused highlights, dramatic | `energy`, `spot_size` (degrees), `spot_blend` |
 | **AREA** | Emits from a rectangular/square surface | Soft studio lighting, product photography | `energy`, `size` (larger = softer shadows) |
 

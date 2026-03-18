@@ -1155,17 +1155,20 @@ class BlenderMCPServer:
             if not mat:
                 return {"error": f"Material not found: {material_name}"}
 
-            if slot_index is not None and int(slot_index) == -1:
-                # Explicit append mode
-                obj.data.materials.append(mat)
-                assigned_slot = len(obj.material_slots) - 1
-            elif slot_index is not None:
-                # Replace specific slot
+            if slot_index is not None:
                 idx = int(slot_index)
-                while len(obj.material_slots) <= idx:
-                    obj.data.materials.append(None)
-                obj.material_slots[idx].material = mat
-                assigned_slot = idx
+                if idx < -1:
+                    return {"error": "slot_index must be >= 0, or -1 to append"}
+                if idx == -1:
+                    # Explicit append mode
+                    obj.data.materials.append(mat)
+                    assigned_slot = len(obj.material_slots) - 1
+                else:
+                    # Replace specific slot
+                    while len(obj.material_slots) <= idx:
+                        obj.data.materials.append(None)
+                    obj.material_slots[idx].material = mat
+                    assigned_slot = idx
             else:
                 # Default: replace slot 0 (or create it) so the material is immediately visible
                 if len(obj.material_slots) > 0:
@@ -1495,11 +1498,21 @@ class BlenderMCPServer:
                     # cause pink 'missing texture' errors)
                     cache_dir = os.path.join(os.path.expanduser("~"), ".modelforge", "cache", "hdris")
                     os.makedirs(cache_dir, exist_ok=True)
-                    cache_path = os.path.join(cache_dir, f"{asset_id}_{resolution}.{file_format}")
+                    # Sanitize filename parts to prevent path traversal
+                    safe_asset_id = "".join(c if c.isalnum() or c in "-_" else "_" for c in asset_id)
+                    safe_resolution = "".join(c if c.isalnum() or c in "-_" else "_" for c in resolution)
+                    safe_format = str(file_format).lower()
+                    if safe_format not in {"hdr", "exr"}:
+                        return {"error": f"Unsupported HDRI format: {file_format}"}
+                    cache_path = os.path.abspath(
+                        os.path.join(cache_dir, f"{safe_asset_id}_{safe_resolution}.{safe_format}")
+                    )
+                    if os.path.commonpath([os.path.abspath(cache_dir), cache_path]) != os.path.abspath(cache_dir):
+                        return {"error": "Invalid HDRI cache path"}
 
                     # Download the file (skip if already cached)
                     if not os.path.isfile(cache_path):
-                        response = requests.get(file_url, headers=REQ_HEADERS)
+                        response = requests.get(file_url, headers=REQ_HEADERS, timeout=60)
                         if response.status_code != 200:
                             return {"error": f"Failed to download HDRI: {response.status_code}"}
                         with open(cache_path, 'wb') as f:

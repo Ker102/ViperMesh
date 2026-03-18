@@ -1155,17 +1155,20 @@ class BlenderMCPServer:
             if not mat:
                 return {"error": f"Material not found: {material_name}"}
 
-            if slot_index is not None and int(slot_index) == -1:
-                # Explicit append mode
-                obj.data.materials.append(mat)
-                assigned_slot = len(obj.material_slots) - 1
-            elif slot_index is not None:
-                # Replace specific slot
+            if slot_index is not None:
                 idx = int(slot_index)
-                while len(obj.material_slots) <= idx:
-                    obj.data.materials.append(None)
-                obj.material_slots[idx].material = mat
-                assigned_slot = idx
+                if idx < -1:
+                    return {"error": "slot_index must be >= 0, or -1 to append"}
+                if idx == -1:
+                    # Explicit append mode
+                    obj.data.materials.append(mat)
+                    assigned_slot = len(obj.material_slots) - 1
+                else:
+                    # Replace specific slot
+                    while len(obj.material_slots) <= idx:
+                        obj.data.materials.append(None)
+                    obj.material_slots[idx].material = mat
+                    assigned_slot = idx
             else:
                 # Default: replace slot 0 (or create it) so the material is immediately visible
                 if len(obj.material_slots) > 0:
@@ -1432,7 +1435,7 @@ class BlenderMCPServer:
             if asset_type not in ["hdris", "textures", "models", "all"]:
                 return {"error": f"Invalid asset type: {asset_type}. Must be one of: hdris, textures, models, all"}
 
-            response = requests.get(f"https://api.polyhaven.com/categories/{asset_type}", headers=REQ_HEADERS)
+            response = requests.get(f"https://api.polyhaven.com/categories/{asset_type}", headers=REQ_HEADERS, timeout=30)
             if response.status_code == 200:
                 return {"categories": response.json()}
             else:
@@ -1454,7 +1457,7 @@ class BlenderMCPServer:
             if categories:
                 params["categories"] = categories
 
-            response = requests.get(url, params=params, headers=REQ_HEADERS)
+            response = requests.get(url, params=params, headers=REQ_HEADERS, timeout=30)
             if response.status_code == 200:
                 # Limit the response size to avoid overwhelming Blender
                 assets = response.json()
@@ -1474,7 +1477,7 @@ class BlenderMCPServer:
     def download_polyhaven_asset(self, asset_id, asset_type, resolution="1k", file_format=None):
         try:
             # First get the files information
-            files_response = requests.get(f"https://api.polyhaven.com/files/{asset_id}", headers=REQ_HEADERS)
+            files_response = requests.get(f"https://api.polyhaven.com/files/{asset_id}", headers=REQ_HEADERS, timeout=30)
             if files_response.status_code != 200:
                 return {"error": f"Failed to get asset files: {files_response.status_code}"}
 
@@ -1495,11 +1498,21 @@ class BlenderMCPServer:
                     # cause pink 'missing texture' errors)
                     cache_dir = os.path.join(os.path.expanduser("~"), ".modelforge", "cache", "hdris")
                     os.makedirs(cache_dir, exist_ok=True)
-                    cache_path = os.path.join(cache_dir, f"{asset_id}_{resolution}.{file_format}")
+                    # Sanitize filename parts to prevent path traversal
+                    safe_asset_id = "".join(c if c.isalnum() or c in "-_" else "_" for c in asset_id)
+                    safe_resolution = "".join(c if c.isalnum() or c in "-_" else "_" for c in resolution)
+                    safe_format = str(file_format).lower()
+                    if safe_format not in {"hdr", "exr"}:
+                        return {"error": f"Unsupported HDRI format: {file_format}"}
+                    cache_path = os.path.abspath(
+                        os.path.join(cache_dir, f"{safe_asset_id}_{safe_resolution}.{safe_format}")
+                    )
+                    if os.path.commonpath([os.path.abspath(cache_dir), cache_path]) != os.path.abspath(cache_dir):
+                        return {"error": "Invalid HDRI cache path"}
 
                     # Download the file (skip if already cached)
                     if not os.path.isfile(cache_path):
-                        response = requests.get(file_url, headers=REQ_HEADERS)
+                        response = requests.get(file_url, headers=REQ_HEADERS, timeout=60)
                         if response.status_code != 200:
                             return {"error": f"Failed to download HDRI: {response.status_code}"}
                         with open(cache_path, 'wb') as f:
@@ -1588,7 +1601,7 @@ class BlenderMCPServer:
                                 # Use NamedTemporaryFile like we do for HDRIs
                                 with tempfile.NamedTemporaryFile(suffix=f".{file_format}", delete=False) as tmp_file:
                                     # Download the file
-                                    response = requests.get(file_url, headers=REQ_HEADERS)
+                                    response = requests.get(file_url, headers=REQ_HEADERS, timeout=120)
                                     if response.status_code == 200:
                                         tmp_file.write(response.content)
                                         tmp_path = tmp_file.name
@@ -1725,7 +1738,7 @@ class BlenderMCPServer:
                         main_file_name = file_url.split("/")[-1]
                         main_file_path = os.path.join(temp_dir, main_file_name)
 
-                        response = requests.get(file_url, headers=REQ_HEADERS)
+                        response = requests.get(file_url, headers=REQ_HEADERS, timeout=120)
                         if response.status_code != 200:
                             return {"error": f"Failed to download model: {response.status_code}"}
 
@@ -1743,7 +1756,7 @@ class BlenderMCPServer:
                                 os.makedirs(os.path.dirname(include_file_path), exist_ok=True)
 
                                 # Download the included file
-                                include_response = requests.get(include_url, headers=REQ_HEADERS)
+                                include_response = requests.get(include_url, headers=REQ_HEADERS, timeout=120)
                                 if include_response.status_code == 200:
                                     with open(include_file_path, "wb") as f:
                                         f.write(include_response.content)

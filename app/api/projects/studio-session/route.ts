@@ -52,8 +52,17 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const body = await req.json()
-  const { projectId, steps } = upsertSchema.parse(body)
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+  }
+  const parsed = upsertSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid request body", details: parsed.error.flatten() }, { status: 400 })
+  }
+  const { projectId, steps } = parsed.data
 
   // Verify project ownership
   const project = await prisma.project.findFirst({
