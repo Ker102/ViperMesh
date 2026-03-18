@@ -873,6 +873,58 @@ for (const t of ALL_TOOLS) {
  * Auto-captures a screenshot after every `execute_code` call and logs it
  * as a vision event. Replaces the manual hack in the old executor.ts.
  */
+/**
+ * Dedup Middleware — prevents the agent from calling the same tool
+ * with identical arguments back-to-back. If the previous call succeeded,
+ * returns the cached result. If it failed, allows retry.
+ *
+ * This addresses an LLM behavior where the model generates duplicate
+ * parallel tool calls or re-sends calls it thinks didn't execute.
+ */
+function createDedupMiddleware() {
+  const lastCalls = new Map<string, { argsHash: string; result: unknown; failed: boolean }>()
+
+  return createMiddleware({
+    name: "DedupMiddleware",
+    wrapToolCall: async (request, handler) => {
+      const toolName = request.toolCall.name
+      const argsHash = JSON.stringify(request.toolCall.args ?? {})
+      const lastCall = lastCalls.get(toolName)
+
+      // If same tool + same args + last call succeeded → skip
+      if (lastCall && lastCall.argsHash === argsHash && !lastCall.failed) {
+        console.log(`[Dedup] Skipping duplicate: ${toolName} (identical args, previous call succeeded)`)
+        const { ToolMessage: TM } = await import("@langchain/core/messages")
+        return new TM({
+          content: JSON.stringify({
+            _skipped_duplicate: true,
+            _message: `${toolName} already executed successfully with these exact parameters. No action needed.`,
+          }),
+          tool_call_id: request.toolCall.id ?? "unknown",
+        })
+      }
+
+      // Execute the tool
+      let result: Awaited<ReturnType<typeof handler>>
+      let failed = false
+      try {
+        result = await handler(request)
+        // Check if the result content indicates an error
+        const content = typeof result === "object" && "content" in result ? String(result.content) : ""
+        failed = content.includes('"error"')
+      } catch (error) {
+        failed = true
+        throw error
+      } finally {
+        // Cache the result
+        lastCalls.set(toolName, { argsHash, result: result!, failed })
+      }
+
+      return result
+    },
+  })
+}
+
 function createViewportMiddleware(onStreamEvent?: (event: AgentStreamEvent) => void) {
   return createMiddleware({
     name: "ViewportScreenshotMiddleware",
@@ -1078,8 +1130,9 @@ export function createBlenderAgentV2(options: BlenderAgentV2Options = {}) {
     }
   }
 
-  // Build middleware stack
+  // Build middleware stack (dedup runs first to catch duplicates before side effects)
   const middleware = [
+    createDedupMiddleware(),
     createViewportMiddleware(onStreamEvent),
   ]
 
