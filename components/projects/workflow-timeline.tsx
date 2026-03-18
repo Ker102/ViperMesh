@@ -81,6 +81,7 @@ interface WorkflowTimelineProps {
     onRemoveStep: (stepId: string) => void
     onStepClick: (stepId: string) => void
     onRunAll: () => void
+    onClearTimeline?: () => void
 }
 
 // ============================================================================
@@ -93,6 +94,7 @@ export function WorkflowTimeline({
     onRemoveStep,
     onStepClick,
     onRunAll,
+    onClearTimeline,
 }: WorkflowTimelineProps) {
     if (steps.length === 0) return null
 
@@ -201,7 +203,19 @@ export function WorkflowTimeline({
 
             <div className="flex-1" />
 
-            {/* Run all button */}
+            {/* Clear + Run all buttons */}
+            {onClearTimeline && (
+                <button
+                    onClick={onClearTimeline}
+                    className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition hover:opacity-80"
+                    style={{
+                        borderColor: "hsl(var(--forge-border))",
+                        color: "hsl(var(--forge-text-muted))",
+                    }}
+                >
+                    Clear
+                </button>
+            )}
             <button
                 onClick={onRunAll}
                 className="shrink-0 px-4 py-1.5 rounded-full text-xs font-semibold text-white transition hover:opacity-90"

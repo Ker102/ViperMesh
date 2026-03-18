@@ -11,8 +11,7 @@ import {
 import { streamLlmResponse, type LlmProviderSpec } from "@/lib/llm"
 import type { GeminiMessage } from "@/lib/gemini"
 import { createMcpClient } from "@/lib/mcp"
-import { BlenderPlanner } from "@/lib/orchestration/planner"
-import { PlanExecutor, type ExecutionResult } from "@/lib/orchestration/executor"
+// Legacy planner/executor removed — v2 agent handles tool selection directly
 import type {
   ExecutionPlan,
   ExecutionLogEntry,
@@ -24,7 +23,10 @@ import type {
 import { recordExecutionLog } from "@/lib/orchestration/monitor"
 import { buildSystemPrompt } from "@/lib/orchestration/prompts"
 import { searchFirecrawl, type FirecrawlSearchResult } from "@/lib/firecrawl"
+import { similaritySearch } from "@/lib/ai/vectorstore"
+import { formatContextFromSources } from "@/lib/ai/rag"
 import { classifyStrategy } from "@/lib/orchestration/strategy-router"
+import type { StrategyDecision } from "@/lib/orchestration/strategy-types"
 import { generateWorkflowProposal } from "@/lib/orchestration/workflow-advisor"
 import { createMonitoringSession, type MonitoringSession } from "@/lib/monitoring"
 import { z } from "zod"
@@ -116,8 +118,6 @@ function resolveLocalProviderSpec(
   return null
 }
 
-const planner = new BlenderPlanner()
-const planExecutor = new PlanExecutor()
 
 async function fetchSceneSummary(): Promise<{ summary: string | null; raw: unknown }> {
   const client = createMcpClient()
@@ -267,6 +267,7 @@ const chatRequestSchema = z.object({
   message: z.string().min(1).max(2000),
   useLocalModel: z.boolean().optional(),
   workflowMode: z.enum(["autopilot", "studio"]).optional(),
+  studioStep: z.boolean().optional(),
 })
 
 async function ensureConversation({
@@ -340,7 +341,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const { projectId, conversationId, startNew, message, useLocalModel, workflowMode } =
+    const { projectId, conversationId, startNew, message, useLocalModel, workflowMode, studioStep } =
       chatRequestSchema.parse(body)
 
     const project = await prisma.project.findFirst({
@@ -451,6 +452,7 @@ export async function POST(req: Request) {
       )
     }
 
+    const currentMode = workflowMode ?? "autopilot"
     const historyMessages = await prisma.message.findMany({
       where: { conversationId: resolvedConversationId },
       orderBy: { createdAt: "desc" },
@@ -458,11 +460,19 @@ export async function POST(req: Request) {
       select: {
         role: true,
         content: true,
+        mcpResults: true,
       },
     })
 
+    // Filter out messages from the other mode to prevent context pollution
     const trimmedHistory: GeminiMessage[] = historyMessages
       .reverse()
+      .filter((msg) => {
+        const results = msg.mcpResults as Record<string, unknown> | null
+        const msgMode = results?.workflowMode as string | undefined
+        // Keep messages with no mode tag (legacy) or matching mode
+        return !msgMode || msgMode === currentMode
+      })
       .map((msg) => ({
         role: msg.role === "assistant" ? "assistant" : "user",
         content: msg.content,
@@ -503,23 +513,27 @@ export async function POST(req: Request) {
         let tokenUsage: { promptTokens?: number | null; responseTokens?: number | null; totalTokens?: number | null } | undefined
 
         try {
-          for await (const chunk of streamLlmResponse(llmProvider, {
-            history: trimmedHistory,
-            messages: [
-              {
-                role: "user",
-                content: message,
-              },
-            ],
-            maxOutputTokens: 512,
-            systemPrompt: chatSystemPrompt,
-          })) {
-            if (chunk.textDelta) {
-              assistantText += chunk.textDelta
-              send({ type: "delta", delta: chunk.textDelta })
-            }
-            if (chunk.usage) {
-              tokenUsage = chunk.usage
+          // ── Studio step execution: skip text streaming + strategy classification ──
+          // Studio mode already chose the tool, so we go straight to agent execution.
+          if (!studioStep) {
+            for await (const chunk of streamLlmResponse(llmProvider, {
+              history: trimmedHistory,
+              messages: [
+                {
+                  role: "user",
+                  content: message,
+                },
+              ],
+              maxOutputTokens: 512,
+              systemPrompt: chatSystemPrompt,
+            })) {
+              if (chunk.textDelta) {
+                assistantText += chunk.textDelta
+                send({ type: "delta", delta: chunk.textDelta })
+              }
+              if (chunk.usage) {
+                tokenUsage = chunk.usage
+              }
             }
           }
 
@@ -527,34 +541,48 @@ export async function POST(req: Request) {
           const sceneSnapshotResult = await fetchSceneSummary()
 
           // Strategy classification: determine procedural vs neural vs hybrid
-          monitor.startTimer("strategy_classification")
-          const strategyDecision = await classifyStrategy(message, {
-            sceneContext: sceneSnapshotResult.summary ?? undefined,
-            monitor,
-          })
-          monitor.endTimer("strategy_classification")
-          monitor.info("strategy", `Strategy: ${strategyDecision.strategy} (${(strategyDecision.confidence * 100).toFixed(0)}% confidence)`, {
-            strategy: strategyDecision.strategy,
-            confidence: strategyDecision.confidence,
-            method: strategyDecision.classificationMethod,
-          })
-          send({
-            type: "agent:strategy_classification",
-            timestamp: new Date().toISOString(),
-            strategy: strategyDecision.strategy,
-            confidence: strategyDecision.confidence,
-            reasoning: strategyDecision.reasoning,
-            method: strategyDecision.classificationMethod,
-          })
+          // Skip for studioStep — user already chose the tool
+          let strategyDecision: StrategyDecision
+          if (studioStep) {
+            strategyDecision = {
+              strategy: "procedural",
+              confidence: 1.0,
+              reasoning: "Studio step execution — tool already selected by user",
+              classificationMethod: "user_override",
+            }
+            monitor.info("strategy", "Strategy bypassed for studio step (procedural)")
+          } else {
+            monitor.startTimer("strategy_classification")
+            strategyDecision = await classifyStrategy(message, {
+              sceneContext: sceneSnapshotResult.summary ?? undefined,
+              monitor,
+            })
+            monitor.endTimer("strategy_classification")
+            monitor.info("strategy", `Strategy: ${strategyDecision.strategy} (${(strategyDecision.confidence * 100).toFixed(0)}% confidence)`, {
+              strategy: strategyDecision.strategy,
+              confidence: strategyDecision.confidence,
+              method: strategyDecision.classificationMethod,
+            })
+            send({
+              type: "agent:strategy_classification",
+              timestamp: new Date().toISOString(),
+              strategy: strategyDecision.strategy,
+              confidence: strategyDecision.confidence,
+              reasoning: strategyDecision.reasoning,
+              method: strategyDecision.classificationMethod,
+            })
+          }
 
           let executedCommands: ExecutedCommand[] = []
           let planningMetadata: PlanningMetadata | null = null
           let executionLogs: ExecutionLogEntry[] | undefined = undefined
           let planResult: PlanGenerationResult | null = null
+          let ragDocCount = 0
 
           // ── Neural/Hybrid or Studio mode → Guided Workflow (human-in-the-loop) ──
-          const useGuidedWorkflow = workflowMode === "studio" ||
-            strategyDecision.strategy === "neural" || strategyDecision.strategy === "hybrid"
+          // Note: studioStep uses the procedural path directly (bypasses workflow proposal)
+          const useGuidedWorkflow = !studioStep && (workflowMode === "studio" ||
+            strategyDecision.strategy === "neural" || strategyDecision.strategy === "hybrid")
           if (useGuidedWorkflow) {
             try {
               const workflowProposal = await generateWorkflowProposal(
@@ -597,99 +625,180 @@ export async function POST(req: Request) {
             }
           }
 
-          // ── Procedural → Auto-pilot planner + executor (existing flow) ──
+          // ── Procedural → Direct v2 agent (replaces legacy planner+executor) ──
           if (!planningMetadata) {
 
             try {
-              monitor.startTimer("plan_generation")
-              planResult = await planner.generatePlan(
-                message,
+              monitor.startTimer("agent_execution")
+              monitor.info("agent", "Starting direct v2 agent execution (no planner)")
+
+              // Build context-enriched prompt
+              let agentPrompt = message
+              if (sceneSnapshotResult.summary) {
+                agentPrompt = `Current Scene:\n${sceneSnapshotResult.summary}\n\nRequest: ${message}`
+              }
+              if (researchContext?.promptContext) {
+                agentPrompt += `\n\nWeb Research Context:\n${researchContext.promptContext}`
+              }
+
+              // ── RAG: Vector search for blender-script references ──
+              // Tool-specific domain guides are bound to tool descriptions
+              // in agents.ts (see TOOL_GUIDE_MAP). Here we only search the
+              // vectorstore for supplemental blender-script code examples.
+              ragDocCount = 0
+              try {
+                monitor.startTimer("rag_search")
+                console.log(`[RAG] Searching blender-scripts for: "${message.slice(0, 80)}..."`)
+
+                const searchPromise = similaritySearch(message, { limit: 3, source: "blender-scripts" })
+                const timeoutPromise = new Promise<never>((_, reject) =>
+                  setTimeout(() => reject(new Error("RAG search timed out after 10s")), 10_000)
+                )
+                const ragResults = await Promise.race([searchPromise, timeoutPromise])
+                ragDocCount = ragResults.length
+                console.log(`[RAG] Found ${ragDocCount} script references`)
+
+                if (ragResults.length > 0) {
+                  const scriptContext = formatContextFromSources(ragResults)
+                  agentPrompt += `\n\n${scriptContext}`
+                }
+
+                monitor.info("rag", `Injected ${ragDocCount} script references`, {
+                  scriptResults: ragResults.map((r) => ({ source: r.source, similarity: r.similarity.toFixed(3) })),
+                })
+                monitor.trackRAGRetrieval(ragDocCount, ragDocCount, false)
+                monitor.endTimer("rag_search")
+              } catch (ragError) {
+                console.warn(`[RAG] Non-fatal error:`, ragError)
+                monitor.warn("rag", `RAG search failed (non-fatal): ${ragError instanceof Error ? ragError.message : String(ragError)}`)
+              }
+
+              // Diagnostic: log LangSmith env vars to confirm they're loaded
+              console.log("[LangSmith] Config:", {
+                tracing: process.env.LANGSMITH_TRACING,
+                endpoint: process.env.LANGSMITH_ENDPOINT ?? "(default)",
+                project: process.env.LANGSMITH_PROJECT,
+                apiKeySet: !!process.env.LANGSMITH_API_KEY,
+              })
+
+              // Create the v2 LangGraph agent directly — it has:
+              // - RAG context already injected into agentPrompt above
+              // - Updated system prompt with all direct MCP tools
+              // - ReAct loop for autonomous tool selection
+              const { createBlenderAgentV2 } = await import("@/lib/ai/agents")
+              const agent = createBlenderAgentV2({
+                allowPolyHaven: assetConfig.allowPolyHaven,
+                allowSketchfab: assetConfig.allowSketchfab,
+                allowHyper3d: assetConfig.allowHyper3d,
+                useRAG: false, // RAG already done above
+                onStreamEvent: (event) => send(event),
+              })
+
+              // Use a unique thread_id to avoid stale MemorySaver state from
+              // prior planner sessions that wrote to the same projectId
+              const threadId = `${projectId}-${Date.now()}`
+              console.log(`[AGENT] Invoking v2 agent, thread_id=${threadId}, prompt length=${agentPrompt.length}`)
+
+              const agentResult = await agent.invoke(
                 {
-                  sceneSummary: sceneSnapshotResult.summary ?? undefined,
-                  allowHyper3dAssets: assetConfig.allowHyper3d,
-                  allowSketchfabAssets: assetConfig.allowSketchfab,
-                  allowPolyHavenAssets: assetConfig.allowPolyHaven,
-                  researchContext: researchContext?.promptContext,
-                  strategyDecision,
+                  messages: [{ role: "user" as const, content: agentPrompt }],
                 },
-                llmProvider
+                {
+                  configurable: { thread_id: threadId },
+                  runName: "blender-agent",
+                  tags: ["modelforge", studioStep ? "studio" : "autopilot"],
+                  metadata: {
+                    projectId,
+                    conversationId: resolvedConversationId,
+                    strategy: strategyDecision.strategy,
+                  },
+                }
               )
 
-              if (planResult && planResult.plan) {
-                monitor.endTimer("plan_generation")
-                monitor.info("planner", `Plan generated: ${planResult.plan.steps.length} steps`, {
-                  summary: planResult.plan.planSummary,
-                  stepCount: planResult.plan.steps.length,
-                  retries: planResult.retries ?? 0,
-                })
+              monitor.endTimer("agent_execution")
 
-                monitor.startTimer("plan_execution")
-                const executionResult = await planExecutor.executePlan(
-                  planResult.plan,
-                  message,
-                  {
-                    ...assetConfig,
-                    enableVisualFeedback: true,
-                    onStreamEvent: (event) => send(event),
-                    strategyDecision,
-                  },
-                  planResult.analysis,
-                  llmProvider
-                )
-                executionLogs = executionResult.logs
-                monitor.endTimer("plan_execution")
-                monitor.info("executor", `Execution complete: ${executionResult.success ? "SUCCESS" : "FAILED"}`, {
-                  completedSteps: executionResult.completedSteps.length,
-                  failedSteps: executionResult.failedSteps.length,
-                })
-                executedCommands = buildExecutedCommandsFromPlan(planResult.plan, executionResult)
-                planningMetadata = {
-                  planSummary: planResult.plan.planSummary,
-                  planSteps: planResult.plan.steps,
-                  rawPlan: planResult.rawResponse,
-                  retries: planResult.retries ?? 0,
-                  executionSuccess: executionResult.success,
-                  errors: planResult.errors,
-                  executionLog: executionResult.logs,
-                  sceneSnapshot: sceneSnapshotResult.summary,
-                  analysis: planResult.analysis,
-                  researchSummary: researchContext?.promptContext,
-                  researchSources: researchContext?.sources,
-                  strategyDecision,
+              // Extract tool calls from agent messages for the commands list
+              const agentMessages = agentResult.messages ?? []
+              const toolCallMessages = agentMessages.filter(
+                (m: unknown) => {
+                  if (!m || typeof m !== "object") return false
+                  const msg = m as { _getType?: () => string; tool_calls?: unknown[] }
+                  // Call _getType bound to the message (DO NOT extract the method reference)
+                  const msgType = typeof msg._getType === "function" ? msg._getType.call(msg) : undefined
+                  return msgType === "ai" &&
+                    Array.isArray(msg.tool_calls) &&
+                    (msg.tool_calls?.length ?? 0) > 0
                 }
+              )
 
-                if (!executionResult.success) {
-                  planningMetadata.executionSuccess = false
+              // Build executed commands from agent tool calls
+              for (const msg of toolCallMessages) {
+                const aiMsg = msg as { tool_calls?: Array<{ name: string; args: Record<string, unknown> }> }
+                for (const tc of aiMsg.tool_calls ?? []) {
+                  const args = tc.args ?? {}
+                  console.log(`[Agent] Tool: ${tc.name} | Args: ${JSON.stringify(args)}`)
+                  executedCommands.push({
+                    id: createStubId(),
+                    tool: tc.name,
+                    description: `Agent called ${tc.name}`,
+                    status: "executed",
+                    confidence: 0.8,
+                    arguments: args,
+                  })
                 }
-              } else if (planResult) {
-                const previousLogs = executionLogs
-                planningMetadata = {
-                  planSummary: "Plan generation failed",
-                  planSteps: [],
-                  rawPlan: planResult.rawResponse,
-                  retries: planResult.retries ?? 0,
-                  executionSuccess: false,
-                  errors: planResult.errors,
-                  fallbackUsed: false,
-                  executionLog: previousLogs,
-                  sceneSnapshot: sceneSnapshotResult.summary,
-                  analysis: planResult.analysis,
-                  researchSummary: researchContext?.promptContext,
-                  researchSources: researchContext?.sources,
-                }
-                executedCommands = []
-              } else {
-                throw new Error("Planner returned no result")
+              }
+
+              const agentSuccess = toolCallMessages.length > 0
+              monitor.info("agent", `Agent complete: ${executedCommands.length} tool calls`, {
+                tools: executedCommands.map(c => ({ name: c.tool, args: c.arguments })),
+                success: agentSuccess,
+              })
+
+              planningMetadata = {
+                planSummary: `Direct agent execution: ${executedCommands.length} tool calls`,
+                planSteps: executedCommands.map((c, i) => ({
+                  stepNumber: i + 1,
+                  action: c.tool,
+                  parameters: c.arguments,
+                  rationale: c.description,
+                  expectedOutcome: `Tool ${c.tool} executed`,
+                })),
+                rawPlan: JSON.stringify(executedCommands, null, 2),
+                retries: 0,
+                executionSuccess: agentSuccess,
+                sceneSnapshot: sceneSnapshotResult.summary,
+                researchSummary: researchContext?.promptContext,
+                researchSources: researchContext?.sources,
+                strategyDecision,
               }
             } catch (error) {
-              monitor.error("planner", "Planning pipeline error", {
+              monitor.error("agent", "Agent execution error", {
                 error: error instanceof Error ? error.message : String(error),
               })
-              console.error("Planning pipeline error:", error)
+              console.error("[AGENT] Execution error (full stack):", error)
+              if (error instanceof Error && error.stack) {
+                console.error("[AGENT] Stack trace:", error.stack)
+              }
+              // Write full crash trace to file for reliable debugging
+              try {
+                const crashTrace = [
+                  `=== AGENT CRASH TRACE ===`,
+                  `Timestamp: ${new Date().toISOString()}`,
+                  `Error: ${error instanceof Error ? error.message : String(error)}`,
+                  `Type: ${error?.constructor?.name ?? typeof error}`,
+                  `Stack: ${error instanceof Error ? error.stack : "N/A"}`,
+                  `Full object: ${JSON.stringify(error, Object.getOwnPropertyNames(error instanceof Error ? error : {}), 2)}`,
+                  `========================`,
+                ].join("\n")
+                const fs = await import("fs")
+                const path = await import("path")
+                fs.writeFileSync(path.join(process.cwd(), "logs", "crash-trace.txt"), crashTrace, "utf-8")
+                console.log("[AGENT] Crash trace written to logs/crash-trace.txt")
+              } catch { /* ignore write errors */ }
               const messageText =
-                error instanceof Error ? error.message : "Unknown planning error"
+                error instanceof Error ? error.message : "Unknown agent error"
               planningMetadata = planningMetadata ?? {
-                planSummary: "Planner error",
+                planSummary: "Agent error",
                 planSteps: [],
                 rawPlan: "",
                 retries: 0,
@@ -698,13 +807,12 @@ export async function POST(req: Request) {
                 fallbackUsed: false,
                 executionLog: executionLogs,
                 sceneSnapshot: sceneSnapshotResult.summary,
-                analysis: planResult?.analysis,
                 researchSummary: researchContext?.promptContext,
                 researchSources: researchContext?.sources,
               }
               executedCommands = []
             }
-          } // ← closing brace for procedural fallback block
+          } // ← closing brace for procedural block
 
 
 
@@ -815,6 +923,7 @@ export async function POST(req: Request) {
                 conversationId: resolvedConversationId,
                 role: "user",
                 content: message,
+                mcpResults: { workflowMode: currentMode } as unknown as Prisma.InputJsonValue,
               },
               select: {
                 id: true,
@@ -831,6 +940,7 @@ export async function POST(req: Request) {
                 content: assistantText,
                 mcpCommands: executedCommands as unknown as Prisma.InputJsonValue,
                 mcpResults: {
+                  workflowMode: currentMode,
                   tokens: tokenUsage,
                   plan: planningMetadata ?? undefined,
                   commands: executedCommands.map((command) => ({
@@ -894,6 +1004,7 @@ export async function POST(req: Request) {
             tokenUsage,
             commandSuggestions: executedCommands,
             planning: planningMetadata,
+            ragDocCount,
           })
         } catch (error) {
           monitor.error("system", "AI chat stream error", {
