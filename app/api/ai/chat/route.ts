@@ -629,6 +629,14 @@ export async function POST(req: Request) {
                 agentPrompt += `\n\nWeb Research Context:\n${researchContext.promptContext}`
               }
 
+              // Diagnostic: log LangSmith env vars to confirm they're loaded
+              console.log("[LangSmith] Config:", {
+                tracing: process.env.LANGSMITH_TRACING,
+                endpoint: process.env.LANGSMITH_ENDPOINT ?? "(default)",
+                project: process.env.LANGSMITH_PROJECT,
+                apiKeySet: !!process.env.LANGSMITH_API_KEY,
+              })
+
               // Create the v2 LangGraph agent directly — it has:
               // - RAG middleware (injects relevant tool-guides from vectorstore)
               // - Updated system prompt with all direct MCP tools
@@ -651,7 +659,16 @@ export async function POST(req: Request) {
                 {
                   messages: [{ role: "user" as const, content: agentPrompt }],
                 },
-                { configurable: { thread_id: threadId } }
+                {
+                  configurable: { thread_id: threadId },
+                  runName: "blender-agent",
+                  tags: ["modelforge", studioStep ? "studio" : "autopilot"],
+                  metadata: {
+                    projectId,
+                    conversationId: resolvedConversationId,
+                    strategy: strategyDecision.strategy,
+                  },
+                }
               )
 
               monitor.endTimer("agent_execution")
