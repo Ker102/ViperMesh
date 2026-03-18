@@ -24,7 +24,7 @@ import { formatContextFromSources } from "@/lib/ai/rag"
 import type { AgentStreamEvent } from "@/lib/orchestration/types"
 import { getAddonPromptHints } from "@/lib/ai/addon-registry"
 
-import { readFileSync } from "fs"
+import { readFileSync, readdirSync, existsSync } from "fs"
 import path from "path"
 
 // ============================================================================
@@ -39,6 +39,69 @@ try {
   )
 } catch {
   SYSTEM_PROMPT = "You are ModelForge, an expert Blender Python Developer."
+}
+
+// ============================================================================
+// Tool-Guide Binding (loaded from disk at module init, mapped to tool names)
+// ============================================================================
+
+/**
+ * Map of MCP tool names → full guide markdown content.
+ * Built once at module load from `data/tool-guides/*.md` files using
+ * their YAML frontmatter `triggered_by` field.
+ *
+ * Example: { "set_camera_properties" → "<full camera guide content>",
+ *            "add_camera" → "<same camera guide content>", ... }
+ */
+const TOOL_GUIDE_MAP: Record<string, string> = {}
+
+try {
+  const guidesDir = path.join(process.cwd(), "data", "tool-guides")
+  if (existsSync(guidesDir)) {
+    const files = readdirSync(guidesDir).filter((f) => f.endsWith(".md"))
+    for (const file of files) {
+      const raw = readFileSync(path.join(guidesDir, file), "utf-8")
+
+      // Parse triggered_by from YAML frontmatter
+      const triggeredByMatch = raw.match(/triggered_by:\s*\[([^\]]*)\]/)
+      if (!triggeredByMatch) continue
+
+      const toolNames = triggeredByMatch[1]
+        .split(",")
+        .map((s) => s.trim().replace(/^["']|["']$/g, ""))
+        .filter(Boolean)
+
+      // Strip YAML frontmatter to get pure markdown body
+      const body = raw.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim()
+      if (!body) continue
+
+      // Map each triggered tool name to this guide's content
+      for (const toolName of toolNames) {
+        TOOL_GUIDE_MAP[toolName] = body
+      }
+    }
+    console.log(
+      `[ToolGuides] Loaded ${files.length} guides, mapped to ${Object.keys(TOOL_GUIDE_MAP).length} tool names`
+    )
+  }
+} catch (error) {
+  console.warn("[ToolGuides] Failed to load tool guides:", error)
+}
+
+/**
+ * Enhance a tool's description by appending its domain guide.
+ * If no guide exists for this tool, returns the base description unchanged.
+ */
+function withGuide(toolName: string, baseDescription: string): string {
+  const guide = TOOL_GUIDE_MAP[toolName]
+  if (!guide) return baseDescription
+  return (
+    baseDescription +
+    "\n\n--- DOMAIN GUIDE ---\n" +
+    "The following domain knowledge MUST be consulted when using this tool. " +
+    "Follow these rules and reference values exactly:\n\n" +
+    guide
+  )
 }
 
 // ============================================================================
@@ -778,6 +841,16 @@ const ALL_TOOLS = [
   importGeneratedAsset,
 ]
 
+// ── Bind domain guides to tool descriptions ──
+// Each tool whose name appears in TOOL_GUIDE_MAP gets the full guide
+// appended to its description. This happens once at module load time.
+for (const t of ALL_TOOLS) {
+  const guide = TOOL_GUIDE_MAP[t.name]
+  if (guide) {
+    t.description = withGuide(t.name, t.description)
+  }
+}
+
 // ============================================================================
 // Middleware
 // ============================================================================
@@ -842,11 +915,25 @@ function createRAGMiddleware() {
   return createMiddleware({
     name: "RAGContextMiddleware",
     wrapModelCall: async (request, handler) => {
-      // Extract the latest user message to use as search query
+      // Debug breadcrumb: is this middleware being called at all?
       const messages = request.messages ?? []
+      const msgTypes = messages.map((m) => {
+        const mRec = m as unknown as Record<string, unknown>
+        if (typeof mRec._getType === "function") {
+          try { return (mRec._getType as () => string).call(m) } catch { return "unknown" }
+        }
+        return (mRec.role as string) ?? "no-type"
+      })
+      console.log(`[RAG] wrapModelCall invoked — ${messages.length} messages, types: [${msgTypes.join(", ")}]`)
+
+      // Extract the latest user message to use as search query
       const lastUserMsg = [...messages]
         .reverse()
         .find((m) => isHumanMessage(m))
+
+      if (!lastUserMsg) {
+        console.log(`[RAG] No human message found — skipping RAG`)
+      }
 
       if (lastUserMsg) {
         const msg = lastUserMsg as unknown as Record<string, unknown>

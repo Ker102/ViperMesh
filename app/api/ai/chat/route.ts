@@ -24,7 +24,7 @@ import { recordExecutionLog } from "@/lib/orchestration/monitor"
 import { buildSystemPrompt } from "@/lib/orchestration/prompts"
 import { searchFirecrawl, type FirecrawlSearchResult } from "@/lib/firecrawl"
 import { similaritySearch } from "@/lib/ai/vectorstore"
-import { formatContextFromSources, loadRelevantToolGuides } from "@/lib/ai/rag"
+import { formatContextFromSources } from "@/lib/ai/rag"
 import { classifyStrategy } from "@/lib/orchestration/strategy-router"
 import type { StrategyDecision } from "@/lib/orchestration/strategy-types"
 import { generateWorkflowProposal } from "@/lib/orchestration/workflow-advisor"
@@ -632,42 +632,29 @@ export async function POST(req: Request) {
                 agentPrompt += `\n\nWeb Research Context:\n${researchContext.promptContext}`
               }
 
-              // ── RAG: Inject domain knowledge + script references ──
-              // 1) DETERMINISTIC: Load all tool-guide .md files from disk (cached).
-              //    These are small, hand-crafted docs (camera positioning, render
-              //    settings, etc.) that MUST always be available to the agent.
-              // 2) VECTOR SEARCH: Search for supplemental blender-script examples
-              //    from the vectorstore (filtered to 'blender-scripts' source).
+              // ── RAG: Vector search for blender-script references ──
+              // Tool-specific domain guides are bound to tool descriptions
+              // in agents.ts (see TOOL_GUIDE_MAP). Here we only search the
+              // vectorstore for supplemental blender-script code examples.
               ragDocCount = 0
               try {
                 monitor.startTimer("rag_search")
-
-                // Step 1: Selective tool-guide injection (from disk, cached index)
-                // Only inject guides whose tags/triggeredBy match the user's message
-                const { context: toolGuidesContext, count: guideCount } = loadRelevantToolGuides(message)
-                if (toolGuidesContext) {
-                  agentPrompt += `\n\n${toolGuidesContext}`
-                  ragDocCount += guideCount
-                  console.log(`[RAG] Injected ${guideCount} relevant tool-guides (${toolGuidesContext.length} chars)`)
-                }
-
-                // Step 2: Vector search for supplemental blender script examples
                 console.log(`[RAG] Searching blender-scripts for: "${message.slice(0, 80)}..."`)
+
                 const searchPromise = similaritySearch(message, { limit: 3, source: "blender-scripts" })
                 const timeoutPromise = new Promise<never>((_, reject) =>
                   setTimeout(() => reject(new Error("RAG search timed out after 10s")), 10_000)
                 )
                 const ragResults = await Promise.race([searchPromise, timeoutPromise])
-                ragDocCount += ragResults.length
-                console.log(`[RAG] Found ${ragResults.length} script references`)
+                ragDocCount = ragResults.length
+                console.log(`[RAG] Found ${ragDocCount} script references`)
 
                 if (ragResults.length > 0) {
                   const scriptContext = formatContextFromSources(ragResults)
                   agentPrompt += `\n\n${scriptContext}`
                 }
 
-                monitor.info("rag", `Injected ${ragDocCount} total docs (${guideCount} guides + ${ragResults.length} scripts)`, {
-                  guideCount,
+                monitor.info("rag", `Injected ${ragDocCount} script references`, {
                   scriptResults: ragResults.map((r) => ({ source: r.source, similarity: r.similarity.toFixed(3) })),
                 })
                 monitor.trackRAGRetrieval(ragDocCount, ragDocCount, false)
