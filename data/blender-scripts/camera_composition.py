@@ -16,7 +16,59 @@ from mathutils import Vector
 # CAMERA COMPOSITION & CINEMATOGRAPHY
 # =============================================================================
 #
-# PROFESSIONAL CAMERA PRINCIPLES:
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║  CRITICAL CAMERA PLACEMENT RULES (follow these exactly)               ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+#
+# RULE 1: DOF focus_distance ≠ camera distance.
+#   Focus distance = WHERE the focus plane sits (sharp zone).
+#   Camera distance = WHERE the camera is physically placed.
+#   With telephoto lenses, camera should be 1.5–2× further than focus distance.
+#
+# RULE 2: Always verify with get_viewport_screenshot after placing a camera.
+#   If the subject fills > 90% of the frame → camera is TOO CLOSE.
+#   The subject should occupy 30–70% of the frame.
+#
+# ─── FOCAL LENGTH → MINIMUM CAMERA DISTANCE ───────────────────────────
+# (For a subject approximately 2 meters wide)
+#
+#   Focal Length │ Lens Type      │ Min Distance │ Recommended  │ Use Case
+#   ─────────────┼────────────────┼──────────────┼──────────────┼──────────────
+#   24mm         │ Wide angle     │ 2–3m         │ 3–5m         │ Interiors, landscapes
+#   35mm         │ Normal         │ 3–5m         │ 4–7m         │ Documentary, natural
+#   50mm         │ Standard       │ 4–6m         │ 5–8m         │ General purpose
+#   85mm         │ Telephoto      │ 6–9m         │ 8–12m        │ Portraits, products
+#   135mm        │ Long telephoto │ 10–15m       │ 12–20m       │ Close-ups, compression
+#
+# RULE OF THUMB: For 85mm lens → minimum 8m from subject center.
+#                For 50mm lens → 5–8m from subject center.
+#
+# ─── STANDARD SHOT PATTERNS (exact coordinates) ───────────────────────
+#
+# Product Shot (45° angle, looking down):
+#   location=(6, -6, 5)  — ~10m from origin, aim at (0,0,0), lens=85mm
+#
+# Eye-Level Portrait:
+#   location=(0, -8, 1.7)  — 8m back, eye height, aim at (0,0,1.5), lens=85mm
+#
+# Dramatic Low Angle:
+#   location=(4, -5, 0.5)  — low, ~6.4m away, aim at (0,0,2), lens=35mm
+#
+# Wide Interior:
+#   location=(3, -2, 1.7)  — close, eye height, aim at (0,5,1.5), lens=24mm
+#
+# Overhead / Top-Down:
+#   location=(0, 0, 10)  — directly above, rotation=(0,0,0), lens=50mm
+#
+# ─── COMMON MISTAKES TO AVOID ─────────────────────────────────────────
+#
+# ❌ Placing camera at the DOF focus distance → subject fills entire frame
+# ❌ Using manual rotation_euler for aiming → fragile, use Track To instead
+# ❌ Forgetting to set camera as active → render uses wrong camera
+# ❌ Not verifying with viewport screenshot → always check framing
+#
+# ─── PROFESSIONAL CAMERA PRINCIPLES ───────────────────────────────────
+#
 # 1. Focal length sets the "mood":
 #    - 24mm = dramatic, exaggerated perspective (action, interiors)
 #    - 35mm = natural, documentary feel
@@ -25,13 +77,19 @@ from mathutils import Vector
 #    - 135mm+ = telephoto, compressed perspective (product shots)
 #
 # 2. Rule of thirds: place subjects at 1/3 or 2/3 of frame
-# 3. Camera height: eye level for neutral, low angle for power, high for overview
+# 3. Camera height: eye level=neutral, low angle=power, high=overview
 # 4. DOF (Depth of Field): blurred background isolates the subject
-# 5. Always use a Track To constraint instead of manually computing rotations
+# 5. Always use Track To constraint instead of manually computing rotations
 #
 # SENSOR SIZE (affects field of view):
 #   Default Blender sensor: 36mm (full-frame equivalent)
 #   For matching real cameras: set sensor_width accordingly
+#
+# DEPTH OF FIELD APERTURE GUIDELINES:
+#   f/1.4 – f/2.0: Extreme bokeh, only subject sharp
+#   f/2.8 – f/4.0: Product photography, moderate blur
+#   f/5.6 – f/8.0: Landscape, most things in focus
+#   f/11 – f/16:  Everything sharp, architectural
 # =============================================================================
 
 
