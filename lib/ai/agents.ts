@@ -875,23 +875,28 @@ for (const t of ALL_TOOLS) {
  */
 /**
  * Dedup Middleware — prevents the agent from calling the same tool
- * with identical arguments back-to-back. If the previous call succeeded,
- * returns the cached result. If it failed, allows retry.
+ * with identical arguments redundantly. Handles TWO scenarios:
  *
- * This addresses an LLM behavior where the model generates duplicate
- * parallel tool calls or re-sends calls it thinks didn't execute.
+ * 1. Sequential duplicates: same tool+args after a previous success → cached result
+ * 2. Parallel duplicates: same tool+args sent simultaneously by LLM → coalesced
+ *
+ * If the previous/in-flight call failed, retries are allowed.
  */
 function createDedupMiddleware() {
+  // Cache of last successful result per tool
   const lastCalls = new Map<string, { argsHash: string; result: unknown; failed: boolean }>()
+  // In-flight calls: key = "toolName:argsHash" → promise of result
+  const inFlight = new Map<string, Promise<unknown>>()
 
   return createMiddleware({
     name: "DedupMiddleware",
     wrapToolCall: async (request, handler) => {
       const toolName = request.toolCall.name
       const argsHash = JSON.stringify(request.toolCall.args ?? {})
-      const lastCall = lastCalls.get(toolName)
+      const flightKey = `${toolName}:${argsHash}`
 
-      // If same tool + same args + last call succeeded → skip
+      // Check 1: Sequential duplicate — same tool+args already succeeded
+      const lastCall = lastCalls.get(toolName)
       if (lastCall && lastCall.argsHash === argsHash && !lastCall.failed) {
         console.log(`[Dedup] Skipping duplicate: ${toolName} (identical args, previous call succeeded)`)
         const { ToolMessage: TM } = await import("@langchain/core/messages")
@@ -904,20 +909,39 @@ function createDedupMiddleware() {
         })
       }
 
-      // Execute the tool
+      // Check 2: Parallel duplicate — same call already in-flight
+      if (inFlight.has(flightKey)) {
+        console.log(`[Dedup] Coalescing parallel call: ${toolName} (waiting for in-flight result)`)
+        const existingResult = await inFlight.get(flightKey)
+        const { ToolMessage: TM } = await import("@langchain/core/messages")
+        return new TM({
+          content: JSON.stringify({
+            _skipped_duplicate: true,
+            _message: `${toolName} was already executing with these parameters. Returning the result.`,
+          }),
+          tool_call_id: request.toolCall.id ?? "unknown",
+        })
+      }
+
+      // Execute the tool, tracking it as in-flight
+      let resolveInFlight: (v: unknown) => void
+      const flightPromise = new Promise((resolve) => { resolveInFlight = resolve })
+      inFlight.set(flightKey, flightPromise)
+
       let result: Awaited<ReturnType<typeof handler>>
       let failed = false
       try {
         result = await handler(request)
-        // Check if the result content indicates an error
         const content = typeof result === "object" && "content" in result ? String(result.content) : ""
         failed = content.includes('"error"')
       } catch (error) {
         failed = true
         throw error
       } finally {
-        // Cache the result
+        // Cache result and clear in-flight
         lastCalls.set(toolName, { argsHash, result: result!, failed })
+        resolveInFlight!(result!)
+        inFlight.delete(flightKey)
       }
 
       return result
