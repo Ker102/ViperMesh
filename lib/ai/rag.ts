@@ -2,10 +2,13 @@
  * RAG (Retrieval-Augmented Generation) Module
  * 
  * Provides context-aware generation by combining:
- * - Vector store retrieval (Neon pgvector)
+ * - Deterministic tool-guide injection (from disk)
+ * - Vector store retrieval for script examples (Neon pgvector)
  * - Gemini 3.1 Pro generation
  */
 
+import * as fs from "fs"
+import * as path from "path"
 import { createGeminiModel } from "./index"
 import { similaritySearch, type SearchResult } from "./vectorstore"
 import { correctiveRetrieve } from "./crag"
@@ -196,4 +199,79 @@ export function formatContextFromSources(sources: SearchResult[]): string {
     }
 
     return parts.join("\n")
+}
+
+// ── Deterministic Tool-Guide Injection ──
+// These small, hand-crafted domain guides are ALWAYS injected into the agent
+// prompt — no vector search needed since we know exactly which files to load.
+
+const TOOL_GUIDES_DIR = path.join(process.cwd(), "data", "tool-guides")
+
+/** Cached tool-guide contents (loaded once, reused across requests) */
+let toolGuidesCache: string | null = null
+
+/**
+ * Strip YAML frontmatter (--- ... ---) from a markdown string.
+ */
+function stripFrontmatter(content: string): string {
+    const match = content.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/)
+    return match ? content.slice(match[0].length).trim() : content.trim()
+}
+
+/**
+ * Load ALL tool-guide markdown files from `data/tool-guides/` directory.
+ * Files are read from disk once and cached in memory for all subsequent requests.
+ *
+ * Returns a formatted context block ready for system prompt injection, or
+ * an empty string if no guides are found or the directory doesn't exist.
+ */
+export function loadToolGuides(): string {
+    if (toolGuidesCache !== null) return toolGuidesCache
+
+    try {
+        if (!fs.existsSync(TOOL_GUIDES_DIR)) {
+            console.warn(`[RAG] Tool-guides directory not found: ${TOOL_GUIDES_DIR}`)
+            toolGuidesCache = ""
+            return ""
+        }
+
+        const files = fs.readdirSync(TOOL_GUIDES_DIR)
+            .filter((f) => f.endsWith(".md"))
+            .sort()
+
+        if (files.length === 0) {
+            toolGuidesCache = ""
+            return ""
+        }
+
+        const parts: string[] = [
+            "## Tool Domain Guides\n",
+            "IMPORTANT: Use the following domain knowledge to make correct decisions about parameter values, positioning, and tool usage. These guides contain critical rules that MUST be followed.\n",
+        ]
+
+        for (const file of files) {
+            const filePath = path.join(TOOL_GUIDES_DIR, file)
+            const raw = fs.readFileSync(filePath, "utf-8")
+            const content = stripFrontmatter(raw)
+            if (content.length > 0) {
+                parts.push(content)
+                parts.push("") // blank line separator
+            }
+        }
+
+        toolGuidesCache = parts.join("\n")
+        console.log(`[RAG] Loaded ${files.length} tool-guide files (${toolGuidesCache.length} chars) from disk`)
+        return toolGuidesCache
+    } catch (error) {
+        console.error(`[RAG] Failed to load tool guides:`, error)
+        toolGuidesCache = ""
+        return ""
+    }
+}
+
+/**
+ * Invalidate the tool-guide cache (call after re-ingesting or editing guides).
+ */
+export function invalidateToolGuidesCache(): void {
+    toolGuidesCache = null
 }

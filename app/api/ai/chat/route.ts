@@ -23,6 +23,8 @@ import type {
 import { recordExecutionLog } from "@/lib/orchestration/monitor"
 import { buildSystemPrompt } from "@/lib/orchestration/prompts"
 import { searchFirecrawl, type FirecrawlSearchResult } from "@/lib/firecrawl"
+import { similaritySearch } from "@/lib/ai/vectorstore"
+import { formatContextFromSources, loadToolGuides } from "@/lib/ai/rag"
 import { classifyStrategy } from "@/lib/orchestration/strategy-router"
 import type { StrategyDecision } from "@/lib/orchestration/strategy-types"
 import { generateWorkflowProposal } from "@/lib/orchestration/workflow-advisor"
@@ -566,6 +568,7 @@ export async function POST(req: Request) {
           let planningMetadata: PlanningMetadata | null = null
           let executionLogs: ExecutionLogEntry[] | undefined = undefined
           let planResult: PlanGenerationResult | null = null
+          let ragDocCount = 0
 
           // ── Neural/Hybrid or Studio mode → Guided Workflow (human-in-the-loop) ──
           // Note: studioStep uses the procedural path directly (bypasses workflow proposal)
@@ -629,6 +632,50 @@ export async function POST(req: Request) {
                 agentPrompt += `\n\nWeb Research Context:\n${researchContext.promptContext}`
               }
 
+              // ── RAG: Inject domain knowledge + script references ──
+              // 1) DETERMINISTIC: Load all tool-guide .md files from disk (cached).
+              //    These are small, hand-crafted docs (camera positioning, render
+              //    settings, etc.) that MUST always be available to the agent.
+              // 2) VECTOR SEARCH: Search for supplemental blender-script examples
+              //    from the vectorstore (filtered to 'blender-scripts' source).
+              ragDocCount = 0
+              try {
+                monitor.startTimer("rag_search")
+
+                // Step 1: Deterministic tool-guide injection (from disk, cached)
+                const toolGuidesContext = loadToolGuides()
+                if (toolGuidesContext) {
+                  agentPrompt += `\n\n${toolGuidesContext}`
+                  ragDocCount += 7 // 7 guide files loaded
+                  console.log(`[RAG] Injected tool-guides from disk (${toolGuidesContext.length} chars)`)
+                }
+
+                // Step 2: Vector search for supplemental blender script examples
+                console.log(`[RAG] Searching blender-scripts for: "${message.slice(0, 80)}..."`)
+                const searchPromise = similaritySearch(message, { limit: 3, source: "blender-scripts" })
+                const timeoutPromise = new Promise<never>((_, reject) =>
+                  setTimeout(() => reject(new Error("RAG search timed out after 10s")), 10_000)
+                )
+                const ragResults = await Promise.race([searchPromise, timeoutPromise])
+                ragDocCount += ragResults.length
+                console.log(`[RAG] Found ${ragResults.length} script references`)
+
+                if (ragResults.length > 0) {
+                  const scriptContext = formatContextFromSources(ragResults)
+                  agentPrompt += `\n\n${scriptContext}`
+                }
+
+                monitor.info("rag", `Injected ${ragDocCount} total docs (guides + scripts)`, {
+                  toolGuides: toolGuidesContext ? true : false,
+                  scriptResults: ragResults.map((r) => ({ source: r.source, similarity: r.similarity.toFixed(3) })),
+                })
+                monitor.trackRAGRetrieval(ragDocCount, ragDocCount, false)
+                monitor.endTimer("rag_search")
+              } catch (ragError) {
+                console.warn(`[RAG] Non-fatal error:`, ragError)
+                monitor.warn("rag", `RAG search failed (non-fatal): ${ragError instanceof Error ? ragError.message : String(ragError)}`)
+              }
+
               // Diagnostic: log LangSmith env vars to confirm they're loaded
               console.log("[LangSmith] Config:", {
                 tracing: process.env.LANGSMITH_TRACING,
@@ -638,7 +685,7 @@ export async function POST(req: Request) {
               })
 
               // Create the v2 LangGraph agent directly — it has:
-              // - RAG middleware (injects relevant tool-guides from vectorstore)
+              // - RAG context already injected into agentPrompt above
               // - Updated system prompt with all direct MCP tools
               // - ReAct loop for autonomous tool selection
               const { createBlenderAgentV2 } = await import("@/lib/ai/agents")
@@ -646,7 +693,7 @@ export async function POST(req: Request) {
                 allowPolyHaven: assetConfig.allowPolyHaven,
                 allowSketchfab: assetConfig.allowSketchfab,
                 allowHyper3d: assetConfig.allowHyper3d,
-                useRAG: true,
+                useRAG: false, // RAG already done above
                 onStreamEvent: (event) => send(event),
               })
 
@@ -956,6 +1003,7 @@ export async function POST(req: Request) {
             tokenUsage,
             commandSuggestions: executedCommands,
             planning: planningMetadata,
+            ragDocCount,
           })
         } catch (error) {
           monitor.error("system", "AI chat stream error", {
