@@ -122,6 +122,7 @@ model Conversation {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   projectId     String   @db.Uuid
   sessionId     String?  @db.VarChar(255)
+  workflowMode  String   @default("autopilot") @db.VarChar(20)
   createdAt     DateTime @default(now())
   lastMessageAt DateTime @default(now())
 

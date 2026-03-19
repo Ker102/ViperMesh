@@ -275,12 +275,16 @@ async function ensureConversation({
   userId,
   conversationId,
   startNew,
+  workflowMode,
 }: {
   projectId: string
   userId: string
   conversationId?: string
   startNew?: boolean
+  workflowMode?: string
 }) {
+  const mode = workflowMode ?? "autopilot"
+
   if (conversationId) {
     const conversation = await prisma.conversation.findFirst({
       where: {
@@ -304,6 +308,7 @@ async function ensureConversation({
   if (!startNew) {
     const existing = await prisma.conversation.findFirst({
       where: {
+        workflowMode: mode,
         project: {
           id: projectId,
           userId,
@@ -324,6 +329,7 @@ async function ensureConversation({
   const conversation = await prisma.conversation.create({
     data: {
       projectId,
+      workflowMode: mode,
     },
     select: { id: true },
   })
@@ -444,6 +450,7 @@ export async function POST(req: Request) {
         userId: session.user.id,
         conversationId,
         startNew,
+        workflowMode,
       })
     } catch {
       return NextResponse.json(

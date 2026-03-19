@@ -76,6 +76,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     },
     include: {
       conversations: {
+        where: { workflowMode: "autopilot" },
         orderBy: {
           lastMessageAt: "desc",
         },
