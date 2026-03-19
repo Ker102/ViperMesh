@@ -739,9 +739,29 @@ export async function POST(req: Request) {
               )
 
               // Build executed commands from agent tool calls
+              // First, collect tool_call_ids that were skipped by dedup middleware
+              const skippedToolCallIds = new Set<string>()
+              for (const m of agentMessages) {
+                if (!m || typeof m !== "object") continue
+                const msg = m as { _getType?: () => string; tool_call_id?: string; content?: string }
+                const msgType = typeof msg._getType === "function" ? msg._getType.call(msg) : undefined
+                if (msgType === "tool" && msg.content && typeof msg.content === "string") {
+                  try {
+                    if (msg.content.includes("_skipped_duplicate")) {
+                      if (msg.tool_call_id) skippedToolCallIds.add(msg.tool_call_id)
+                    }
+                  } catch { /* ignore parse errors */ }
+                }
+              }
+
               for (const msg of toolCallMessages) {
-                const aiMsg = msg as { tool_calls?: Array<{ name: string; args: Record<string, unknown> }> }
+                const aiMsg = msg as { tool_calls?: Array<{ id?: string; name: string; args: Record<string, unknown> }> }
                 for (const tc of aiMsg.tool_calls ?? []) {
+                  // Skip tool calls that the dedup middleware already caught
+                  if (tc.id && skippedToolCallIds.has(tc.id)) {
+                    console.log(`[Agent] Skipped duplicate: ${tc.name} (dedup middleware caught this)`)
+                    continue
+                  }
                   const args = tc.args ?? {}
                   console.log(`[Agent] Tool: ${tc.name} | Args: ${JSON.stringify(args)}`)
                   executedCommands.push({
