@@ -385,6 +385,11 @@ export function ProjectChat({
     setIsSending(true)
     setError(null)
     setInput("")
+    // Clear agent streaming state for fresh run
+    setAgentEvents([])
+    setAgentActive(false)
+    setMonitoringLogs([])
+    setMonitoringSummary(null)
     setMessages((prev) => [
       ...prev,
       {
@@ -1056,9 +1061,15 @@ export function ProjectChat({
                       </div>
                     ) : null}
                     {message.role === "assistant" && message.plan && (
-                      <div className="max-w-[80%] rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground space-y-2">
+                      <div className={`max-w-[80%] rounded-md border px-3 py-2 text-xs text-muted-foreground space-y-2 ${
+                        !message.plan.executionSuccess && index !== messages.length - 1
+                          ? "border-border/30 bg-muted/30 opacity-50"
+                          : "border-primary/30 bg-primary/5"
+                      }`}>
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-semibold text-primary">Planning summary</span>
+                          <span className="font-semibold text-primary">
+                            {index === messages.length - 1 ? "Planning summary" : "Previous run"}
+                          </span>
                           <div className="flex items-center gap-1">
                             <Badge
                               variant={message.plan.executionSuccess ? "default" : "destructive"}
@@ -1078,6 +1089,9 @@ export function ProjectChat({
                             )}
                           </div>
                         </div>
+                        {/* Hide detailed plan content for old failed messages */}
+                        {(index === messages.length - 1 || message.plan.executionSuccess) ? (
+                          <>
                         <p className="text-muted-foreground">{message.plan.planSummary}</p>
                         {message.plan.analysis && (
                           <div className="rounded bg-background/70 px-2 py-1 text-[11px] text-muted-foreground space-y-1">
@@ -1256,6 +1270,10 @@ export function ProjectChat({
                               {message.plan.rawPlan}
                             </pre>
                           </details>
+                        )}
+                          </>
+                        ) : (
+                          <p className="text-[11px] text-muted-foreground">{message.plan.planSummary}</p>
                         )}
                       </div>
                     )}
