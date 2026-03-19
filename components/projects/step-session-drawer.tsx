@@ -13,6 +13,7 @@ interface StepSessionDrawerProps {
     step: WorkflowTimelineStep
     onClose: () => void
     onSendMessage: (stepId: string, message: string) => void
+    onStop?: (stepId: string) => void
 }
 
 // ============================================================================
@@ -47,6 +48,7 @@ export function StepSessionDrawer({
     step,
     onClose,
     onSendMessage,
+    onStop,
 }: StepSessionDrawerProps) {
     const [followUp, setFollowUp] = useState("")
     const [isVisible, setIsVisible] = useState(false)
@@ -358,9 +360,22 @@ export function StepSessionDrawer({
                         <circle cx="12" cy="12" r="10" opacity="0.25" />
                         <path d="M12 2a10 10 0 0 1 10 10" />
                     </svg>
-                    <span className="text-sm font-medium" style={{ color: "hsl(var(--forge-accent))" }}>
+                    <span className="text-sm font-medium flex-1" style={{ color: "hsl(var(--forge-accent))" }}>
                         Agent is processing...
                     </span>
+                    {onStop && (
+                        <button
+                            type="button"
+                            onClick={() => onStop(step.id)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold transition hover:opacity-90"
+                            style={{
+                                backgroundColor: "hsl(0 84% 60%)",
+                                color: "#fff",
+                            }}
+                        >
+                            ■ Stop
+                        </button>
+                    )}
                 </div>
             )}
         </div>

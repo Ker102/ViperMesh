@@ -387,6 +387,18 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         setSelectedStepId((prev) => (prev === stepId ? null : stepId))
     }, [])
 
+    const handleStopStep = useCallback((stepId: string) => {
+        abortControllerRef.current?.abort()
+        abortControllerRef.current = null
+        setWorkflowSteps((prev) =>
+            prev.map((s) =>
+                s.id === stepId && s.status === "running"
+                    ? { ...s, status: "failed" as const, error: "Stopped by user" }
+                    : s
+            )
+        )
+    }, [])
+
     const handleSendMessage = useCallback(
         (stepId: string, message: string) => {
             const step = workflowSteps.find((s) => s.id === stepId)
@@ -437,6 +449,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                         step={selectedStep}
                         onClose={() => setSelectedStepId(null)}
                         onSendMessage={handleSendMessage}
+                        onStop={handleStopStep}
                     />
                 )}
             </div>

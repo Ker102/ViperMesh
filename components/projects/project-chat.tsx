@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState, useCallback, type ChangeEvent } from "react"
+import { Square } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -130,6 +131,7 @@ export function ProjectChat({
   const [activeWorkflow, setActiveWorkflow] = useState<WorkflowProposal | null>(null)
   const [mcpConnected, setMcpConnected] = useState<boolean | null>(null)
   const [workflowMode, setWorkflowMode] = useState<WorkflowMode>("autopilot")
+  const abortControllerRef = useRef<AbortController | null>(null)
   // Monitoring state
   const [monitoringLogs, setMonitoringLogs] = useState<Array<{ timestamp: string; sessionId: string; namespace: string; level: "debug" | "info" | "warn" | "error"; message: string; data?: Record<string, unknown>; durationMs?: number }>>([])
   const [monitoringSummary, setMonitoringSummary] = useState<{
@@ -436,6 +438,7 @@ export function ProjectChat({
       lastTempAssistantIdRef.current = tempAssistantId
 
       const abortController = new AbortController()
+      abortControllerRef.current = abortController
       const response = await fetch("/api/ai/chat", {
         method: "POST",
         headers: {
@@ -752,6 +755,7 @@ export function ProjectChat({
       // Retryable: keep assistant message (shows partial progress)
     } finally {
       setIsSending(false)
+      abortControllerRef.current = null
     }
   }
 
@@ -849,11 +853,13 @@ export function ProjectChat({
         <ModeSelector mode={workflowMode} onChange={setWorkflowMode} />
       </div>
 
-      {/* ── STUDIO MODE ── */}
-      {workflowMode === "studio" ? (
+      {/* ── STUDIO MODE ── (always mounted to preserve running agent state) */}
+      <div style={{ display: workflowMode === "studio" ? undefined : "none" }}>
         <StudioLayout projectId={projectId} />
-      ) : (
-        /* ── AUTOPILOT MODE ── */
+      </div>
+
+      {/* ── AUTOPILOT MODE ── */}
+      {workflowMode === "autopilot" && (
         <Card>
           <CardContent className="space-y-4">
             <div className="rounded-md border border-border/60 bg-muted/40 p-4 space-y-3">
@@ -1562,9 +1568,25 @@ export function ProjectChat({
                     Start New Conversation
                   </Button>
                 </div>
-                <Button type="submit" disabled={!canSend}>
-                  {isSending ? "Thinking..." : "Send to ModelForge"}
-                </Button>
+                {isSending ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => {
+                      abortControllerRef.current?.abort()
+                      abortControllerRef.current = null
+                      setIsSending(false)
+                      setAgentActive(false)
+                    }}
+                  >
+                    <Square className="mr-2 h-4 w-4" />
+                    Stop Processing
+                  </Button>
+                ) : (
+                  <Button type="submit" disabled={!canSend}>
+                    Send to ModelForge
+                  </Button>
+                )}
               </div>
             </form>
           </CardContent>
