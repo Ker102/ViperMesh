@@ -735,6 +735,7 @@ export async function POST(req: Request) {
                 },
                 {
                   configurable: { thread_id: threadId },
+                  recursionLimit: 50,
                   runName: "blender-agent",
                   tags: ["modelforge", studioStep ? "studio" : "autopilot"],
                   metadata: {
