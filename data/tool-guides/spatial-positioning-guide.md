@@ -1,0 +1,189 @@
+---
+title: "Spatial Positioning & Rotation-Aware Placement Guide"
+category: "spatial-positioning"
+tags: ["position", "rotation", "transform", "offset", "grounding", "alignment", "bounding box", "origin", "mathutils", "matrix", "execute_code", "set_object_transform", "get_object_info"]
+triggered_by: ["execute_code", "set_object_transform", "get_object_info"]
+description: "Domain knowledge for accurate object positioning in 3D space, including rotation-aware placement, relative offsets, grounding, alignment, and bounding-box math. Prevents floating objects, misaligned parts, and incorrect spatial relationships."
+blender_version: "4.0+"
+---
+
+# Spatial Positioning & Rotation-Aware Placement Guide
+
+## CRITICAL RULES
+
+1. **NEVER assume an object's position — always query it first.** Before moving, stacking, or aligning any existing object, call `get_object_info` to read its current location, dimensions, and rotation. Hardcoded assumptions cause compounding errors.
+
+2. **Rotation changes the effective bounding box.** A 1×1×2 m box rotated 45° on X is no longer 2 m tall in world space. Always compute the world-space bounding box after rotation.
+
+3. **"Move up by 2" means RELATIVE to current position, not absolute Z=2.** For relative transforms, read current position first, then add the offset.
+
+4. **Use the `@` operator for matrix multiplication (Blender 2.8+).** The `*` operator performs element-wise multiplication and will raise a `TypeError` with Matrix/Vector types.
+
+## POSITIONING FUNDAMENTALS
+
+### Origin-Aware Height Calculation
+Every Blender primitive has its origin at its geometric center by default.
+
+| Primitive | Origin Position | Bottom Z | Top Z |
+|---|---|---|---|
+| Cube (size=S) | Center | `loc.z - S/2` | `loc.z + S/2` |
+| Cylinder (depth=D) | Center | `loc.z - D/2` | `loc.z + D/2` |
+| Sphere (radius=R) | Center | `loc.z - R` | `loc.z + R` |
+| Plane | Center (flat) | `loc.z` | `loc.z` |
+
+**After scaling:** Actual dimension = `size × scale_factor`. A cube with `size=1, scale=(1,1,2)` has height `1 × 2 = 2m`.
+
+**Formula — Ground an object (bottom at Z=0):**
+```
+location.z = height / 2
+```
+For a cylinder with `depth=0.8`: `location.z = 0.4`
+
+**Formula — Stack object B on top of object A:**
+```
+B.location.z = A.location.z + (A_height / 2) + (B_height / 2)
+```
+
+### Relative vs. Absolute Positioning
+| User says... | Correct interpretation |
+|---|---|
+| "Place at Z=2" | Absolute: `obj.location.z = 2.0` |
+| "Move up by 2" | Relative: `obj.location.z = current_z + 2.0` |
+| "Place 3m to the right" | Relative: `obj.location.x = ref.location.x + 3.0` |
+| "Place next to X" | Query X dims: `obj.location.x = X.loc.x + X_width/2 + obj_width/2 + gap` |
+
+**ALWAYS call `get_object_info` before applying relative transforms.**
+
+## ROTATION-AWARE POSITIONING
+
+### The Core Problem
+When you rotate an object, its **local dimensions** stay the same but its **world-space bounding box** changes. A backrest panel rotated -15° on X has its bottom edge shift upward.
+
+### World-Space Bounding Box Calculation
+`obj.bound_box` returns coordinates in **local space only**. To get the actual world-space bounding box of a rotated/scaled/moved object:
+
+```python
+from mathutils import Vector
+
+def get_world_bbox(obj):
+    """Get all 8 bounding box corners in world space."""
+    return [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+
+# Usage:
+world_corners = get_world_bbox(obj)
+min_z = min(c.z for c in world_corners)  # actual bottom
+max_z = max(c.z for c in world_corners)  # actual top
+actual_height = max_z - min_z
+```
+
+### Effective Height After X-Axis Rotation
+For an object with dimensions `(W, D, H)` rotated by angle `θ` around X:
+
+```
+effective_height = abs(H × cos(θ)) + abs(D × sin(θ))
+effective_depth  = abs(H × sin(θ)) + abs(D × cos(θ))
+```
+
+### Practical Example: Angled Backrest
+A backrest `(3.0 × 0.1 × 0.8)` rotated -15° on X:
+```python
+import math
+H, D = 0.8, 0.1
+theta = math.radians(15)
+effective_h = abs(H * math.cos(theta)) + abs(D * math.sin(theta))  # ≈ 0.799m
+bottom_shift = (D / 2) * math.sin(theta)  # ≈ 0.013m upward
+# The bottom edge lifts 0.013m off the expected surface
+```
+
+**Rule: When placing a rotated object flush against a surface, account for the bottom-edge shift.**
+
+### Using mathutils.Matrix for Precise Placement
+```python
+import mathutils, math
+
+# Build a transformation: first rotate, then translate
+rot = mathutils.Matrix.Rotation(math.radians(-15), 4, 'X')
+loc = mathutils.Matrix.Translation((0, 0.25, 0.75))
+obj.matrix_world = loc @ rot
+
+# Order: Translation @ Rotation @ Scale
+# Applied right-to-left: scale first, rotate second, translate last
+```
+
+## ALIGNMENT PATTERNS
+
+### Center-to-Center (Stack Vertically)
+```
+B.location.x = A.location.x
+B.location.y = A.location.y
+B.location.z = A.location.z + (A_height/2) + (B_height/2)
+```
+
+### Edge-to-Edge (Flush Surfaces)
+Place B so its left face touches A's right face:
+```
+B.location.x = A.location.x + (A_width/2) + (B_width/2)
+```
+
+### Place Object on a Surface with Gap
+```
+B.location.z = surface_top_z + (B_height/2) + gap
+```
+
+### Symmetric Placement
+Place objects symmetrically around a center point:
+```python
+for i, offset in enumerate([-1.5, 0, 1.5]):
+    obj_copy.location.x = center_x + offset
+```
+
+## REAL-WORLD DIMENSION REFERENCE
+
+Use these to validate proportions when the user doesn't provide exact sizes.
+
+### Furniture
+| Object | Width | Depth | Height | Notes |
+|---|---|---|---|---|
+| Park bench (2-person) | 1.0–1.3 m | 0.45–0.50 m | Seat: 0.45 m | Backrest adds ~0.40 m |
+| Park bench (3-person) | 1.35–1.80 m | 0.45–0.60 m | Seat: 0.45 m | |
+| Dining chair | 0.45 m | 0.45 m | Seat: 0.45 m, Total: 0.90 m | |
+| Office desk | 1.2–1.8 m | 0.60–0.75 m | 0.73–0.76 m | |
+| Coffee table | 0.75–1.2 m | 0.50–0.75 m | 0.40–0.50 m | |
+| Sofa (3-seat) | 2.0–2.5 m | 0.80–1.0 m | Back: 0.85 m | |
+| Bed (queen) | 1.52 m | 2.03 m | Frame: 0.30–0.50 m | |
+
+### Street Furniture
+| Object | Dimensions | Notes |
+|---|---|---|
+| Streetlamp (residential) | Height: 3–6 m, pole Ø: 0.08–0.12 m | Base Ø: 0.25–0.35 m |
+| Streetlamp (urban) | Height: 4.5–9 m | |
+| Trash can (outdoor) | Ø: 0.35–0.50 m, H: 0.75–0.95 m | |
+| Fire hydrant | H: 0.60–0.75 m, Ø: ~0.20 m | |
+| Bollard | H: 0.75–1.0 m, Ø: 0.10–0.15 m | |
+
+### Architecture
+| Element | Dimensions | Notes |
+|---|---|---|
+| Door (standard) | 0.90 × 2.10 m | |
+| Window | 1.0–1.5 m × 1.2–1.5 m | Sill at ~0.90 m |
+| Ceiling height | 2.4–3.0 m | Residential |
+| Wall thickness | Interior: 0.10–0.15 m | Exterior: 0.20–0.30 m |
+| Stair step | Rise: 0.17 m, Run: 0.28 m | |
+
+### Human Reference
+| Measurement | Value |
+|---|---|
+| Standing height | 1.70–1.80 m |
+| Eye height (camera eye-level) | 1.55–1.70 m |
+| Shoulder width | 0.40–0.50 m |
+| Seated height | 0.80–0.90 m |
+
+## COMMON MISTAKES TO AVOID
+
+1. ❌ **Moving to Z=2 when user said "move up by 2"** — Read current position first
+2. ❌ **Placing a rotated part at the unrotated height** — Rotation shifts the effective edges
+3. ❌ **Assuming object size from creation params after scaling** — Actual size = param × scale
+4. ❌ **Stacking without querying the lower object** — Never assume; always `get_object_info`
+5. ❌ **Forgetting center-origin offset** — Bottom of a size=2 cube at origin is at Z=-1
+6. ❌ **Using `*` for matrix math** — Use `@` in Blender 2.8+ (PEP 465)
+7. ❌ **Using absolute coords for relative instructions** — "3m right of table" ≠ x=3
