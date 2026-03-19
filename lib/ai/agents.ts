@@ -883,8 +883,14 @@ for (const t of ALL_TOOLS) {
  * If the previous/in-flight call failed, retries are allowed.
  */
 function createDedupMiddleware() {
-  // Cache of last successful result per tool
-  const lastCalls = new Map<string, { argsHash: string; result: unknown; failed: boolean }>()
+  // Stable hash: sort keys so {a:1,b:2} and {b:2,a:1} produce the same string
+  function stableHash(args: Record<string, unknown>): string {
+    return JSON.stringify(args, Object.keys(args).sort())
+  }
+
+  // Cache of last successful result per tool+args combo
+  // Key = "toolName:stableHash(args)"
+  const lastCalls = new Map<string, { result: unknown; failed: boolean }>()
   // In-flight calls: key = "toolName:argsHash" → promise of result
   const inFlight = new Map<string, Promise<unknown>>()
 
@@ -892,12 +898,12 @@ function createDedupMiddleware() {
     name: "DedupMiddleware",
     wrapToolCall: async (request, handler) => {
       const toolName = request.toolCall.name
-      const argsHash = JSON.stringify(request.toolCall.args ?? {})
+      const argsHash = stableHash((request.toolCall.args as Record<string, unknown>) ?? {})
       const flightKey = `${toolName}:${argsHash}`
 
       // Check 1: Sequential duplicate — same tool+args already succeeded
-      const lastCall = lastCalls.get(toolName)
-      if (lastCall && lastCall.argsHash === argsHash && !lastCall.failed) {
+      const lastCall = lastCalls.get(flightKey)
+      if (lastCall && !lastCall.failed) {
         console.log(`[Dedup] Skipping duplicate: ${toolName} (identical args, previous call succeeded)`)
         const { ToolMessage: TM } = await import("@langchain/core/messages")
         return new TM({
@@ -939,7 +945,7 @@ function createDedupMiddleware() {
         throw error
       } finally {
         // Cache result and clear in-flight
-        lastCalls.set(toolName, { argsHash, result: result!, failed })
+        lastCalls.set(flightKey, { result: result!, failed })
         resolveInFlight!(result!)
         inFlight.delete(flightKey)
       }
