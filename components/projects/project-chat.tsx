@@ -18,6 +18,7 @@ import { ModeSelector, type WorkflowMode } from "@/components/projects/mode-sele
 import { StudioLayout } from "@/components/projects/studio-layout"
 import { CastleIcon, FoxIcon, RocketIcon, TreeIcon } from "@/components/projects/studio-icons"
 import { MonitoringPanel } from "@/components/projects/monitoring-panel"
+import { AgentActivity } from "@/components/projects/agent-activity"
 
 interface CommandStub {
   id: string
@@ -713,6 +714,10 @@ export function ProjectChat({
                   } else if (agentEvent.type === "agent:complete") {
                     setAgentEvents((prev) => [...prev, agentEvent])
                     // Keep active briefly so user can see the final status
+                  } else if (agentEvent.type === "agent:tool_call") {
+                    // Auto-activate when first tool call arrives (v2 agent may skip planning_start)
+                    setAgentActive(true)
+                    setAgentEvents((prev) => [...prev, agentEvent])
                   } else {
                     setAgentEvents((prev) => [...prev, agentEvent])
                   }
@@ -1427,6 +1432,10 @@ export function ProjectChat({
                 )}
               </div>
             )}
+
+            {/* Agent activity panel — shows tool calls in real-time */}
+            <AgentActivity events={agentEvents} isActive={agentActive} />
+
             <form onSubmit={handleSend} className="space-y-3">
               <input
                 ref={fileInputRef}

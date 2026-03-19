@@ -955,6 +955,54 @@ function createDedupMiddleware() {
   })
 }
 
+function createStreamingMiddleware(onStreamEvent?: (event: AgentStreamEvent) => void) {
+  return createMiddleware({
+    name: "StreamingMiddleware",
+    wrapToolCall: async (request, handler) => {
+      const toolName = request.toolCall.name
+
+      // Emit tool_call started
+      onStreamEvent?.({
+        type: "agent:tool_call",
+        toolName,
+        status: "started",
+        timestamp: new Date().toISOString(),
+      })
+
+      let result: Awaited<ReturnType<typeof handler>>
+      try {
+        result = await handler(request)
+
+        // Check if the result indicates a skipped duplicate
+        const content = typeof result === "object" && "content" in result ? String(result.content) : ""
+        if (content.includes("_skipped_duplicate")) {
+          // Don't emit completed for skipped duplicates
+          return result
+        }
+
+        // Emit tool_call completed
+        onStreamEvent?.({
+          type: "agent:tool_call",
+          toolName,
+          status: "completed",
+          timestamp: new Date().toISOString(),
+        })
+      } catch (error) {
+        // Emit tool_call failed
+        onStreamEvent?.({
+          type: "agent:tool_call",
+          toolName,
+          status: "failed",
+          timestamp: new Date().toISOString(),
+        })
+        throw error
+      }
+
+      return result
+    },
+  })
+}
+
 function createViewportMiddleware(onStreamEvent?: (event: AgentStreamEvent) => void) {
   return createMiddleware({
     name: "ViewportScreenshotMiddleware",
@@ -1163,6 +1211,7 @@ export function createBlenderAgentV2(options: BlenderAgentV2Options = {}) {
   // Build middleware stack (dedup runs first to catch duplicates before side effects)
   const middleware = [
     createDedupMiddleware(),
+    createStreamingMiddleware(onStreamEvent),
     createViewportMiddleware(onStreamEvent),
   ]
 

@@ -268,6 +268,13 @@ const chatRequestSchema = z.object({
   useLocalModel: z.boolean().optional(),
   workflowMode: z.enum(["autopilot", "studio"]).optional(),
   studioStep: z.boolean().optional(),
+  attachments: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    type: z.string(),
+    size: z.number().optional(),
+    data: z.string(), // base64 encoded image data
+  })).optional(),
 })
 
 async function ensureConversation({
@@ -347,7 +354,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const { projectId, conversationId, startNew, message, useLocalModel, workflowMode, studioStep } =
+    const { projectId, conversationId, startNew, message, useLocalModel, workflowMode, studioStep, attachments } =
       chatRequestSchema.parse(body)
 
     const project = await prisma.project.findFirst({
@@ -706,9 +713,25 @@ export async function POST(req: Request) {
               const threadId = `${projectId}-${Date.now()}`
               console.log(`[AGENT] Invoking v2 agent, thread_id=${threadId}, prompt length=${agentPrompt.length}`)
 
+              // Build multimodal content when image attachments are present
+              const hasImageAttachments = attachments && attachments.length > 0
+              const messageContent = hasImageAttachments
+                ? [
+                    { type: "text" as const, text: agentPrompt },
+                    ...attachments.map(a => ({
+                      type: "image_url" as const,
+                      image_url: { url: `data:${a.type};base64,${a.data}` },
+                    })),
+                  ]
+                : agentPrompt
+
+              if (hasImageAttachments) {
+                console.log(`[AGENT] Sending ${attachments.length} image(s) as multimodal content`)
+              }
+
               const agentResult = await agent.invoke(
                 {
-                  messages: [{ role: "user" as const, content: agentPrompt }],
+                  messages: [{ role: "user" as const, content: messageContent }],
                 },
                 {
                   configurable: { thread_id: threadId },
