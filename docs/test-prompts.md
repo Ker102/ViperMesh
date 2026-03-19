@@ -238,6 +238,55 @@ angle. Set up a camera that frames the whole scene nicely and render it.
 
 ---
 
+### Test 11: Stylized Interior Scene (Creative Spatial Reasoning)
+**Tests:** Spatial layout of multiple furnishings, wall-relative placement, warm atmospheric lighting, material variety — all from a vague "vibes" prompt with no exact values
+```
+Create a cozy low-poly style coffee shop interior. I want a small room about
+4 meters wide and 5 meters deep with walls and a floor. Put a service counter
+along the back wall with a simple coffee machine on it. Place 3 bar stools
+in front of the counter. Add a small round table with two chairs near the
+front-left corner. There should be a large window on the left wall letting
+in natural light. Make it feel warm — use wooden materials for furniture
+and warm-toned lighting. Set up a nice camera angle and render it.
+```
+**What to verify (spatial + aesthetic checks):**
+- Room exists with roughly correct proportions (~4×5m), has floor and at least 2-3 walls
+- Counter is **against the back wall** (Y ≈ back wall position, not floating in middle)
+- Coffee machine is **on top of** the counter (Z = counter height + half machine height)
+- 3 bar stools are in front of the counter (between counter and camera), evenly spaced
+- Table + 2 chairs are in the front-left area, chairs near the table
+- Window exists on the left wall
+- Materials are varied: wood for furniture, different material for walls/floor
+- Lighting is warm-toned, not harsh or cold
+- Objects are **grounded** — nothing floating
+- Camera frames the room showing the interior nicely
+- **Timing target:** < 180 seconds (complex scene)
+
+---
+
+### Test 12: Modular Game Asset (Technical Precision)
+**Tests:** Technical asset creation, emissive materials, dimensional precision, export pipeline
+```
+Build a stone dungeon corridor wall segment for a game. The wall should be exactly
+3 meters wide, 3 meters tall, and 0.3 meters thick. Use a dark gray stone material
+with some roughness. Add two wall-mounted torch holders (simple bracket shapes)
+placed symmetrically at 2 meter height, one on each side. Give the torches a warm
+orange emissive glow. The segment should be centered at the origin so it's easy
+to tile. Export as GLB to /tmp/dungeon_wall.glb and also render a preview.
+```
+**What to verify:**
+- Wall dimensions match: ~3m wide (X), ~3m tall (Z), ~0.3m thick (Y)
+- Wall is centered at origin (position ≈ 0,0,1.5 for centered origin)
+- Stone material applied: dark gray, roughness > 0.5
+- 2 torch holders exist, symmetrically placed (±X offset, same Z height ~2m)
+- Torches have emissive material (emission strength > 0, orange/warm color)
+- GLB file exported to the specified path
+- `render_image` called for preview
+- Objects are properly named and organized
+- **Timing target:** < 120 seconds
+
+---
+
 ## AI Model Availability Analysis
 
 The table below shows which tool categories currently have or could benefit from
