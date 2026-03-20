@@ -654,52 +654,93 @@ export async function POST(req: Request) {
                 agentPrompt += `\n\nWeb Research Context:\n${researchContext.promptContext}`
               }
 
-              // ── RAG: Dual-source vector search (blender-scripts + tool-guides) ──
-              // We search BOTH sources for relevant context. We use direct
-              // similarity search (fast, ~1s) instead of CRAG grading (slow,
-              // 10+ LLM calls that cause stream timeouts).
+              // ── CRAG: Corrective RAG with batch LLM grading ──
+              // Search BOTH blender-scripts AND tool-guides sources, then grade
+              // all documents in a single LLM call (1 API call, not N).
+              // Falls back to bare similarity search if CRAG fails.
               ragDocCount = 0
               try {
                 monitor.startTimer("rag_search")
-                console.log(`[RAG] Searching both sources for: "${message.slice(0, 80)}..."`)
+                console.log(`[CRAG] Searching both sources for: "${message.slice(0, 80)}..."`)
 
-                const { similaritySearch } = await import("@/lib/ai/vectorstore")
+                const { correctiveRetrieve } = await import("@/lib/ai/crag")
 
-                // Search both vectorstore sources in parallel with 10s timeout
-                const searchPromise = Promise.all([
-                  similaritySearch(message, { limit: 5, source: "blender-scripts", minSimilarity: 0.3 }),
-                  similaritySearch(message, { limit: 5, source: "tool-guides", minSimilarity: 0.3 }),
+                // Search both vectorstore sources in parallel with 15s timeout
+                const cragPromise = Promise.all([
+                  correctiveRetrieve(message, {
+                    topK: 5,
+                    source: "blender-scripts",
+                    minSimilarity: 0.3,
+                    minRelevantDocs: 1,
+                    monitor,
+                  }),
+                  correctiveRetrieve(message, {
+                    topK: 5,
+                    source: "tool-guides",
+                    minSimilarity: 0.3,
+                    minRelevantDocs: 1,
+                    monitor,
+                  }),
                 ])
                 const timeoutPromise = new Promise<never>((_, reject) =>
-                  setTimeout(() => reject(new Error("RAG search timed out after 10s")), 10_000)
+                  setTimeout(() => reject(new Error("CRAG search timed out after 15s")), 15_000)
                 )
 
-                const [scriptResults, guideResults] = await Promise.race([searchPromise, timeoutPromise])
+                const [scriptCrag, guideCrag] = await Promise.race([cragPromise, timeoutPromise])
 
                 // Combine: guides first (planning context), then scripts (code examples)
-                const allResults = [...guideResults, ...scriptResults]
-                ragDocCount = allResults.length
+                const allDocs = [...guideCrag.documents, ...scriptCrag.documents]
+                ragDocCount = allDocs.length
 
                 console.log(
-                  `[RAG] Scripts: ${scriptResults.length} docs (sims: ${scriptResults.map(r => r.similarity.toFixed(3)).join(", ")})` +
-                  ` | Guides: ${guideResults.length} docs (sims: ${guideResults.map(r => r.similarity.toFixed(3)).join(", ")})` +
+                  `[CRAG] Scripts: ${scriptCrag.totalRetrieved} retrieved → ${scriptCrag.totalRelevant} relevant` +
+                  ` | Guides: ${guideCrag.totalRetrieved} retrieved → ${guideCrag.totalRelevant} relevant` +
                   ` | Total injected: ${ragDocCount}`
                 )
 
-                if (allResults.length > 0) {
-                  const ragContext = formatContextFromSources(allResults)
+                if (allDocs.length > 0) {
+                  const ragContext = formatContextFromSources(allDocs)
                   agentPrompt += `\n\n${ragContext}`
                 }
 
-                monitor.info("rag", `RAG injected ${ragDocCount} docs (${guideResults.length} guides + ${scriptResults.length} scripts)`, {
-                  scripts: scriptResults.map(r => ({ source: r.source, similarity: r.similarity.toFixed(3) })),
-                  guides: guideResults.map(r => ({ source: r.source, similarity: r.similarity.toFixed(3) })),
+                monitor.info("rag", `CRAG injected ${ragDocCount} relevant docs`, {
+                  scripts: {
+                    retrieved: scriptCrag.totalRetrieved,
+                    relevant: scriptCrag.totalRelevant,
+                    fallback: scriptCrag.usedFallback,
+                  },
+                  guides: {
+                    retrieved: guideCrag.totalRetrieved,
+                    relevant: guideCrag.totalRelevant,
+                    fallback: guideCrag.usedFallback,
+                  },
                 })
-                monitor.trackRAGRetrieval(ragDocCount, ragDocCount, false)
+                monitor.trackRAGRetrieval(
+                  scriptCrag.totalRetrieved + guideCrag.totalRetrieved,
+                  ragDocCount,
+                  scriptCrag.usedFallback || guideCrag.usedFallback
+                )
                 monitor.endTimer("rag_search")
               } catch (ragError) {
-                console.warn(`[RAG] Non-fatal error:`, ragError)
-                monitor.warn("rag", `RAG search failed (non-fatal): ${ragError instanceof Error ? ragError.message : String(ragError)}`)
+                console.warn(`[CRAG] Failed, falling back to similarity search:`, ragError)
+                monitor.warn("rag", `CRAG failed, using similarity fallback: ${ragError instanceof Error ? ragError.message : String(ragError)}`)
+
+                // Fallback: bare similarity search (no grading) so agent still gets context
+                try {
+                  const { similaritySearch } = await import("@/lib/ai/vectorstore")
+                  const [scripts, guides] = await Promise.all([
+                    similaritySearch(message, { limit: 5, source: "blender-scripts", minSimilarity: 0.3 }),
+                    similaritySearch(message, { limit: 5, source: "tool-guides", minSimilarity: 0.3 }),
+                  ])
+                  const fallbackDocs = [...guides, ...scripts]
+                  ragDocCount = fallbackDocs.length
+                  if (fallbackDocs.length > 0) {
+                    agentPrompt += `\n\n${formatContextFromSources(fallbackDocs)}`
+                  }
+                  console.log(`[RAG Fallback] Injected ${ragDocCount} docs without grading`)
+                } catch (fallbackErr) {
+                  console.warn(`[RAG Fallback] Also failed:`, fallbackErr)
+                }
               }
 
               // Diagnostic: log LangSmith env vars to confirm they're loaded

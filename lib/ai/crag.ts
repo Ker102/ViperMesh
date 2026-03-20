@@ -35,59 +35,20 @@ export interface CRAGResult {
 // Relevance Grading
 // ============================================================================
 
-const GRADING_PROMPT = `You are a relevance grader for Blender Python code retrieval.
+const BATCH_GRADING_PROMPT = `You are a relevance grader for Blender 3D documentation and Python code retrieval.
 
-Given a user query and a retrieved document, grade the document's relevance:
+Given a user query and a list of retrieved documents, grade EACH document's relevance:
 - "relevant": The document contains code patterns, API references, or techniques directly useful for the query.
 - "partially_relevant": The document has some related content but doesn't directly address the query.
 - "not_relevant": The document is unrelated to what the user needs.
 
-Respond with ONLY valid JSON:
-{"grade": "relevant"|"partially_relevant"|"not_relevant", "reason": "brief explanation"}
+Be generous — if a document contains ANY useful Blender API patterns, guides, or techniques for the task, grade it as at least "partially_relevant".
 
-Be generous — if a document contains ANY useful Blender API patterns for the task, grade it as at least "partially_relevant".`
-
-/**
- * Grade a single document's relevance to the query
- */
-async function gradeDocument(
-    query: string,
-    doc: SearchResult,
-    model: ReturnType<typeof createGeminiModel>
-): Promise<GradedDocument> {
-    try {
-        const messages = [
-            new SystemMessage(GRADING_PROMPT),
-            new HumanMessage(
-                `Query: "${query}"\n\nDocument (source: ${doc.source ?? "unknown"}, similarity: ${doc.similarity.toFixed(3)}):\n${doc.content.slice(0, 2000)}`
-            ),
-        ]
-
-        const response = await model.invoke(messages)
-        const text = (response.content as string).trim()
-
-        // Parse JSON response — handle markdown code blocks
-        const jsonStr = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
-        const parsed = JSON.parse(jsonStr) as { grade: RelevanceGrade; reason: string }
-
-        return {
-            ...doc,
-            grade: parsed.grade,
-            gradeReason: parsed.reason,
-        }
-    } catch {
-        // If grading fails, default to using similarity score as heuristic
-        const grade: RelevanceGrade = doc.similarity >= 0.7 ? "relevant" : doc.similarity >= 0.5 ? "partially_relevant" : "not_relevant"
-        return {
-            ...doc,
-            grade,
-            gradeReason: "Grading failed, used similarity threshold fallback",
-        }
-    }
-}
+Respond with ONLY a valid JSON array (one object per document, in the same order):
+[{"grade": "relevant"|"partially_relevant"|"not_relevant", "reason": "brief explanation"}, ...]`
 
 /**
- * Grade multiple documents in parallel
+ * Grade all documents in a SINGLE batch LLM call (1 API call instead of N)
  */
 async function gradeDocuments(
     query: string,
@@ -95,14 +56,44 @@ async function gradeDocuments(
 ): Promise<GradedDocument[]> {
     if (docs.length === 0) return []
 
-    const model = createGeminiModel({ temperature: 0.1, maxOutputTokens: 256 })
+    try {
+        const model = createGeminiModel({ temperature: 0.1, maxOutputTokens: 1024 })
 
-    // Grade all documents in parallel for speed
-    const graded = await Promise.all(
-        docs.map((doc) => gradeDocument(query, doc, model))
-    )
+        // Build a batch prompt with all documents
+        const docSummaries = docs.map((doc, i) =>
+            `--- Document ${i + 1} (source: ${doc.source ?? "unknown"}, similarity: ${doc.similarity.toFixed(3)}) ---\n${doc.content.slice(0, 800)}`
+        ).join("\n\n")
 
-    return graded
+        const messages = [
+            new SystemMessage(BATCH_GRADING_PROMPT),
+            new HumanMessage(
+                `Query: "${query}"\n\n${docSummaries}`
+            ),
+        ]
+
+        const response = await model.invoke(messages)
+        const text = (response.content as string).trim()
+
+        // Parse JSON array response — handle markdown code blocks
+        const jsonStr = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
+        const parsed = JSON.parse(jsonStr) as Array<{ grade: RelevanceGrade; reason: string }>
+
+        return docs.map((doc, i) => ({
+            ...doc,
+            grade: parsed[i]?.grade ?? (doc.similarity >= 0.5 ? "partially_relevant" : "not_relevant"),
+            gradeReason: parsed[i]?.reason ?? "Grade not returned",
+        }))
+    } catch {
+        // If batch grading fails entirely, fall back to similarity-based heuristic
+        console.warn("[CRAG] Batch grading failed, using similarity fallback")
+        return docs.map((doc) => ({
+            ...doc,
+            grade: doc.similarity >= 0.7 ? "relevant" as RelevanceGrade
+                 : doc.similarity >= 0.45 ? "partially_relevant" as RelevanceGrade
+                 : "not_relevant" as RelevanceGrade,
+            gradeReason: "Batch grading failed, used similarity threshold fallback",
+        }))
+    }
 }
 
 // ============================================================================
