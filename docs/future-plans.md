@@ -14,14 +14,13 @@
 
 ---
 
-## P1 — Short Term (Pipeline Completeness)
+## P1 — Short Term (Pipeline Completeness) Might not be relevant anymore
 
 ### Pipeline Gaps (from `3d-pipeline-strategy.md`)
 | Stage | Status | Target | Approach |
 |-------|--------|--------|----------|
 | Topology | ⚠️ Basic | ✅ Auto retopology | Quadriflow/Instant Meshes via MCP |
 | UV Unwrap | ❌ Not automated | ✅ Smart UV unwrap | Blender's Smart UV Project via MCP |
-| Texturing | ⚠️ Basic procedural | ✅ PBR + AI textures | Yvo3D / texture gen models |
 | Rigging | ❌ Not implemented | ✅ Auto-rig | Rigify addon (built-in) + UniRig AI |
 | Animation | ❌ Not implemented | ✅ AI-driven animation | MoMask + keyframe gen via code |
 | Export | ❌ Not implemented | ✅ Multi-format | FBX/glTF/USD via Blender export API |
@@ -57,7 +56,7 @@
 
 ## P3 — Long Term (Competitive Moat)
 
-1. **Hybrid Neural Pipeline** — Import neural meshes → procedural refinement → clean topology → rig → animate
+
 2. **Free community addon integrations** (Priority 2 from `addon-integration-roadmap.md`):
    - Realtime Materials, BY-GEN, Nature Clicker, Geo Cables
 3. **Fine-tuning pipeline** — Custom Qwen3 for Blender code (269+ training pairs exist)
