@@ -1,3 +1,12 @@
+---
+title: "Animation & Keyframing Guide"
+category: "animation"
+tags: ["animation", "keyframe", "F-curve", "interpolation", "easing", "timeline", "squash", "stretch", "bounce", "timing", "keyframe_insert", "fcurves", "NLA"]
+triggered_by: ["execute_code"]
+description: "Research-backed animation guide covering Blender 5.0 breaking API changes, keyframe performance hierarchy (RNA vs bpy.ops), F-curve access/modifier patterns, and the 12 Disney animation principles with volume-preserving code. Based on NotebookLM research with 8 cited sources."
+blender_version: "5.0+"
+---
+
 # Animation Guide — Blender Agent Best Practices
 
 > **Domain:** Keyframing, F-Curves, Interpolation, Animation Principles

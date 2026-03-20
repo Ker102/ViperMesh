@@ -1,3 +1,12 @@
+---
+title: "Rigging & Rigify Workflow Guide"
+category: "rigging"
+tags: ["rigging", "rigify", "armature", "skeleton", "metarig", "IK", "bone", "rig", "auto-rig", "mesh preparation", "edge loops", "joint", "weight cleanup"]
+triggered_by: ["execute_code"]
+description: "Research-backed guide for Rigify rigging workflows including mesh preparation, per-bone metarig alignment, IK bend requirements, rig generation, and post-rigging weight cleanup. Based on NotebookLM research with 9 cited sources."
+blender_version: "4.0+ / 5.x"
+---
+
 # Rigging Guide — Blender Agent Best Practices
 
 > **Domain:** Rigging, Skeleton, Armature, Weight Painting
