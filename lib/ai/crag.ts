@@ -57,7 +57,7 @@ async function gradeDocuments(
     if (docs.length === 0) return []
 
     try {
-        const model = createGeminiModel({ temperature: 0.1, maxOutputTokens: 1024 })
+        const model = createGeminiModel({ temperature: 0.1, maxOutputTokens: 1024, model: "gemini-3.1-flash-lite-preview" })
 
         // Build a batch prompt with all documents
         const docSummaries = docs.map((doc, i) =>
