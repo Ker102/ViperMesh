@@ -287,6 +287,86 @@ to tile. Export as GLB to /tmp/dungeon_wall.glb and also render a preview.
 
 ---
 
+### Test 13: Basic Rigging with Rigify (Skeleton Tool)
+**Tests:** `blender-agent-skeleton` — Rigify meta-rig generation, armature fitting, automatic weight painting
+```
+Create a simple humanoid figure using basic shapes — a cylinder for the torso,
+a sphere for the head, cylinders for arms and legs. Join them into one mesh.
+Then add a biped skeleton rig to the character using Rigify so it can be posed.
+Make sure the bones are properly weighted to the mesh.
+```
+**What to verify:**
+- Humanoid figure exists as a single joined mesh object
+- An armature (skeleton) is visible in the scene outliner
+- The armature has proper biped bone structure (spine, arms, legs, head)
+- The mesh is parented to the armature with weight painting applied
+- Posing a bone (e.g., moving an arm) deforms the mesh correctly
+- Rigify controls are visible (if generate rig was used)
+- **Timing target:** < 120 seconds
+
+---
+
+### Test 14: AI Auto-Rigging with UniRig (Neural Skeleton)
+**Tests:** `unirig` — AI auto-rigging pipeline, GLB export with embedded armature
+```
+Create a simple four-legged creature — an elongated body with four legs, a
+tail, and a head. Give it a green reptile-like material. Then use UniRig AI
+to automatically generate a skeleton and skin weights for it. Export the
+rigged model as GLB to /tmp/creature_rigged.glb.
+```
+**What to verify:**
+- Creature mesh exists with 4 legs, body, head, tail-like shapes
+- Green material applied
+- UniRig was called (check agent logs for UniRig API call)
+- A skeleton/armature is embedded in the model
+- GLB file exported to /tmp/creature_rigged.glb
+- The exported GLB contains armature data (bones visible when re-imported)
+- **Timing target:** < 180 seconds (includes AI processing time)
+
+---
+
+### Test 15: Keyframe Animation (Motion Tool — Procedural)
+**Tests:** `blender-agent-motion` — keyframe insertion, timeline setup, animation rendering
+```
+Take the default cube and create a bouncing ball animation: the cube should
+start at position Z=5, fall to the ground (Z=0.5) over 30 frames, then
+bounce back up to Z=3 over the next 20 frames, repeating once more.
+Set the animation length to 120 frames at 24fps. Add ease-in on the drops
+and ease-out on the bounces for natural motion. Render frame 15 as a
+preview to check the animation.
+```
+**What to verify:**
+- Default cube has keyframes set on the Z location
+- Timeline shows keyframes at appropriate frames (0, 30, 50, etc.)
+- Animation length is 120 frames, FPS set to 24
+- Playing the animation shows the cube bouncing (Z changes over time)
+- Easing/interpolation is set (not linear — should have ease-in/out curves)
+- A rendered preview frame exists
+- **Timing target:** < 90 seconds
+
+---
+
+### Test 16: AI Motion Generation with MoMask (Text-to-Motion)
+**Tests:** `momask` + `blender-agent-skeleton` — AI motion generation, BVH import, motion applied to rig
+```
+Create a simple humanoid stick figure and rig it with a biped skeleton.
+Then generate a 3-second walking animation using AI motion generation.
+Apply the generated motion to the character so it walks forward naturally.
+Set up a side-view camera and render a preview frame at the midpoint
+of the animation.
+```
+**What to verify:**
+- Humanoid figure exists with a biped skeleton/armature
+- MoMask was called (check agent logs for MoMask API call)
+- A BVH or motion data file was generated/imported
+- The armature has animation data applied (bones move over time)
+- Playing the animation shows a walking motion
+- Camera is positioned from the side
+- Rendered preview exists
+- **Timing target:** < 180 seconds (includes AI processing time)
+
+---
+
 ## AI Model Availability Analysis
 
 The table below shows which tool categories currently have or could benefit from
