@@ -133,6 +133,7 @@ export function ProjectChat({
   const [mcpConnected, setMcpConnected] = useState<boolean | null>(null)
   const [workflowMode, setWorkflowMode] = useState<WorkflowMode>("autopilot")
   const abortControllerRef = useRef<AbortController | null>(null)
+  const userStoppedRef = useRef(false)
   // Monitoring state
   const [monitoringLogs, setMonitoringLogs] = useState<Array<{ timestamp: string; sessionId: string; namespace: string; level: "debug" | "info" | "warn" | "error"; message: string; data?: Record<string, unknown>; durationMs?: number }>>([])
   const [monitoringSummary, setMonitoringSummary] = useState<{
@@ -738,6 +739,7 @@ export function ProjectChat({
     } catch (err) {
       // Classify errors as retryable vs non-retryable
       const isAbort = err instanceof DOMException && err.name === "AbortError"
+      const isUserStop = isAbort && userStoppedRef.current
       const isNetworkError = err instanceof TypeError && err.message.includes("fetch")
       const isStreamError = err instanceof Error && (
         err.message.includes("network") ||
@@ -745,24 +747,40 @@ export function ProjectChat({
         err.message.includes("Failed to fetch") ||
         err.message.includes("The operation was aborted")
       )
-      const retryable = isAbort || isNetworkError || isStreamError
 
-      const errorMessage = isAbort
-        ? "Connection timed out — the server stopped responding. Your request may still be processing."
-        : err instanceof Error
-          ? err.message
-          : "Something went wrong. Try again."
-
-      setError(errorMessage)
-      setIsRetryable(retryable)
-
-      if (!retryable) {
-        // Non-retryable: remove the assistant message
+      // User-initiated stop is NOT retryable and should not show timeout error
+      if (isUserStop) {
+        // Replace the empty assistant placeholder with a stop notice
         setMessages((prev) =>
-          prev.filter((msg) => msg.id !== tempAssistantId)
+          prev.map((msg) =>
+            msg.id === tempAssistantId
+              ? { ...msg, content: "⏹ Stopped by user" }
+              : msg
+          )
         )
+        setError(null)
+        setIsRetryable(false)
+        userStoppedRef.current = false
+      } else {
+        const retryable = isAbort || isNetworkError || isStreamError
+
+        const errorMessage = isAbort
+          ? "Connection timed out — the server stopped responding. Your request may still be processing."
+          : err instanceof Error
+            ? err.message
+            : "Something went wrong. Try again."
+
+        setError(errorMessage)
+        setIsRetryable(retryable)
+
+        if (!retryable) {
+          // Non-retryable: remove the assistant message
+          setMessages((prev) =>
+            prev.filter((msg) => msg.id !== tempAssistantId)
+          )
+        }
+        // Retryable: keep assistant message (shows partial progress)
       }
-      // Retryable: keep assistant message (shows partial progress)
     } finally {
       setIsSending(false)
       abortControllerRef.current = null
@@ -1600,10 +1618,11 @@ export function ProjectChat({
                     type="button"
                     variant="destructive"
                     onClick={() => {
+                      userStoppedRef.current = true
                       abortControllerRef.current?.abort()
                       abortControllerRef.current = null
-                      setIsSending(false)
                       setAgentActive(false)
+                      // isSending will be set to false by the catch/finally block
                     }}
                   >
                     <Square className="mr-2 h-4 w-4" />
