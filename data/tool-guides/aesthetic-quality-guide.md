@@ -62,145 +62,70 @@ Every object in a scene must visually belong to the same world. The prompt's key
 **Rule:** Before building ANY sub-object, ask: "Does this shape and material belong in the world described by the prompt?" A smooth chrome cylinder does NOT belong in a medieval dungeon.
 
 ### Contextual Material Selection
-Materials must match the era and setting:
+Materials must match the era and setting. Derive roughness and color from the **scene context**, not from defaults:
+- **Aged/rustic settings:** Higher roughness (0.6–0.8), muted warm tones, metallic only on iron/steel
+- **Modern/clean settings:** Lower roughness (0.05–0.3), neutral or cool tones, polished metals
+- **Fantasy/magical:** Emissive accents, jewel tones, gold/copper metallics
 
-```python
-# MEDIEVAL TORCH BRACKET — rough forged iron
-mat = bpy.data.materials.new("Iron_Bracket")
-mat.use_nodes = True
-bsdf = mat.node_tree.nodes["Principled BSDF"]
-bsdf.inputs["Base Color"].default_value = (0.15, 0.12, 0.10, 1.0)  # Dark iron
-bsdf.inputs["Metallic"].default_value = 0.9
-bsdf.inputs["Roughness"].default_value = 0.7  # Rough forged, not polished
+**Rule:** Never use default gray or smooth chrome for objects in non-modern settings. Always set roughness and base color intentionally to match the scene's era.
 
-# WRONG for medieval: smooth polished chrome
-# bsdf.inputs["Roughness"].default_value = 0.05  # Too smooth for medieval
-```
+## MULTI-COMPONENT ASSEMBLY PATTERN (via `execute_code`)
 
-## PROCEDURAL OBJECT PATTERNS WITH `execute_code`
-
-### Pattern: Medieval Wall Torch
-A proper torch requires multiple components built via Python:
+### Generic Template
+When building ANY complex object, follow this pattern in `execute_code`:
 
 ```python
 import bpy
-import math
 
-def create_wall_torch(name_prefix, location):
-    """Create a medieval wall torch with bracket, handle, and flame."""
+def create_complex_object(name_prefix, location):
+    """Generic pattern for multi-component object assembly."""
     x, y, z = location
 
-    # 1. WALL BRACKET — bent iron rod shape
-    bpy.ops.mesh.primitive_cylinder_add(
-        radius=0.02, depth=0.25,
-        location=(x, y - 0.12, z),
-        rotation=(math.radians(90), 0, 0)
-    )
-    bracket_arm = bpy.context.active_object
-    bracket_arm.name = f"{name_prefix}_Bracket_Arm"
-
-    # Bracket wall plate (flat circle against wall)
-    bpy.ops.mesh.primitive_cylinder_add(
-        radius=0.05, depth=0.01,
-        location=(x, y, z),
-        rotation=(math.radians(90), 0, 0)
-    )
-    plate = bpy.context.active_object
-    plate.name = f"{name_prefix}_Bracket_Plate"
-
-    # 2. TORCH HANDLE — tapered cylinder (wider at top)
-    bpy.ops.mesh.primitive_cone_add(
-        radius1=0.025, radius2=0.035, depth=0.4,
-        location=(x, y - 0.25, z + 0.05),
-        rotation=(0, 0, 0)
-    )
-    handle = bpy.context.active_object
-    handle.name = f"{name_prefix}_Handle"
-
-    # 3. WRAP/BINDING — torus rings around handle
-    for i, offset in enumerate([0.08, 0.15]):
-        bpy.ops.mesh.primitive_torus_add(
-            major_radius=0.04, minor_radius=0.008,
-            location=(x, y - 0.25, z - 0.05 + offset)
-        )
-        wrap = bpy.context.active_object
-        wrap.name = f"{name_prefix}_Wrap_{i}"
-
-    # 4. FLAME — irregular shape using icosphere + displacement
-    bpy.ops.mesh.primitive_ico_sphere_add(
-        radius=0.06, subdivisions=2,
-        location=(x, y - 0.25, z + 0.28)
-    )
-    flame = bpy.context.active_object
-    flame.name = f"{name_prefix}_Flame"
-    # Elongate vertically for flame shape
-    flame.scale = (0.7, 0.7, 1.4)
+    # STEP 1: STRUCTURAL BASE — the main body/frame
+    # Use the appropriate primitive, then apply transforms
+    bpy.ops.mesh.primitive_cube_add(location=(x, y, z))
+    base = bpy.context.active_object
+    base.name = f"{name_prefix}_Base"
+    base.scale = (...)  # Set realistic proportions
     bpy.ops.object.transform_apply(scale=True)
 
-    # 5. EMISSIVE FLAME MATERIAL
-    mat = bpy.data.materials.new(f"{name_prefix}_Flame_Mat")
-    mat.use_nodes = True
-    bsdf = mat.node_tree.nodes["Principled BSDF"]
-    bsdf.inputs["Base Color"].default_value = (1.0, 0.45, 0.05, 1.0)
-    bsdf.inputs["Emission Color"].default_value = (1.0, 0.5, 0.1, 1.0)
-    bsdf.inputs["Emission Strength"].default_value = 8.0
-    flame.data.materials.append(mat)
+    # STEP 2: SUB-COMPONENTS — add detail parts
+    # Use loops for repeated elements (legs, rungs, slats)
+    for i, offset in enumerate(offsets):
+        bpy.ops.mesh.primitive_cone_add(...)  # Tapered shapes > cylinders
+        part = bpy.context.active_object
+        part.name = f"{name_prefix}_Part_{i}"
 
-    # 6. POINT LIGHT for actual illumination
-    bpy.ops.object.light_add(
-        type='POINT',
-        location=(x, y - 0.25, z + 0.3)
-    )
-    light = bpy.context.active_object
-    light.name = f"{name_prefix}_Light"
-    light.data.energy = 50
-    light.data.color = (1.0, 0.7, 0.3)  # Warm firelight
-    light.data.shadow_soft_size = 0.3
-
-create_wall_torch("Torch_L", (-1.5, -2.95, 1.8))
-create_wall_torch("Torch_R", (1.5, -2.95, 1.8))
-```
-
-### Pattern: Detailed Chair
-```python
-import bpy
-
-def create_chair(name, location):
-    x, y, z = location
-    seat_height = 0.45
-
-    # Seat — slightly wider than deep, with edge bevel
-    bpy.ops.mesh.primitive_cube_add(location=(x, y, z + seat_height))
-    seat = bpy.context.active_object
-    seat.name = f"{name}_Seat"
-    seat.scale = (0.22, 0.22, 0.015)
-    bpy.ops.object.transform_apply(scale=True)
-    # Add bevel for softer edges
-    bevel = seat.modifiers.new("Bevel", 'BEVEL')
+    # STEP 3: DETAIL/ORNAMENT — bevels, bindings, accents
+    # Add modifiers for edge detail
+    bevel = base.modifiers.new("Bevel", 'BEVEL')
     bevel.width = 0.005
     bevel.segments = 2
 
-    # 4 Legs — slightly tapered (cone)
-    leg_positions = [(-0.18, -0.18, 0), (0.18, -0.18, 0),
-                     (-0.18, 0.18, 0), (0.18, 0.18, 0)]
-    for i, (lx, ly, lz) in enumerate(leg_positions):
-        bpy.ops.mesh.primitive_cone_add(
-            radius1=0.02, radius2=0.015,
-            depth=seat_height,
-            location=(x + lx, y + ly, z + seat_height / 2)
-        )
-        leg = bpy.context.active_object
-        leg.name = f"{name}_Leg_{i}"
+    # STEP 4: MATERIAL — context-appropriate, never default gray
+    mat = bpy.data.materials.new(f"{name_prefix}_Mat")
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes["Principled BSDF"]
+    bsdf.inputs["Base Color"].default_value = (...)  # Match scene era
+    bsdf.inputs["Roughness"].default_value = (...)    # Match surface type
 
-    # Backrest — vertical board
-    bpy.ops.mesh.primitive_cube_add(
-        location=(x, y - 0.20, z + seat_height + 0.22)
-    )
-    back = bpy.context.active_object
-    back.name = f"{name}_Back"
-    back.scale = (0.20, 0.012, 0.22)
-    bpy.ops.object.transform_apply(scale=True)
+    # STEP 5: EMISSIVE SOURCES (if light-emitting)
+    # Add emissive material + matching point/spot light
 ```
+
+### Key Techniques for Realistic Shapes
+- **Tapered forms:** Use `primitive_cone_add(radius1, radius2)` instead of cylinders for legs, handles, pillars
+- **Organic shapes:** Use `primitive_ico_sphere_add` + non-uniform scale for flames, foliage, clouds
+- **Repeated elements:** Use `for` loops with offsets for legs, slats, rungs, chain links, bricks
+- **Edge softening:** Add `BEVEL` modifier (width=0.003–0.01, segments=2) to avoid sharp CG edges
+- **Surface detail:** Use `SUBDIVISION` modifier + displacement for weathered/organic surfaces
+
+### Few-Shot: What "Multi-Part" Means in Practice
+These are hints — adapt the decomposition to whatever object the prompt requires:
+- **Light fixture** → mount/bracket + housing body + shade/glass + bulb/flame + point light
+- **Seating** → legs (4, tapered) + seat surface (beveled) + back support + optional armrests
+- **Weapon/tool** → blade/head (tapered) + guard/collar + grip (wrapped) + pommel/end cap
+- **Container** → body (hollow or thick-walled) + rim/lip + handles + lid (if closed)
 
 ## QUALITY CHECKLIST
 
