@@ -30,6 +30,46 @@ def ensure_rigify_enabled() -> bool:
     return True
 
 
+def prepare_mesh_for_rigging(
+    mesh: bpy.types.Object,
+    subdivisions: int = 2,
+    merge_threshold: float = 0.0001
+) -> None:
+    """
+    Prepare a mesh for rigging by adding geometry and cleaning topology.
+    MUST be called before rigging — raw primitives deform poorly.
+
+    Steps:
+    1. Subdivide to add edge loops at joints
+    2. Merge overlapping vertices
+    3. Fix normals
+    4. Apply all transforms
+
+    Args:
+        mesh: The mesh object to prepare
+        subdivisions: Number of subdivision cuts (2 minimum for joint geometry)
+        merge_threshold: Distance threshold for merging duplicate vertices
+
+    Example:
+        >>> prepare_mesh_for_rigging(character_mesh)
+    """
+    import bpy
+    bpy.context.view_layer.objects.active = mesh
+    bpy.ops.object.mode_set(mode='EDIT')
+
+    # Add geometry for joint deformation
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.mesh.subdivide(number_cuts=subdivisions)
+
+    # Clean topology
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.mesh.remove_doubles(threshold=merge_threshold)
+    bpy.ops.mesh.normals_make_consistent(inside=False)
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+
+
 # --- Metarig Templates ---
 METARIG_TEMPLATES = {
     'human':          'bpy.ops.object.armature_human_metarig_add',
@@ -99,6 +139,11 @@ def align_metarig_to_mesh(
     Scale and position a metarig to match the bounding box of a target mesh.
     This is the critical step before generating the rig — bones must be
     inside the mesh for automatic weights to work.
+
+    WARNING: This does a UNIFORM bounding-box scale, which is a rough
+    approximation. For best results, bones should be individually aligned
+    inside each limb of the mesh. See rigging-guide.md Section 2.4 for
+    the correct per-bone alignment approach.
 
     Args:
         metarig: The metarig armature to align
@@ -264,6 +309,58 @@ def set_bone_rigify_type(
         raise ValueError(f"Bone '{bone_name}' not found in metarig")
 
     pose_bone.rigify_type = rigify_type
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+
+def post_rigging_weight_cleanup(
+    mesh: bpy.types.Object,
+    limit: int = 4,
+    smooth_iterations: int = 3,
+    smooth_factor: float = 0.5,
+    clean_threshold: float = 0.01
+) -> None:
+    """
+    Post-rigging weight cleanup. MUST be called after binding mesh to rig.
+    Raw auto-weights are never production-quality without cleanup.
+
+    Steps:
+    1. Limit total influences per vertex (standard: 4 for game engines)
+    2. Smooth weights to reduce jagged deformations
+    3. Normalize all weights (every vertex sums to 1.0)
+    4. Clean tiny weights below threshold
+
+    Args:
+        mesh: The rigged mesh object
+        limit: Max bone influences per vertex (4 = game standard)
+        smooth_iterations: Number of smoothing passes
+        smooth_factor: Smoothing strength (0.0-1.0)
+        clean_threshold: Remove weights below this value
+
+    Example:
+        >>> post_rigging_weight_cleanup(character_mesh)
+    """
+    bpy.context.view_layer.objects.active = mesh
+    bpy.ops.object.mode_set(mode='WEIGHT_PAINT')
+
+    bpy.ops.object.vertex_group_limit_total(limit=limit)
+
+    for _ in range(smooth_iterations):
+        bpy.ops.object.vertex_group_smooth(
+            group_select_mode='ALL',
+            factor=smooth_factor,
+            repeat=1
+        )
+
+    bpy.ops.object.vertex_group_normalize_all(
+        group_select_mode='ALL',
+        lock_active=False
+    )
+
+    bpy.ops.object.vertex_group_clean(
+        group_select_mode='ALL',
+        limit=clean_threshold
+    )
 
     bpy.ops.object.mode_set(mode='OBJECT')
 

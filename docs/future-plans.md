@@ -7,7 +7,7 @@
 
 ## P0 — In Progress / Immediate Next
 
-1. **Debug Test 13 failure** — Rigify rigging test failed (agent didn't execute tools). Reproduce and fix.
+1. ~~**Debug Test 13 failure**~~ — ✅ Resolved: Agent executed tools correctly but rigging quality was poor. Created `rigging-guide.md` and `animation-guide.md` tool guides, fixed `auto_rigify.py`.
 2. **Verify AgentActivity streaming UI** — Component is wired (`agent-activity.tsx`) but unconfirmed in live runs.
 3. **Run Tests 14-16** — UniRig AI auto-rigging, keyframe animation, MoMask text-to-motion.
 4. **Follow-up question quality** — Post-execution follow-up questions are weak/irrelevant. Needs prompt engineering in `route.ts`.
@@ -21,13 +21,13 @@
 |-------|--------|--------|----------|
 | Topology | ⚠️ Basic | ✅ Auto retopology | Quadriflow/Instant Meshes via MCP |
 | UV Unwrap | ❌ Not automated | ✅ Smart UV unwrap | Blender's Smart UV Project via MCP |
-| Rigging | ❌ Not implemented | ✅ Auto-rig | Rigify addon (built-in) + UniRig AI |
-| Animation | ❌ Not implemented | ✅ AI-driven animation | MoMask + keyframe gen via code |
+| Rigging | ⚠️ Functional, quality WIP | ✅ Auto-rig | Rigify via `rigging-guide.md` + `auto_rigify.py` + UniRig AI |
+| Animation | ⚠️ Guide created | ✅ AI-driven animation | `animation-guide.md` + MoMask + keyframe gen via code |
 | Export | ❌ Not implemented | ✅ Multi-format | FBX/glTF/USD via Blender export API |
 
 ### Skill Guides (General-Purpose — never scene-specific!)
-- Rigging best practices (Rigify workflow, weight painting)
-- Animation/keyframing patterns (easing, timeline setup)
+- ✅ Rigging best practices → `data/tool-guides/rigging-guide.md`
+- ✅ Animation/keyframing patterns → `data/tool-guides/animation-guide.md`
 - Particle/effects systems
 - UV unwrapping workflow
 
