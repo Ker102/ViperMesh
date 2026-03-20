@@ -28,14 +28,13 @@
   - Which tool card was selected?
   - Did the agent respond with text-only or error?
   - Possible: skeleton tools might not be available under the selected tool card
-- **Agent streaming UI**: AgentActivity component is wired correctly but not yet confirmed visible during actual agent runs. Need live test.
-- **Follow-up question quality**: Still weak/irrelevant — needs prompt engineering in backend
+- **Pre-existing TS error**: `ExecutionResult` type not imported in `route.ts` line 192 (legacy dead code)
 
 ### Next Steps
-1. **Reproduce and debug Test 13** — check agent routing for skeleton/rigging tool card
-2. **Verify agent streaming UI** is visible during a live run
-3. Run Tests 14-16 (UniRig, keyframe animation, MoMask)
-4. Consider improving follow-up question prompt
+1. **Live test reasoning streaming** — verify `agent:reasoning` events appear inline in chat during execution
+2. **Live test friendly tool names** — verify Executed Commands list shows "Running Python code" instead of `execute_code`
+3. **Reproduce and debug Test 13** — check agent routing for skeleton/rigging tool card
+4. Run Tests 14-16 (UniRig, keyframe animation, MoMask)
 
 ### Architecture (Actual — as of 2026-03-20)
 

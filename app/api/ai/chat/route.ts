@@ -793,27 +793,65 @@ export async function POST(req: Request) {
                 console.log(`[AGENT] Sending ${attachments.length} image(s) as multimodal content`)
               }
 
-              const agentResult = await agent.invoke(
+              // Stream the agent so we can emit reasoning text in real-time
+              // The middleware already handles tool_call events via onStreamEvent
+              // streamMode "values" yields full state snapshots { messages: [...] }
+              // after each step of the ReAct loop (LLM → tool → LLM → ...)
+              const streamConfig = {
+                configurable: { thread_id: threadId },
+                recursionLimit: 50,
+                runName: "blender-agent",
+                tags: ["modelforge", studioStep ? "studio" : "autopilot"],
+                metadata: {
+                  projectId,
+                  conversationId: resolvedConversationId,
+                  strategy: strategyDecision.strategy,
+                },
+                streamMode: "values" as const,
+              }
+
+              const agentMessages: unknown[] = []
+              let reasoningBuffer = ""
+
+              for await (const chunk of agent.stream(
                 {
                   messages: [{ role: "user" as const, content: messageContent }],
                 },
-                {
-                  configurable: { thread_id: threadId },
-                  recursionLimit: 50,
-                  runName: "blender-agent",
-                  tags: ["modelforge", studioStep ? "studio" : "autopilot"],
-                  metadata: {
-                    projectId,
-                    conversationId: resolvedConversationId,
-                    strategy: strategyDecision.strategy,
-                  },
+                streamConfig
+              )) {
+                // streamMode="values" yields full state snapshots: { messages: [...] }
+                const stateMessages = (chunk as Record<string, unknown>).messages
+                if (Array.isArray(stateMessages)) {
+                  // Full state snapshot — keep latest set
+                  agentMessages.length = 0
+                  agentMessages.push(...stateMessages)
+
+                  // Check if the latest message is an AI message with text content (reasoning)
+                  const lastMsg = stateMessages[stateMessages.length - 1]
+                  if (lastMsg && typeof lastMsg === "object") {
+                    const msg = lastMsg as { _getType?: () => string; content?: unknown; tool_calls?: unknown[] }
+                    const msgType = typeof msg._getType === "function" ? msg._getType.call(msg) : undefined
+                    // Only emit reasoning for AI messages that DON'T have tool calls
+                    // (tool calls are handled by the streaming middleware)
+                    const hasToolCalls = Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0
+                    if (msgType === "ai" && !hasToolCalls && typeof msg.content === "string" && msg.content.length > 0) {
+                      const newContent = msg.content
+                      // Only emit the delta (new text since last emission)
+                      if (newContent.length > reasoningBuffer.length) {
+                        const delta = newContent.slice(reasoningBuffer.length)
+                        reasoningBuffer = newContent
+                        send({
+                          type: "agent:reasoning",
+                          content: delta,
+                          timestamp: new Date().toISOString(),
+                        })
+                      }
+                    }
+                  }
                 }
-              )
+              }
 
               monitor.endTimer("agent_execution")
-
-              // Extract tool calls from agent messages for the commands list
-              const agentMessages = agentResult.messages ?? []
               const toolCallMessages = agentMessages.filter(
                 (m: unknown) => {
                   if (!m || typeof m !== "object") return false
@@ -953,7 +991,6 @@ export async function POST(req: Request) {
 
           // ── Generate post-execution summary + follow-up ──
           try {
-            console.log("[Chat] Generating post-execution follow-up...", { overallSuccess, executedCommandsCount: executedCommands.length })
             const completedList = executedCommands
               .filter(c => c.status === "executed")
               .map(c => c.tool)
@@ -962,48 +999,77 @@ export async function POST(req: Request) {
               .map(c => `${c.tool}: ${c.error?.substring(0, 80)}`)
               .join("; ")
 
+            // Friendly tool summary for fallback messages
+            const friendlyTools = executedCommands
+              .filter(c => c.status === "executed")
+              .map(c => {
+                const map: Record<string, string> = {
+                  execute_code: "ran Python code",
+                  set_camera_properties: "set up the camera",
+                  get_viewport_screenshot: "captured a viewport screenshot",
+                  add_light: "added lighting",
+                  set_render_settings: "configured render settings",
+                  get_scene_info: "analyzed the scene",
+                  add_camera: "added a camera",
+                }
+                return map[c.tool] || c.tool
+              })
+
+            console.log("[Chat] Generating post-execution follow-up...", {
+              overallSuccess,
+              executedCommandsCount: executedCommands.length,
+              completedList,
+              providerType: llmProvider.type,
+            })
+
             const summaryPromptText = overallSuccess
-              ? `The Blender scene has been created successfully. Commands executed: ${completedList || "none"}. User's original request: "${message}". Write a brief 2-3 sentence summary of what was done, then ask a short follow-up question suggesting a possible refinement or next step (e.g. "Would you like to adjust the lighting?" or "I can add textures if you'd like"). Keep it conversational and helpful.`
-              : `The Blender operation partially failed. Succeeded: ${completedList || "none"}. Failed: ${failedList || "none"}. User's request was: "${message}". Write a brief 2-3 sentence summary explaining what happened and what failed. Then suggest what the user could try next. Keep it conversational.`
+              ? `You just finished a Blender task. Here is the context:\n- User's request: "${message}"\n- Tools used: ${completedList || "none"}\n\nWrite a brief 2-3 sentence summary of what you created or modified in the scene. Then ask ONE specific follow-up question about what the user might want to do next with this scene — reference specific things you created (e.g. materials, lighting, rigging). Do NOT say generic phrases like "Would you like me to refine anything?" — be specific to the scene.`
+              : `You attempted a Blender task but some steps failed.\n- User's request: "${message}"\n- Succeeded: ${completedList || "none"}\n- Failed: ${failedList || "none"}\n\nExplain briefly what went wrong (1-2 sentences). Then suggest a specific next step the user could try to fix it.`
 
             let followUpText = ""
+            let chunkCount = 0
             for await (const chunk of streamLlmResponse(llmProvider, {
               history: [],
               messages: [{ role: "user", content: summaryPromptText }],
-              maxOutputTokens: 256,
-              systemPrompt: "You are ModelForge, a helpful Blender assistant. Respond conversationally. Do NOT use markdown headers. Keep your response to 2-4 sentences.",
+              maxOutputTokens: 300,
+              temperature: 0.6,
+              systemPrompt: "You are ModelForge, a Blender 3D assistant. Respond conversationally in 2-4 sentences. Do NOT use markdown headers or bullet points. Be specific about what was done in the scene.",
             })) {
+              chunkCount++
               if (chunk.textDelta) {
                 followUpText += chunk.textDelta
                 send({ type: "followup_delta", delta: chunk.textDelta })
               }
             }
 
-            console.log("[Chat] Follow-up generated:", followUpText.length, "chars")
+            console.log("[Chat] Follow-up generated:", followUpText.length, "chars,", chunkCount, "chunks")
 
             // Append follow-up to assistant text so BOTH the initial response
             // and the follow-up are preserved when saved to DB
             if (followUpText.trim()) {
               assistantText = (assistantText || "").trimEnd() + "\n\n" + followUpText.trim()
             } else {
-              // The LLM yielded 0 chunks — send a fallback so the UI isn't empty
-              console.warn("[Chat] Follow-up stream returned empty text, sending fallback")
+              // The LLM yielded 0 chunks — send a scene-aware fallback
+              console.warn("[Chat] Follow-up stream returned empty text, sending scene-aware fallback")
+              const toolSummary = friendlyTools.length > 0
+                ? `I ${friendlyTools.slice(0, 3).join(", ")}${friendlyTools.length > 3 ? ` and ${friendlyTools.length - 3} more` : ""}.`
+                : "I've set up the scene."
               const emptyFallback = overallSuccess
-                ? `Done! I've completed the task. Would you like me to refine anything?`
-                : `The execution encountered some issues. Would you like me to try a different approach?`
+                ? `${toolSummary} What would you like to adjust or add next?`
+                : `Some steps didn't go as planned. Would you like me to retry with a different approach?`
               send({ type: "followup_delta", delta: emptyFallback })
               assistantText = emptyFallback
             }
           } catch (followUpError) {
             console.error("[Chat] Post-execution follow-up generation FAILED:", followUpError)
-            // Make the error visible in the UI + send a fallback follow-up
             const errMsg = followUpError instanceof Error ? followUpError.message : String(followUpError)
+            // Scene-aware error fallback
+            const toolCount = executedCommands.filter(c => c.status === "executed").length
             const fallbackText = overallSuccess
-              ? `I've completed the task. Would you like me to refine anything?`
-              : `The execution encountered some issues. Would you like me to try a different approach?`
+              ? `I completed ${toolCount} operation${toolCount !== 1 ? "s" : ""} on the scene. What would you like to do next?`
+              : `The execution ran into some issues. Would you like me to try a different approach?`
             send({ type: "followup_delta", delta: `\n\n${fallbackText}` })
             assistantText += `\n\n${fallbackText}`
-            // Log the error in monitoring for the session log
             monitor.error("system", `Follow-up generation failed: ${errMsg}`)
           }
 

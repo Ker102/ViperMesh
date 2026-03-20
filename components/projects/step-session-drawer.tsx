@@ -5,6 +5,43 @@ import { cn } from "@/lib/utils"
 import { MonitoringPanel } from "./monitoring-panel"
 import type { WorkflowTimelineStep } from "./workflow-timeline"
 
+// Tool name → friendly label mapping (shared with agent-activity.tsx)
+const TOOL_LABELS: Record<string, string> = {
+    get_scene_info: "Inspecting scene",
+    get_object_info: "Reading object",
+    get_all_object_info: "Reading all objects",
+    get_viewport_screenshot: "Capturing viewport",
+    execute_code: "Running Python code",
+    set_object_transform: "Transforming object",
+    create_material: "Creating material",
+    assign_material: "Assigning material",
+    list_materials: "Listing materials",
+    add_light: "Adding light",
+    set_light_properties: "Configuring light",
+    add_camera: "Adding camera",
+    set_camera_properties: "Configuring camera",
+    add_modifier: "Adding modifier",
+    apply_modifier: "Applying modifier",
+    shade_smooth: "Setting shading",
+    set_render_settings: "Configuring render",
+    render_image: "Rendering image",
+    move_to_collection: "Organizing scene",
+    rename_object: "Renaming object",
+    duplicate_object: "Duplicating object",
+    delete_object: "Deleting object",
+    parent_set: "Setting parent",
+    join_objects: "Joining objects",
+    export_object: "Exporting model",
+    search_polyhaven_assets: "Searching PolyHaven",
+    download_polyhaven_asset: "Downloading asset",
+    set_texture: "Applying texture",
+    list_installed_addons: "Detecting addons",
+}
+
+function getToolLabel(toolName: string): string {
+    return TOOL_LABELS[toolName] ?? toolName.replace(/_/g, " ")
+}
+
 // ============================================================================
 // Props
 // ============================================================================
@@ -274,17 +311,18 @@ export function StepSessionDrawer({
                             {step.commandResults.map((cmd) => (
                                 <div
                                     key={cmd.id}
-                                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-mono"
+                                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
                                     style={{
                                         backgroundColor: "hsl(var(--forge-surface-dim))",
                                         border: "1px solid hsl(var(--forge-border))",
                                         color: "hsl(var(--forge-text))",
                                     }}
+                                    title={cmd.tool}
                                 >
                                     <span className="shrink-0">
                                         {cmd.status === "executed" ? "✅" : cmd.status === "failed" ? "❌" : "⏳"}
                                     </span>
-                                    <span className="truncate flex-1">{cmd.tool}</span>
+                                    <span className="truncate flex-1 font-medium">{getToolLabel(cmd.tool)}</span>
                                     {cmd.description && (
                                         <span
                                             className="text-[10px] truncate max-w-[40%]"
