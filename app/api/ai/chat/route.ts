@@ -23,7 +23,6 @@ import type {
 import { recordExecutionLog } from "@/lib/orchestration/monitor"
 import { buildSystemPrompt } from "@/lib/orchestration/prompts"
 import { searchFirecrawl, type FirecrawlSearchResult } from "@/lib/firecrawl"
-import { similaritySearch } from "@/lib/ai/vectorstore"
 import { formatContextFromSources } from "@/lib/ai/rag"
 import { classifyStrategy } from "@/lib/orchestration/strategy-router"
 import type { StrategyDecision } from "@/lib/orchestration/strategy-types"
@@ -655,36 +654,76 @@ export async function POST(req: Request) {
                 agentPrompt += `\n\nWeb Research Context:\n${researchContext.promptContext}`
               }
 
-              // ── RAG: Vector search for blender-script references ──
-              // Tool-specific domain guides are bound to tool descriptions
-              // in agents.ts (see TOOL_GUIDE_MAP). Here we only search the
-              // vectorstore for supplemental blender-script code examples.
+              // ── CRAG: Corrective RAG with LLM relevance grading ──
+              // Search BOTH blender-scripts AND tool-guides sources, grade
+              // each document's relevance via Gemini, discard irrelevant ones,
+              // and fallback to broader search if too few relevant docs found.
               ragDocCount = 0
               try {
                 monitor.startTimer("rag_search")
-                console.log(`[RAG] Searching blender-scripts for: "${message.slice(0, 80)}..."`)
+                console.log(`[CRAG] Searching both sources for: "${message.slice(0, 80)}..."`)
 
-                const searchPromise = similaritySearch(message, { limit: 3, source: "blender-scripts" })
+                const { correctiveRetrieve } = await import("@/lib/ai/crag")
+
+                // Search both vectorstore sources in parallel with 15s timeout
+                const cragPromise = Promise.all([
+                  correctiveRetrieve(message, {
+                    topK: 5,
+                    source: "blender-scripts",
+                    minSimilarity: 0.35,
+                    minRelevantDocs: 1,
+                    monitor,
+                  }),
+                  correctiveRetrieve(message, {
+                    topK: 5,
+                    source: "tool-guides",
+                    minSimilarity: 0.35,
+                    minRelevantDocs: 1,
+                    monitor,
+                  }),
+                ])
                 const timeoutPromise = new Promise<never>((_, reject) =>
-                  setTimeout(() => reject(new Error("RAG search timed out after 10s")), 10_000)
+                  setTimeout(() => reject(new Error("CRAG search timed out after 15s")), 15_000)
                 )
-                const ragResults = await Promise.race([searchPromise, timeoutPromise])
-                ragDocCount = ragResults.length
-                console.log(`[RAG] Found ${ragDocCount} script references`)
 
-                if (ragResults.length > 0) {
-                  const scriptContext = formatContextFromSources(ragResults)
-                  agentPrompt += `\n\n${scriptContext}`
+                const [scriptCrag, guideCrag] = await Promise.race([cragPromise, timeoutPromise])
+
+                // Combine: guides first (planning context), then scripts (code examples)
+                const allDocs = [...guideCrag.documents, ...scriptCrag.documents]
+                ragDocCount = allDocs.length
+
+                console.log(
+                  `[CRAG] Scripts: ${scriptCrag.totalRetrieved} retrieved → ${scriptCrag.totalRelevant} relevant` +
+                  ` | Guides: ${guideCrag.totalRetrieved} retrieved → ${guideCrag.totalRelevant} relevant` +
+                  ` | Total injected: ${ragDocCount}`
+                )
+
+                if (allDocs.length > 0) {
+                  const ragContext = formatContextFromSources(allDocs)
+                  agentPrompt += `\n\n${ragContext}`
                 }
 
-                monitor.info("rag", `Injected ${ragDocCount} script references`, {
-                  scriptResults: ragResults.map((r) => ({ source: r.source, similarity: r.similarity.toFixed(3) })),
+                monitor.info("rag", `CRAG injected ${ragDocCount} relevant docs`, {
+                  scripts: {
+                    retrieved: scriptCrag.totalRetrieved,
+                    relevant: scriptCrag.totalRelevant,
+                    fallback: scriptCrag.usedFallback,
+                  },
+                  guides: {
+                    retrieved: guideCrag.totalRetrieved,
+                    relevant: guideCrag.totalRelevant,
+                    fallback: guideCrag.usedFallback,
+                  },
                 })
-                monitor.trackRAGRetrieval(ragDocCount, ragDocCount, false)
+                monitor.trackRAGRetrieval(
+                  scriptCrag.totalRetrieved + guideCrag.totalRetrieved,
+                  ragDocCount,
+                  scriptCrag.usedFallback || guideCrag.usedFallback
+                )
                 monitor.endTimer("rag_search")
               } catch (ragError) {
-                console.warn(`[RAG] Non-fatal error:`, ragError)
-                monitor.warn("rag", `RAG search failed (non-fatal): ${ragError instanceof Error ? ragError.message : String(ragError)}`)
+                console.warn(`[CRAG] Non-fatal error:`, ragError)
+                monitor.warn("rag", `CRAG search failed (non-fatal): ${ragError instanceof Error ? ragError.message : String(ragError)}`)
               }
 
               // Diagnostic: log LangSmith env vars to confirm they're loaded

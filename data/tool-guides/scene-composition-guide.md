@@ -2,7 +2,6 @@
 title: "Scene Composition & Interior Design Principles"
 category: "scene-design"
 tags: ["composition", "interior", "camera", "framing", "layout", "furniture", "placement", "spatial", "depth"]
-triggered_by: ["execute_code"]
 description: "General 3D engineering principles for composing visually balanced interior and exterior scenes. Covers furniture placement, camera framing, visual hierarchy, and spatial organization."
 blender_version: "5.0+"
 ---

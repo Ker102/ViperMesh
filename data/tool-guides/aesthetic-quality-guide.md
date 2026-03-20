@@ -2,7 +2,6 @@
 title: "Aesthetic Quality & Stylistic Coherence Guide"
 category: "scene-design"
 tags: ["aesthetic", "quality", "style", "decorative", "detail", "execute_code", "procedural", "torch", "lantern", "ornament", "medieval", "modern", "furniture"]
-triggered_by: ["execute_code"]
 description: "Principles for creating visually convincing, aesthetically rich 3D scenes. Prevents minimalistic primitive-based shortcuts and teaches the agent to match object detail to scene context using execute_code for complex geometry."
 blender_version: "5.0+"
 ---

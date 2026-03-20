@@ -2,7 +2,6 @@
 title: "Weight Painting & Vertex Group Guide"
 category: "weight-painting"
 tags: ["weight painting", "vertex groups", "deformation", "auto-weights", "bone heat", "normalize", "smooth weights", "limit total", "game engine", "export", "bmesh", "vertex group elements"]
-triggered_by: ["execute_code"]
 description: "Research-backed weight painting guide covering Python vertex group architecture, bmesh high-performance assignment, post-binding cleanup pipeline, game engine bone limits (4 max), smoothing techniques, and bone heat weighting troubleshooting. Based on NotebookLM research with 10 cited sources."
 blender_version: "4.0+ / 5.x"
 ---

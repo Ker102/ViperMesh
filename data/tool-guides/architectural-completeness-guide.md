@@ -2,7 +2,6 @@
 title: "Architectural Completeness & Scene Construction Guide"
 category: "scene-design"
 tags: ["architecture", "room", "walls", "floor", "ceiling", "window", "door", "boolean", "interior", "exterior", "glass", "opening"]
-triggered_by: ["execute_code"]
 description: "General 3D engineering principles for constructing architecturally complete scenes. Covers room construction, wall openings (windows/doors), component completeness, and structural integrity."
 blender_version: "5.0+"
 ---
