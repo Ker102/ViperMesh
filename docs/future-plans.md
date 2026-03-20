@@ -2,45 +2,80 @@
 
 > **Last Updated:** 2026-03-20
 > **Rule:** This file is the single source of truth for planned features. Do NOT merge these into gemini.md.
+> **Competitive Analysis:** See `tripo_competitive_analysis.md` artifact for detailed Tripo P1.0 breakdown.
 
 ---
 
 ## P0 — In Progress / Immediate Next
 
-1. ~~**Debug Test 13 failure**~~ — ✅ Resolved: Agent executed tools correctly but rigging quality was poor. Created `rigging-guide.md` and `animation-guide.md` tool guides, fixed `auto_rigify.py`.
+1. ~~**Debug Test 13 failure**~~ — ✅ Resolved: Created `rigging-guide.md`, `animation-guide.md`, `weight-painting-guide.md` tool guides, fixed `auto_rigify.py`.
 2. **Verify AgentActivity streaming UI** — Component is wired (`agent-activity.tsx`) but unconfirmed in live runs.
 3. **Run Tests 14-16** — UniRig AI auto-rigging, keyframe animation, MoMask text-to-motion.
 4. **Follow-up question quality** — Post-execution follow-up questions are weak/irrelevant. Needs prompt engineering in `route.ts`.
 
 ---
 
-## P1 — Short Term (Pipeline Completeness) Might not be relevant anymore
+## P1 — Short Term (Critical Competitive Gaps)
+
+### 🔴 3D Model Viewer Engine (HIGHEST PRIORITY)
+When neural 3D models are generated, there is **no way to preview them in-app**. Users must open Blender.
+Competitors (Tripo, Modiff, Meshy) all have in-browser 3D viewers.
+
+**Recommended:** Google `<model-viewer>` web component (what Tripo/Zubnet use)
+- Rotatable, zoomable GLB preview
+- Wireframe/texture/normals toggle
+- Download in multiple formats
+- Side-by-side comparison of variants
+- **Alternative:** Three.js for more control, Babylon.js for full PBR pipeline
+
+### 🟠 Tripo P1.0 API Integration
+Tripo P1.0 generates production-ready assets in **2 seconds** (mesh) / **60 seconds** (PBR). ~$0.20/model.
+- Direct API (no cold starts, always-on infrastructure)
+- Text-to-3D, Image-to-3D, Multiview-to-3D
+- Smart Low-Poly (`smart_low_poly=true`), Quad Mesh (`quad=true`), Face Limit control
+- Auto-size to real-world meters
+- Parts segmentation via API
+- **Action:** Create `tripo-client.ts` provider in `lib/neural/providers/`
+
+### 🟠 Multi-View Input (Partially Implemented)
+Hunyuan3D 2.0 natively supports multi-view input but it is **not wired** in our `fal-client.ts`.
+Tripo API accepts exactly 4 views (front, left, back, right).
+- **Action:** Wire multi-image input in existing Hunyuan client + new Tripo client
 
 ### Pipeline Gaps (from `3d-pipeline-strategy.md`)
 | Stage | Status | Target | Approach |
 |-------|--------|--------|----------|
 | Topology | ⚠️ Basic | ✅ Auto retopology | Quadriflow/Instant Meshes via MCP |
 | UV Unwrap | ❌ Not automated | ✅ Smart UV unwrap | Blender's Smart UV Project via MCP |
-| Rigging | ⚠️ Functional, quality WIP | ✅ Auto-rig | Rigify via `rigging-guide.md` + `auto_rigify.py` + UniRig AI |
-| Animation | ⚠️ Guide created | ✅ AI-driven animation | `animation-guide.md` + MoMask + keyframe gen via code |
+| Rigging | ✅ Guide created | ✅ Auto-rig | Rigify via `rigging-guide.md` + `auto_rigify.py` + UniRig AI |
+| Animation | ✅ Guide created | ✅ AI-driven animation | `animation-guide.md` + MoMask + keyframe gen |
+| Weight Paint | ✅ Guide created | ✅ Quality weights | `weight-painting-guide.md` cleanup pipeline |
 | Export | ❌ Not implemented | ✅ Multi-format | FBX/glTF/USD via Blender export API |
 
-### Skill Guides (General-Purpose — never scene-specific!)
+### Skill Guides (Research-Backed)
 - ✅ Rigging best practices → `data/tool-guides/rigging-guide.md`
 - ✅ Animation/keyframing patterns → `data/tool-guides/animation-guide.md`
+- ✅ Weight painting workflow → `data/tool-guides/weight-painting-guide.md`
 - Particle/effects systems
 - UV unwrapping workflow
 
-### Neural Tool Integrations
-- **Skeleton**: Mixamo auto-rigger or RigNet for automated rigging
-- **Motion**: MoMask text-to-motion (CVPR 2024) — client exists at `lib/neural/providers/momask-client.ts`
-- **Cleanup**: MeshAnything V2 for auto-retopology
-- **Texturing**: Additional texture generation models beyond Yvo3D
-
 ---
 
-## P2 — Medium Term (Quality & Polish)
+## P2 — Medium Term (Quality, Polish & Advanced Features)
 
+### 🔴 In-Browser Model Editing Tools
+Inspired by Tripo Studio and Modiff:
+- **Magic Brush / Texture Painting** — Paint or edit textures directly on 3D model in-browser
+- **Intelligent Segmentation** — Auto-split fused mesh into logically organized, editable parts
+- **Model Stylization** — Transform models to Lego, voxel, Voronoi styles (Tripo feature)
+- **Modiff-style Texturing** — Professional-grade texture refinement for production-ready assets
+
+### 🟠 Animation Preview & Library
+- Embed rigged model viewer with **MoCap animation library** (Tripo has 100+ biped animations)
+- **Lock Frame** — Freeze animated pose → export as static model
+- Preview animations on rigged models directly in UI (no Blender required)
+
+### Other P2 Items
 1. **Image reference workflow** — Backend wiring done, test with "recreate this scene" prompts
 2. **Agent thought streaming** — Show reasoning text between tool calls (agent:thought events)
 3. **Built-in addon integrations** (from `addon-integration-roadmap.md`):
@@ -49,14 +84,13 @@
    - A.N.T. Landscape (procedural terrain)
    - Sapling Tree Gen (procedural trees)
    - Archimesh (architectural elements)
-4. **More tool context guides** for new tool categories as they're added
-5. **Visual feedback loop improvements** — Agent sees viewport, auto-corrects quality issues
+4. **Visual feedback loop improvements** — Agent sees viewport, auto-corrects quality issues
 
 ---
 
 ## P3 — Long Term (Competitive Moat)
 
-
+1. **Full Tripo Studio Parity** — Unified browser workspace: generate → edit → texture → rig → animate → export
 2. **Free community addon integrations** (Priority 2 from `addon-integration-roadmap.md`):
    - Realtime Materials, BY-GEN, Nature Clicker, Geo Cables
 3. **Fine-tuning pipeline** — Custom Qwen3 for Blender code (269+ training pairs exist)
@@ -71,3 +105,4 @@
 - [`original-legacy-plan.txt`](./original-legacy-plan.txt) — Original project plan
 - [`rag-scaling-plan.md`](./rag-scaling-plan.md) — RAG scaling strategy
 - [`test-prompts.md`](./test-prompts.md) — Test suite with AI Model Availability Analysis
+- `tripo_competitive_analysis.md` — Tripo P1.0 detailed competitive analysis (artifact)
