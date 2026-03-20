@@ -1,227 +1,195 @@
 # Animation Guide — Blender Agent Best Practices
 
-> **Domain:** Keyframing, Animation, Timeline, NLA, Easing
-> **Version:** Blender 4.x / 5.x compatible
-> **Purpose:** Guide the agent through correct animation workflows via `execute_code`.
+> **Domain:** Keyframing, F-Curves, Interpolation, Animation Principles
+> **Version:** Blender 5.x (verified via NotebookLM research)
+> **Purpose:** Research-backed guide for the agent. Use `execute_code` for all animation.
 
 ---
 
-## Decision: Use execute_code for All Animation
+## CRITICAL: Blender 5.0 Breaking Changes
 
-Animation involves keyframe manipulation, F-curve editing, and timeline configuration —
-all operations that require Python scripting. **Use `execute_code` for all animation tasks.**
+> **Source:** Blender 5.0 Python API review (ojambo.com), BlenderArtists forums
 
----
-
-## 1. Timeline Setup (Always First)
-
-```python
-import bpy
-
-scene = bpy.context.scene
-
-# Set frame range
-scene.frame_start = 1
-scene.frame_end = 120  # 5 seconds at 24fps, or adjust per task
-
-# Set FPS
-scene.render.fps = 24  # Standard film rate
-# scene.render.fps = 30  # For real-time/game content
-
-# Go to frame 1
-scene.frame_set(1)
-```
+- **Dict-like property access removed:** `bpy.context.scene['cycles']` no longer works
+- **New `get_transform` / `set_transform` methods** replace older getter/setter workflows
+- **Bundled modules now private:** `bl_console_utils`, `bl_rna_utils` cannot be used by scripts
+- **`property_unset`** replaces dict-like access for old property patterns
 
 ---
 
-## 2. Keyframe Insertion
+## 1. Performance: NEVER Use bpy.ops for Keyframes in Loops
 
-### 2.1 Object Keyframes
+> **Source:** StackExchange "Improving Python Performance with Blender Operators"
+
+`bpy.ops` operators cause **implicit scene updates** on every call. In a loop adding N objects,
+this causes O(n²) total checks — exponential slowdown.
+
+### API Hierarchy (fastest to slowest):
+| Method | Speed | Use When |
+|--------|-------|----------|
+| Low-level F-Curve API (manual `keyframe_points`) | ⚡ Fastest | Bulk animation, many objects |
+| `Object.keyframe_insert()` (RNA method) | ✅ Fast | Standard use — **PREFERRED** |
+| `bpy.ops.anim.keyframe_insert()` | ❌ Slow | Never use in scripts |
+| `bpy.ops.anim.keyframe_insert_menu()` | ❌ UI only | Never use in scripts |
+
+### Correct Pattern: RNA Method
 ```python
 import bpy
 
 obj = bpy.data.objects['Cube']
-
-# Set position and insert keyframe
 obj.location = (0, 0, 0)
 obj.keyframe_insert(data_path='location', frame=1)
 
 obj.location = (0, 0, 5)
 obj.keyframe_insert(data_path='location', frame=30)
-
-# Rotation (Euler, in radians)
-import math
-obj.rotation_euler = (0, 0, 0)
-obj.keyframe_insert(data_path='rotation_euler', frame=1)
-obj.rotation_euler = (0, 0, math.radians(360))
-obj.keyframe_insert(data_path='rotation_euler', frame=60)
-
-# Scale
-obj.scale = (1, 1, 1)
-obj.keyframe_insert(data_path='scale', frame=1)
-obj.scale = (2, 2, 2)
-obj.keyframe_insert(data_path='scale', frame=30)
 ```
 
-### 2.2 Pose Bone Keyframes (For Rigged Characters)
+### Fastest Pattern: Low-Level F-Curve API
 ```python
 import bpy
-import math
 
-rig = bpy.data.objects['Character_Rig']
-bpy.context.view_layer.objects.active = rig
-bpy.ops.object.mode_set(mode='POSE')
+obj = bpy.data.objects['Cube']
 
-# Get a pose bone
-bone = rig.pose.bones.get('upper_arm.fk.L')
+# Ensure animation data exists
+if not obj.animation_data:
+    obj.animation_data_create()
+if not obj.animation_data.action:
+    obj.animation_data.action = bpy.data.actions.new(name=obj.name + 'Action')
 
-if bone:
-    # Frame 1: rest position
-    bone.rotation_quaternion = (1, 0, 0, 0)
-    bone.keyframe_insert(data_path='rotation_quaternion', frame=1)
-    
-    # Frame 15: raised arm
-    bone.rotation_euler = (0, 0, math.radians(-90))
-    bone.keyframe_insert(data_path='rotation_euler', frame=15)
+action = obj.animation_data.action
 
-bpy.ops.object.mode_set(mode='OBJECT')
+# Add F-curve for location Z (index=2)
+fc = action.fcurves.new(data_path='location', index=2)
+# Add keyframe points directly
+fc.keyframe_points.add(count=2)
+fc.keyframe_points[0].co = (1.0, 0.0)      # frame 1, z=0
+fc.keyframe_points[1].co = (30.0, 5.0)     # frame 30, z=5
+fc.keyframe_points.update()
+
+# Manual scene update required with low-level API
+bpy.context.view_layer.update()
 ```
 
 ---
 
-## 3. Interpolation & Easing
+## 2. F-Curve Access and Interpolation
 
-By default, Blender uses Bézier interpolation. For specific effects:
+> **Source:** StackExchange "Set Keyframe interpolation CONSTANT"
 
+### Finding F-Curves
 ```python
-import bpy
-
-obj = bpy.data.objects['Ball']
-
-# Access F-curves after inserting keyframes
-if obj.animation_data and obj.animation_data.action:
-    for fcurve in obj.animation_data.action.fcurves:
-        for keyframe in fcurve.keyframe_points:
-            # Interpolation types: 'CONSTANT', 'LINEAR', 'BEZIER', 'SINE',
-            # 'QUAD', 'CUBIC', 'QUART', 'QUINT', 'EXPO', 'CIRC',
-            # 'BACK', 'BOUNCE', 'ELASTIC'
-            keyframe.interpolation = 'BEZIER'
-            
-            # Easing types: 'AUTO', 'EASE_IN', 'EASE_OUT', 'EASE_IN_OUT'
-            keyframe.easing = 'EASE_IN_OUT'
+action = bpy.data.actions.get(obj.animation_data.action.name)
+# Use fcurves.find(data_path, index) — available since Blender 2.76
+fcu = action.fcurves.find('rotation_euler', index=1)  # Y rotation
 ```
 
-### Common Easing Patterns
-| Animation Type | Interpolation | Easing | Effect |
-|---------------|--------------|--------|--------|
-| Bounce | `BOUNCE` | `EASE_OUT` | Ball bouncing on floor |
-| Elastic snap | `ELASTIC` | `EASE_OUT` | Snappy overshoot |
-| Smooth motion | `BEZIER` | `EASE_IN_OUT` | Natural acceleration/deceleration |
-| Mechanical | `LINEAR` | N/A | Constant speed (robots, machines) |
-| Anticipation | `BACK` | `EASE_IN` | Pull back before action |
-
----
-
-## 4. Bouncing Ball Pattern (Common Test)
-
+### Setting Interpolation Per-Keyframe
 ```python
-import bpy
+# All keyframes on a curve
+for pt in fcu.keyframe_points:
+    pt.interpolation = 'BEZIER'  # or 'LINEAR', 'CONSTANT', 'BOUNCE', etc.
+    pt.easing = 'EASE_IN_OUT'
 
-# Clear scene and create ball
-bpy.ops.mesh.primitive_uv_sphere_add(radius=0.3, location=(0, 0, 5))
-ball = bpy.context.active_object
-ball.name = 'BouncingBall'
+# Specific frame only
+frame_num = 24
+target = [pt for pt in fcu.keyframe_points if pt.co[0] == frame_num]
+if target:
+    target[0].interpolation = 'CONSTANT'
+```
 
-# Bounce parameters
-start_height = 5.0
-bounce_factor = 0.6  # Each bounce is 60% of previous height
-num_bounces = 5
-fps = 24
-frames_per_bounce = 20
-
-frame = 1
-height = start_height
-
-for i in range(num_bounces):
-    # Top of arc
-    ball.location.z = height
-    ball.keyframe_insert(data_path='location', index=2, frame=frame)
-    
-    # Ground contact (squash)
-    frame += frames_per_bounce // 2
-    ball.location.z = 0.3  # radius = ground level
-    ball.scale = (1.3, 1.3, 0.6)  # squash
-    ball.keyframe_insert(data_path='location', index=2, frame=frame)
-    ball.keyframe_insert(data_path='scale', frame=frame)
-    
-    # Next peak (stretch on way up)
-    height *= bounce_factor
-    frames_per_bounce = max(int(frames_per_bounce * 0.85), 8)
-    frame += frames_per_bounce // 2
-    ball.location.z = height
-    ball.scale = (0.85, 0.85, 1.2)  # stretch
-    ball.keyframe_insert(data_path='location', index=2, frame=frame)
-    ball.keyframe_insert(data_path='scale', frame=frame)
-
-# Set final resting frame
-ball.scale = (1, 1, 1)
-ball.keyframe_insert(data_path='scale', frame=frame + 5)
-
-# Set frame range
-bpy.context.scene.frame_start = 1
-bpy.context.scene.frame_end = frame + 10
-
-# Apply bounce easing to Z location
-if ball.animation_data and ball.animation_data.action:
-    for fc in ball.animation_data.action.fcurves:
-        if fc.data_path == 'location' and fc.array_index == 2:
-            for kp in fc.keyframe_points:
-                kp.interpolation = 'BEZIER'
-                kp.easing = 'EASE_IN_OUT'
+### Material Animation F-Curves
+```python
+# Material animations live in node_tree, NOT in object.animation_data
+mat = bpy.data.materials['Material']
+mat_action = mat.node_tree.animation_data.action
+mat_fcu = mat_action.fcurves  # access material fcurves here
 ```
 
 ---
 
-## 5. Animation Export Checklist
+## 3. F-Curve Modifiers via Python
 
-Before exporting animated content:
-1. **Set frame range** — `scene.frame_start` / `scene.frame_end`
-2. **Apply transforms** on all animated objects
-3. **Bake animation** if using constraints: `bpy.ops.nla.bake()`
-4. **Export format:**
-   - **FBX** — best for game engines (Unity/Unreal), includes armature actions
-   - **glTF/GLB** — best for web (Three.js, Babylon.js), compact format
-   - **USD** — best for film pipelines
+> **Source:** StackExchange "modifying fcurve modifiers in python"
 
 ```python
-# FBX export with animation
-bpy.ops.export_scene.fbx(
-    filepath='/tmp/character_anim.fbx',
-    use_selection=True,
-    bake_anim=True,
-    bake_anim_use_all_actions=False
-)
+# Add a Noise modifier to an F-curve
+fcu = action.fcurves.find('location', index=2)
+modifier = fcu.modifiers.new('NOISE')
+modifier.scale = 10      # adjust noise scale
+modifier.strength = 0.5  # adjust noise strength
 
-# glTF export with animation
-bpy.ops.export_scene.gltf(
-    filepath='/tmp/character_anim.glb',
-    export_format='GLB',
-    export_animations=True
-)
+# Cycles modifier (for repeating animation)
+cycle_mod = fcu.modifiers.new('CYCLES')
+# Properties come with defaults — only set what you need to change
+```
+
+Available modifier types: `'NOISE'`, `'CYCLES'`, `'LIMITS'`, `'GENERATOR'`,
+`'ENVELOPE'`, `'FNGENERATOR'`, `'STEPPED'`
+
+---
+
+## 4. The 12 Animation Principles (Disney)
+
+> **Source:** Wikipedia "Twelve basic principles of animation" (Johnston & Thomas, 1981)
+
+These principles guide HOW the agent should create animations, not just the API calls:
+
+### Volume-Preserving Squash & Stretch
+When an object squashes, its width must increase. When it stretches, width decreases.
+**Rule: X × Y × Z scale product must stay constant.**
+
+```python
+# Impact frame: squash (wider, shorter)
+obj.scale = (1.3, 1.3, 0.6)   # 1.3 * 1.3 * 0.6 ≈ 1.01 (volume preserved)
+obj.keyframe_insert(data_path='scale', frame=15)
+
+# Stretch frame: taller, thinner
+obj.scale = (0.8, 0.8, 1.56)  # 0.8 * 0.8 * 1.56 ≈ 1.0
+obj.keyframe_insert(data_path='scale', frame=20)
+```
+
+### Slow In / Slow Out
+More frames near start and end of action = realistic acceleration/deceleration.
+Use `BEZIER` interpolation with `EASE_IN_OUT` — this is the Blender equivalent.
+
+### Anticipation
+Before a big action, add a small opposite movement (wind-up before punch, crouch before jump).
+
+### Follow Through
+After main action stops, appendages/loose parts continue moving briefly, then settle.
+Implement with offset keyframes on child objects or secondary bones.
+
+### Arcs
+Natural movement follows curved paths, not straight lines. Exception: mechanical/robotic motion
+uses `LINEAR` interpolation deliberately.
+
+### Timing
+Fewer frames = faster/lighter. More frames = slower/heavier.
+- Light object bounce: 8-12 frames per bounce
+- Heavy object: 20-30 frames per bounce
+
+---
+
+## 5. Timeline Setup
+
+> **Source:** BlenderArtists "Set first and end frame by script"
+
+```python
+scene = bpy.context.scene
+scene.frame_start = 1
+scene.frame_end = 120    # 5 sec at 24fps
+scene.render.fps = 24    # Film standard
+scene.frame_set(1)       # Go to frame 1
 ```
 
 ---
 
 ## 6. Common Pitfalls
 
-### Keyframes Not Showing
-**Cause:** Object transform not applied, or keyframing wrong data_path.
-**Fix:** Always ensure the object is selected and active before `keyframe_insert`.
-
-### Animation Looks Robotic
-**Cause:** Linear interpolation or no easing.
-**Fix:** Use `BEZIER` interpolation with `EASE_IN_OUT` for organic motion.
-
-### Character Mesh Doesn't Follow Rig Animation
-**Cause:** Mesh not parented to rig, or wrong rig selected.
-**Fix:** Ensure mesh is a child of the armature with `ARMATURE_AUTO` weights.
+| Problem | Cause | Fix (Research-backed) |
+|---------|-------|----------------------|
+| Keyframes not appearing | Wrong `data_path` string | Check exact path in Blender tooltip |
+| Animation data is None | No keyframes inserted yet | Call `obj.animation_data_create()` first |
+| Material anim not found | Looking in object instead of node_tree | Use `material.node_tree.animation_data` |
+| Slow with many objects | Using `bpy.ops` in loops | Switch to RNA `keyframe_insert()` or low-level API |
+| Stiff/robotic motion | Linear interpolation | Use `BEZIER` + `EASE_IN_OUT`, apply 12 principles |

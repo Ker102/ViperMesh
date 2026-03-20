@@ -1,0 +1,26 @@
+{
+  "rules": [
+    {
+      "title": "Research-First Document Creation",
+      "description": "When creating or updating complex documents for the vectorstore (tool guides, RAG scripts, skill guides, system prompts), NEVER rely solely on internal/base knowledge. These documents contain version-specific Blender Python API details, breaking changes, and domain-specific best practices that require verified, up-to-date sources.",
+      "enforcement": "mandatory",
+      "steps": [
+        "1. ALWAYS research first using NotebookLM (preferred) or Context7/Firecrawl before writing any tool guide, RAG script, or vectorstore document.",
+        "2. Create a dedicated NotebookLM notebook for the research topic.",
+        "3. Run fast or deep research to discover relevant sources.",
+        "4. Import sources and query the notebook for specific, citation-backed answers.",
+        "5. Write the document based ONLY on research findings, not base knowledge.",
+        "6. Process ONE document at a time: research → query → write → commit → next document.",
+        "7. Do NOT batch-fill context with all research at once — query per document for best results.",
+        "8. Always verify Blender Python API calls against the target version (currently 5.x).",
+        "9. Flag any content that came from base knowledge vs research sources."
+      ],
+      "applies_to": [
+        "data/tool-guides/*.md",
+        "data/blender-scripts/*.py",
+        "lib/orchestration/prompts/*.md",
+        "docs/skill-guides/*.md"
+      ]
+    }
+  ]
+}
