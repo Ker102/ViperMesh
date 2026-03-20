@@ -65,10 +65,9 @@ Tripo API accepts exactly 4 views (front, left, back, right).
 
 ### 🔴 In-Browser Model Editing Tools
 Inspired by Tripo Studio and Modiff:
-- **Magic Brush / Texture Painting** — Paint or edit textures directly on 3D model in-browser
+- **AI Texture Brush** — Brush over areas on 3D model → AI inpaints/enhances textures in real-time. Architecture: NVIDIA Diffusion Texture Painting (stamp-based SD Inpainting in local render space → UV reprojection). This is what Modiff uses internally. Open-source path: SD Inpainting on RunPod/fal.ai + Three.js projection loop.
 - **Intelligent Segmentation** — Auto-split fused mesh into logically organized, editable parts
 - **Model Stylization** — Transform models to Lego, voxel, Voronoi styles (Tripo feature)
-- **Modiff-style Texturing** — Professional-grade texture refinement for production-ready assets
 
 ### 🟠 Animation Preview & Library
 - Embed rigged model viewer with **MoCap animation library** (Tripo has 100+ biped animations)
