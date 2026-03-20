@@ -37,23 +37,35 @@
 3. Run Tests 14-16 (UniRig, keyframe animation, MoMask)
 4. Consider improving follow-up question prompt
 
-### Key Architectural Notes
-- Recursion limit bumped to 50 (line 738 in `route.ts`)
-- Tool guides should be GENERAL, never scene-specific (agent applies wrong guides to wrong scenes via RAG)
-- 13 tool guides total in vectorstore, ingestion via `npx tsx scripts/ingestion/ingest-tool-guides.ts --force`
+### Architecture (Actual — as of 2026-03-20)
+
+**Two separate modes, fully decoupled:**
+
+1. **Autopilot** (`workflowMode: "autopilot"` — default):
+   - `chat/route.ts` → strategy router classifies `procedural|neural|hybrid`
+   - Procedural path → `createBlenderAgentV2()` directly (no planner)
+   - Agent uses LangChain v1 `createAgent` with built-in ReAct loop (LangGraph)
+   - Middleware stack: Dedup → Streaming → ViewportScreenshot → RAG/CRAG
+   - System prompt loaded from `lib/orchestration/prompts/blender-agent-system.md`
+   - Domain guides bound to tool descriptions from `data/tool-guides/*.md` 
+   - RAG: blender-scripts searched in route.ts, tool-guides injected via agents.ts at module load
+   - Recursion limit: 50 (line 738 in `route.ts`)
+
+2. **Studio** (`workflowMode: "studio"`):
+   - `chat/route.ts` → `workflow-advisor.ts` generates a workflow proposal (step-by-step cards)
+   - UI shows cards; user clicks Execute/Skip/Manual Done per step
+   - Each step hits `workflow-step/route.ts` which creates a fresh `createBlenderAgentV2()` per step
+   - Neural steps use `lib/neural/registry` → provider clients (fal.ai, RunPod, YVO3D)
+
+**Dead code (preserved for reference/revert):**
+- `planner.ts` — old planner prompt; NOT in the live execution path
+- `executor.legacy.ts` — old hand-rolled step executor (37KB)
+- `agents.legacy.ts` — old agent without LangChain v1 (19KB)
+
+**Key rules:**
+- Tool guides must be GENERAL, never scene-specific (RAG matches wrong guides otherwise)
+- 13 tool guides total; ingestion: `npx tsx scripts/ingestion/ingest-tool-guides.ts --force`
 
 ### Future Implementation Plans
-> See also: `docs/addon-integration-roadmap.md` for the full tool integration roadmap
-
-1. **More skill guides** — general-purpose (never scene-specific!) guides for:
-   - Rigging best practices (Rigify workflow, weight painting tips)
-   - Animation/keyframing patterns (easing, timeline setup)
-   - Particle/effects systems
-2. **Neural tool integrations** (from `docs/test-prompts.md` AI Model Analysis):
-   - **Skeleton**: Mixamo auto-rigger or RigNet for automated rigging
-   - **Motion**: MoMask text-to-motion (CVPR 2024), already has client at `lib/neural/providers/momask-client.ts`
-   - **Cleanup**: MeshAnything V2 for auto-retopology
-3. **Agent improvements**:
-   - Better follow-up question generation (prompt engineering in route.ts post-execution)
-   - Agent streaming UI (AgentActivity component) — wired but needs live verification
-   - Image reference attachment — backend wiring done, needs testing with "recreate this scene" prompts
+> See `docs/future-plans.md` — the single source of truth for P0-P3 roadmap  
+> See `docs/architecture.md` — the canonical architecture reference (current vs legacy)
