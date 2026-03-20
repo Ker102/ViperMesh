@@ -41,3 +41,19 @@
 - Recursion limit bumped to 50 (line 738 in `route.ts`)
 - Tool guides should be GENERAL, never scene-specific (agent applies wrong guides to wrong scenes via RAG)
 - 13 tool guides total in vectorstore, ingestion via `npx tsx scripts/ingestion/ingest-tool-guides.ts --force`
+
+### Future Implementation Plans
+> See also: `docs/addon-integration-roadmap.md` for the full tool integration roadmap
+
+1. **More skill guides** — general-purpose (never scene-specific!) guides for:
+   - Rigging best practices (Rigify workflow, weight painting tips)
+   - Animation/keyframing patterns (easing, timeline setup)
+   - Particle/effects systems
+2. **Neural tool integrations** (from `docs/test-prompts.md` AI Model Analysis):
+   - **Skeleton**: Mixamo auto-rigger or RigNet for automated rigging
+   - **Motion**: MoMask text-to-motion (CVPR 2024), already has client at `lib/neural/providers/momask-client.ts`
+   - **Cleanup**: MeshAnything V2 for auto-retopology
+3. **Agent improvements**:
+   - Better follow-up question generation (prompt engineering in route.ts post-execution)
+   - Agent streaming UI (AgentActivity component) — wired but needs live verification
+   - Image reference attachment — backend wiring done, needs testing with "recreate this scene" prompts
