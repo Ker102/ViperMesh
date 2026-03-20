@@ -668,14 +668,14 @@ export async function POST(req: Request) {
                 // Search both vectorstore sources in parallel with 15s timeout
                 const cragPromise = Promise.all([
                   correctiveRetrieve(message, {
-                    topK: 5,
+                    topK: 4,
                     source: "blender-scripts",
                     minSimilarity: 0.3,
                     minRelevantDocs: 1,
                     monitor,
                   }),
                   correctiveRetrieve(message, {
-                    topK: 5,
+                    topK: 3,
                     source: "tool-guides",
                     minSimilarity: 0.3,
                     minRelevantDocs: 1,
@@ -697,6 +697,14 @@ export async function POST(req: Request) {
                   ` | Guides: ${guideCrag.totalRetrieved} retrieved → ${guideCrag.totalRelevant} relevant` +
                   ` | Total injected: ${ragDocCount}`
                 )
+
+                // Log individual document grades for debugging
+                for (const doc of scriptCrag.documents) {
+                  console.log(`  [CRAGScript] ${doc.grade} (sim: ${doc.similarity.toFixed(3)}) — ${doc.source ?? "unknown"} — ${doc.gradeReason}`)
+                }
+                for (const doc of guideCrag.documents) {
+                  console.log(`  [CRAG Guide]  ${doc.grade} (sim: ${doc.similarity.toFixed(3)}) — ${doc.source ?? "unknown"} — ${doc.gradeReason}`)
+                }
 
                 if (allDocs.length > 0) {
                   const ragContext = formatContextFromSources(allDocs)
