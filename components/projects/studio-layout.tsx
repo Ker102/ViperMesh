@@ -342,36 +342,17 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                                                     })
                                                 }
                                             } else if (eventType === "agent:tool_call") {
-                                                // Live tool call streaming — show tools as they execute
+                                                // Live tool call streaming — only show after completion/failure
                                                 const toolName = typeof event.toolName === "string" ? event.toolName : "unknown"
                                                 const status = typeof event.status === "string" ? event.status : "started"
 
-                                                if (status === "started") {
-                                                    // Add a new pending command entry
+                                                // Only add to commandResults when tool is done (skip "started")
+                                                if (status === "completed" || status === "failed") {
                                                     appendCommandResult(stepId, {
                                                         id: `tc-${toolName}-${Date.now()}`,
                                                         tool: toolName,
-                                                        status: "pending",
+                                                        status: status === "completed" ? "executed" : "failed",
                                                     })
-                                                } else {
-                                                    // Update the last pending entry for this tool name
-                                                    setWorkflowSteps((prev) =>
-                                                        prev.map((s) => {
-                                                            if (s.id !== stepId) return s
-                                                            const cmds = [...(s.commandResults ?? [])]
-                                                            // Find last pending entry for this tool
-                                                            for (let i = cmds.length - 1; i >= 0; i--) {
-                                                                if (cmds[i].tool === toolName && cmds[i].status === "pending") {
-                                                                    cmds[i] = {
-                                                                        ...cmds[i],
-                                                                        status: status === "completed" ? "executed" : "failed",
-                                                                    }
-                                                                    break
-                                                                }
-                                                            }
-                                                            return { ...s, commandResults: cmds }
-                                                        })
-                                                    )
                                                 }
                                                 // Also push to agentEvents for AgentActivity component
                                                 appendAgentEvent(stepId, event as { type: string; [key: string]: unknown })

@@ -320,7 +320,7 @@ export function StepSessionDrawer({
                             className="text-xs font-semibold uppercase tracking-wider"
                             style={{ color: "hsl(var(--forge-text-subtle))" }}
                         >
-                            Executed Commands ({step.commandResults.length})
+                            Tool Calls ({step.commandResults.length})
                         </span>
                         <div className="space-y-1">
                             {step.commandResults.map((cmd) => (
@@ -328,33 +328,27 @@ export function StepSessionDrawer({
                                     key={cmd.id}
                                     className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
                                     style={{
-                                        backgroundColor: "hsl(var(--forge-surface-dim))",
-                                        border: "1px solid hsl(var(--forge-border))",
-                                        color: "hsl(var(--forge-text))",
+                                        backgroundColor: cmd.status === "failed"
+                                            ? "hsl(0 84% 60% / 0.08)"
+                                            : "hsl(var(--forge-surface-dim))",
+                                        border: `1px solid ${cmd.status === "failed"
+                                            ? "hsl(0 84% 60% / 0.25)"
+                                            : "hsl(var(--forge-border))"}`,
+                                        color: cmd.status === "failed"
+                                            ? "hsl(0 84% 60%)"
+                                            : "hsl(var(--forge-text))",
                                     }}
                                     title={cmd.tool}
                                 >
                                     <span className="shrink-0">
-                                        {cmd.status === "executed" ? "✅" : cmd.status === "failed" ? "❌" : "⏳"}
+                                        {cmd.status === "executed" ? "✓" : cmd.status === "failed" ? "✕" : "⏳"}
                                     </span>
-                                    <span className="truncate flex-1 font-medium">{getToolLabel(cmd.tool)}</span>
-                                    {cmd.description && (
-                                        <span
-                                            className="text-[10px] truncate max-w-[40%]"
-                                            style={{ color: "hsl(var(--forge-text-subtle))" }}
-                                        >
-                                            {cmd.description}
-                                        </span>
-                                    )}
-                                    {cmd.error && (
-                                        <span
-                                            className="text-[10px] max-w-[40%] overflow-x-auto whitespace-nowrap"
-                                            style={{ color: "hsl(0 84% 60%)" }}
-                                            title={cmd.error}
-                                        >
-                                            {cmd.error}
-                                        </span>
-                                    )}
+                                    <span className="truncate flex-1 font-medium">
+                                        {cmd.status === "failed"
+                                            ? `Execution of ${getToolLabel(cmd.tool)} failed`
+                                            : `Tool call: ${getToolLabel(cmd.tool)}`
+                                        }
+                                    </span>
                                 </div>
                             ))}
                         </div>
