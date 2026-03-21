@@ -793,65 +793,43 @@ export async function POST(req: Request) {
                 console.log(`[AGENT] Sending ${attachments.length} image(s) as multimodal content`)
               }
 
-              // Stream the agent so we can emit reasoning text in real-time
-              // The middleware already handles tool_call events via onStreamEvent
-              // streamMode "values" yields full state snapshots { messages: [...] }
-              // after each step of the ReAct loop (LLM → tool → LLM → ...)
-              const streamConfig = {
-                configurable: { thread_id: threadId },
-                recursionLimit: 50,
-                runName: "blender-agent",
-                tags: ["modelforge", studioStep ? "studio" : "autopilot"],
-                metadata: {
-                  projectId,
-                  conversationId: resolvedConversationId,
-                  strategy: strategyDecision.strategy,
-                },
-                streamMode: "values" as const,
-              }
-
-              const agentMessages: unknown[] = []
-              let reasoningBuffer = ""
-
-              for await (const chunk of agent.stream(
+              const agentResult = await agent.invoke(
                 {
                   messages: [{ role: "user" as const, content: messageContent }],
                 },
-                streamConfig
-              )) {
-                // streamMode="values" yields full state snapshots: { messages: [...] }
-                const stateMessages = (chunk as Record<string, unknown>).messages
-                if (Array.isArray(stateMessages)) {
-                  // Full state snapshot — keep latest set
-                  agentMessages.length = 0
-                  agentMessages.push(...stateMessages)
-
-                  // Check if the latest message is an AI message with text content (reasoning)
-                  const lastMsg = stateMessages[stateMessages.length - 1]
-                  if (lastMsg && typeof lastMsg === "object") {
-                    const msg = lastMsg as { _getType?: () => string; content?: unknown; tool_calls?: unknown[] }
-                    const msgType = typeof msg._getType === "function" ? msg._getType.call(msg) : undefined
-                    // Only emit reasoning for AI messages that DON'T have tool calls
-                    // (tool calls are handled by the streaming middleware)
-                    const hasToolCalls = Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0
-                    if (msgType === "ai" && !hasToolCalls && typeof msg.content === "string" && msg.content.length > 0) {
-                      const newContent = msg.content
-                      // Only emit the delta (new text since last emission)
-                      if (newContent.length > reasoningBuffer.length) {
-                        const delta = newContent.slice(reasoningBuffer.length)
-                        reasoningBuffer = newContent
-                        send({
-                          type: "agent:reasoning",
-                          content: delta,
-                          timestamp: new Date().toISOString(),
-                        })
-                      }
-                    }
-                  }
+                {
+                  configurable: { thread_id: threadId },
+                  recursionLimit: 50,
+                  runName: "blender-agent",
+                  tags: ["modelforge", studioStep ? "studio" : "autopilot"],
+                  metadata: {
+                    projectId,
+                    conversationId: resolvedConversationId,
+                    strategy: strategyDecision.strategy,
+                  },
                 }
-              }
+              )
 
               monitor.endTimer("agent_execution")
+
+              // Extract messages from agent result
+              const agentMessages = agentResult.messages ?? []
+
+              // Post-process: extract reasoning text from AI messages that don't have tool calls
+              // and emit as agent:reasoning events for the UI
+              for (const m of agentMessages) {
+                if (!m || typeof m !== "object") continue
+                const msg = m as { _getType?: () => string; content?: unknown; tool_calls?: unknown[] }
+                const msgType = typeof msg._getType === "function" ? msg._getType.call(msg) : undefined
+                const hasToolCalls = Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0
+                if (msgType === "ai" && !hasToolCalls && typeof msg.content === "string" && msg.content.length > 0) {
+                  send({
+                    type: "agent:reasoning",
+                    content: msg.content,
+                    timestamp: new Date().toISOString(),
+                  })
+                }
+              }
               const toolCallMessages = agentMessages.filter(
                 (m: unknown) => {
                   if (!m || typeof m !== "object") return false

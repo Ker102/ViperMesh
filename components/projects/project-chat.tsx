@@ -724,12 +724,11 @@ export function ProjectChat({
                     setAgentEvents((prev) => [...prev, agentEvent])
                     // Keep active briefly so user can see the final status
                   } else if (agentEvent.type === "agent:reasoning") {
-                    // Accumulate reasoning text for inline display
+                    // Show agent's reasoning/analysis text
                     const reasoningEvent = agentEvent as unknown as { content: string }
                     if (reasoningEvent.content) {
-                      setAgentReasoning((prev) => prev + reasoningEvent.content)
+                      setAgentReasoning(reasoningEvent.content)
                     }
-                    setAgentActive(true)
                   } else if (agentEvent.type === "agent:tool_call") {
                     // Auto-activate when first tool call arrives (v2 agent may skip planning_start)
                     setAgentActive(true)
@@ -1483,10 +1482,10 @@ export function ProjectChat({
             )}
 
             {/* Agent activity panel — shows tool calls in real-time */}
-            {/* Agent reasoning text — shows LLM thinking inline */}
-            {agentActive && agentReasoning && (
+            {/* Agent reasoning text — shows LLM analysis inline */}
+            {agentReasoning && (
               <div
-                className="rounded-xl px-4 py-3 mb-3 text-sm italic transition-all duration-300"
+                className="rounded-xl px-4 py-3 mb-3 text-sm transition-all duration-300"
                 style={{
                   backgroundColor: "var(--forge-glass)",
                   color: "hsl(var(--forge-text-muted))",
@@ -1498,9 +1497,9 @@ export function ProjectChat({
                   className="text-[10px] uppercase tracking-wider font-semibold block mb-1"
                   style={{ color: "hsl(var(--forge-accent))" }}
                 >
-                  Agent thinking
+                  Agent analysis
                 </span>
-                {agentReasoning}
+                <span className="whitespace-pre-wrap">{agentReasoning}</span>
               </div>
             )}
 
