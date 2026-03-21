@@ -69,6 +69,8 @@ export interface WorkflowTimelineStep {
     commandResults?: StepCommandResult[]
     /** Error message if failed */
     error?: string
+    /** Agent stream events (tool calls, etc.) for live activity display */
+    agentEvents?: Array<{ type: string; [key: string]: unknown }>
 }
 
 // ============================================================================

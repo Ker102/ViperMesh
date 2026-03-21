@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { cn } from "@/lib/utils"
 import { MonitoringPanel } from "./monitoring-panel"
+import { AgentActivity } from "./agent-activity"
 import type { WorkflowTimelineStep } from "./workflow-timeline"
 
 // Tool name → friendly label mapping (shared with agent-activity.tsx)
@@ -121,9 +122,19 @@ export function StepSessionDrawer({
         setFollowUp("")
     }
 
-    const messages = step.messages ?? []
+    const rawMessages = step.messages ?? []
     const logs = step.monitoringLogs ?? []
     const summary = step.monitoringSummary ?? null
+
+    // Filter out the first user message when it duplicates the "YOUR PROMPT" header
+    const messages = useMemo(() => {
+        if (!step.inputs?.prompt || rawMessages.length === 0) return rawMessages
+        const first = rawMessages[0]
+        if (first?.role === "user" && first.content?.trim() === step.inputs.prompt.trim()) {
+            return rawMessages.slice(1)
+        }
+        return rawMessages
+    }, [rawMessages, step.inputs?.prompt])
 
     return (
         <div
@@ -211,18 +222,22 @@ export function StepSessionDrawer({
                                 >
                                     {msg.content || (
                                         step.status === "running" && msg.role === "assistant" ? (
-                                            <span className="flex items-center gap-2" style={{ color: "hsl(var(--forge-text-subtle))" }}>
-                                                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <span className="flex items-center gap-2" style={{ color: "hsl(var(--forge-accent))" }}>
+                                                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--forge-accent))" strokeWidth="2">
                                                     <circle cx="12" cy="12" r="10" opacity="0.25" />
                                                     <path d="M12 2a10 10 0 0 1 10 10" />
                                                 </svg>
-                                                Generating...
+                                                Thinking…
                                             </span>
                                         ) : null
                                     )}
                                 </div>
                             </div>
                         ))}
+                        {/* Agent tool call activity */}
+                        {step.status === "running" && step.agentEvents && step.agentEvents.length > 0 && (
+                            <AgentActivity events={step.agentEvents} isActive={true} />
+                        )}
                         <div ref={messagesEndRef} />
                     </div>
                 )}
