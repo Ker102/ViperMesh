@@ -772,6 +772,25 @@ export async function POST(req: Request) {
                 onStreamEvent: (event) => send(event),
               })
 
+              // ── Pre-inject scene state so agent is always scene-aware ──
+              // The agent often ignores the "call get_scene_info first" instruction,
+              // so we call it proactively and prepend the result to the prompt.
+              try {
+                const { executeMcpCommand } = await import("@/lib/ai/agents")
+                const sceneInfoRaw = await executeMcpCommand("get_scene_info")
+                const sceneInfo = JSON.parse(sceneInfoRaw)
+                if (!sceneInfo.error) {
+                  const scenePrefix = `## Current Scene State (auto-injected)\n` +
+                    `The following is the CURRENT scene state from Blender. Use this to understand what already exists before making changes.\n` +
+                    `If there are default objects (e.g. "Cube", "Light", "Camera") that should be removed for a fresh scene, delete them.\n\n` +
+                    `\`\`\`json\n${JSON.stringify(sceneInfo, null, 2)}\n\`\`\`\n\n`
+                  agentPrompt = scenePrefix + agentPrompt
+                  console.log(`[AGENT] Pre-injected scene info: ${Object.keys(sceneInfo).length} keys`)
+                }
+              } catch (sceneErr) {
+                console.warn(`[AGENT] Failed to pre-inject scene info:`, sceneErr)
+              }
+
               // Use a unique thread_id to avoid stale MemorySaver state from
               // prior planner sessions that wrote to the same projectId
               const threadId = `${projectId}-${Date.now()}`

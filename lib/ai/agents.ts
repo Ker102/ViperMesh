@@ -113,7 +113,7 @@ function withGuide(toolName: string, baseDescription: string): string {
  * Includes the applied parameters in the response so the agent can verify
  * what was configured without needing to call get_scene_info.
  */
-async function executeMcpCommand(
+export async function executeMcpCommand(
   commandType: string,
   params: Record<string, unknown> = {}
 ): Promise<string> {

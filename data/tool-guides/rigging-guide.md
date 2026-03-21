@@ -14,6 +14,22 @@ blender_version: "4.0+ / 5.x"
 
 ---
 
+## ⚠️ AGENT BEHAVIORAL RULES (MANDATORY)
+
+Before starting ANY rigging task, the agent MUST follow these rules:
+
+1. **ALWAYS delete default scene objects first.** If the scene contains a default Cube, default Light, or default Camera, delete them using `delete_object` before creating the character mesh. Check the pre-injected scene state for existing objects.
+
+2. **NEVER pose the rig after creation.** After rigging is complete, leave the character in **rest pose / T-pose**. Do NOT move IK handles, rotate bones, or "demonstrate" the rig works. The user will pose it themselves if needed.
+
+3. **NEVER add materials unless the user explicitly requests them.** Do not assign skin tones, colors, or any material to the character mesh unless the user's prompt specifically asks for materials or colors. The rigging task is about skeleton and weights — not appearance.
+
+4. **PREFER this guide's Rigify workflow over custom armature scripts.** If RAG context includes both this guide AND a custom armature script (like `humanoid_armature.py`), IGNORE the custom armature approach and follow the Rigify workflow described here (Section 2). Rigify produces production-quality rigs with IK controls, FK chains, and proper bone layers.
+
+5. **Scene cleanup comes first.** Before creating any geometry, ensure no conflicting objects exist. If the user wants a "fresh" character, the agent should clear the scene of irrelevant objects.
+
+---
+
 ## Decision: Dedicated Tools vs execute_code
 
 Rigging operations are **complex multi-step workflows** that require edit-mode bone manipulation,
