@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState, useCallback, type ChangeEvent } from "react"
+import { Square } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -17,6 +18,7 @@ import { ModeSelector, type WorkflowMode } from "@/components/projects/mode-sele
 import { StudioLayout } from "@/components/projects/studio-layout"
 import { CastleIcon, FoxIcon, RocketIcon, TreeIcon } from "@/components/projects/studio-icons"
 import { MonitoringPanel } from "@/components/projects/monitoring-panel"
+import { AgentActivity } from "@/components/projects/agent-activity"
 
 interface CommandStub {
   id: string
@@ -130,6 +132,8 @@ export function ProjectChat({
   const [activeWorkflow, setActiveWorkflow] = useState<WorkflowProposal | null>(null)
   const [mcpConnected, setMcpConnected] = useState<boolean | null>(null)
   const [workflowMode, setWorkflowMode] = useState<WorkflowMode>("autopilot")
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const userStoppedRef = useRef(false)
   // Monitoring state
   const [monitoringLogs, setMonitoringLogs] = useState<Array<{ timestamp: string; sessionId: string; namespace: string; level: "debug" | "info" | "warn" | "error"; message: string; data?: Record<string, unknown>; durationMs?: number }>>([])
   const [monitoringSummary, setMonitoringSummary] = useState<{
@@ -209,6 +213,12 @@ export function ProjectChat({
   }, [])
 
   useEffect(() => {
+    // Skip sync while a message is being sent — local state is authoritative
+    // during streaming. Without this guard, router.refresh() can deliver
+    // updated initialConversation props before the batched setConversationId
+    // state update takes effect, causing the user message to appear twice.
+    if (isSending) return
+
     if (initialConversation?.id && initialConversation.id !== conversationId) {
       setConversationId(initialConversation.id)
       setMessages(initialConversation.messages.map((msg) => ({ ...msg })))
@@ -219,7 +229,7 @@ export function ProjectChat({
       setConversationId(null)
       setMessages([])
     }
-  }, [initialConversation, conversationId, history])
+  }, [initialConversation, conversationId, history, isSending])
 
   const renderStatusBadge = (status: CommandStub["status"]) => {
     const variantMap: Record<CommandStub["status"], { variant: "default" | "secondary" | "outline" | "destructive"; label: string }> = {
@@ -382,6 +392,11 @@ export function ProjectChat({
     setIsSending(true)
     setError(null)
     setInput("")
+    // Clear agent streaming state for fresh run
+    setAgentEvents([])
+    setAgentActive(false)
+    setMonitoringLogs([])
+    setMonitoringSummary(null)
     setMessages((prev) => [
       ...prev,
       {
@@ -436,6 +451,7 @@ export function ProjectChat({
       lastTempAssistantIdRef.current = tempAssistantId
 
       const abortController = new AbortController()
+      abortControllerRef.current = abortController
       const response = await fetch("/api/ai/chat", {
         method: "POST",
         headers: {
@@ -710,6 +726,10 @@ export function ProjectChat({
                   } else if (agentEvent.type === "agent:complete") {
                     setAgentEvents((prev) => [...prev, agentEvent])
                     // Keep active briefly so user can see the final status
+                  } else if (agentEvent.type === "agent:tool_call") {
+                    // Auto-activate when first tool call arrives (v2 agent may skip planning_start)
+                    setAgentActive(true)
+                    setAgentEvents((prev) => [...prev, agentEvent])
                   } else {
                     setAgentEvents((prev) => [...prev, agentEvent])
                   }
@@ -725,6 +745,7 @@ export function ProjectChat({
     } catch (err) {
       // Classify errors as retryable vs non-retryable
       const isAbort = err instanceof DOMException && err.name === "AbortError"
+      const isUserStop = isAbort && userStoppedRef.current
       const isNetworkError = err instanceof TypeError && err.message.includes("fetch")
       const isStreamError = err instanceof Error && (
         err.message.includes("network") ||
@@ -732,26 +753,43 @@ export function ProjectChat({
         err.message.includes("Failed to fetch") ||
         err.message.includes("The operation was aborted")
       )
-      const retryable = isAbort || isNetworkError || isStreamError
 
-      const errorMessage = isAbort
-        ? "Connection timed out — the server stopped responding. Your request may still be processing."
-        : err instanceof Error
-          ? err.message
-          : "Something went wrong. Try again."
-
-      setError(errorMessage)
-      setIsRetryable(retryable)
-
-      if (!retryable) {
-        // Non-retryable: remove the assistant message
+      // User-initiated stop is NOT retryable and should not show timeout error
+      if (isUserStop) {
+        // Replace the empty assistant placeholder with a stop notice
         setMessages((prev) =>
-          prev.filter((msg) => msg.id !== tempAssistantId)
+          prev.map((msg) =>
+            msg.id === tempAssistantId
+              ? { ...msg, content: "⏹ Stopped by user" }
+              : msg
+          )
         )
+        setError(null)
+        setIsRetryable(false)
+        userStoppedRef.current = false
+      } else {
+        const retryable = isAbort || isNetworkError || isStreamError
+
+        const errorMessage = isAbort
+          ? "Connection timed out — the server stopped responding. Your request may still be processing."
+          : err instanceof Error
+            ? err.message
+            : "Something went wrong. Try again."
+
+        setError(errorMessage)
+        setIsRetryable(retryable)
+
+        if (!retryable) {
+          // Non-retryable: remove the assistant message
+          setMessages((prev) =>
+            prev.filter((msg) => msg.id !== tempAssistantId)
+          )
+        }
+        // Retryable: keep assistant message (shows partial progress)
       }
-      // Retryable: keep assistant message (shows partial progress)
     } finally {
       setIsSending(false)
+      abortControllerRef.current = null
     }
   }
 
@@ -849,11 +887,13 @@ export function ProjectChat({
         <ModeSelector mode={workflowMode} onChange={setWorkflowMode} />
       </div>
 
-      {/* ── STUDIO MODE ── */}
-      {workflowMode === "studio" ? (
+      {/* ── STUDIO MODE ── (always mounted to preserve running agent state) */}
+      <div style={{ display: workflowMode === "studio" ? undefined : "none" }}>
         <StudioLayout projectId={projectId} />
-      ) : (
-        /* ── AUTOPILOT MODE ── */
+      </div>
+
+      {/* ── AUTOPILOT MODE ── */}
+      {workflowMode === "autopilot" && (
         <Card>
           <CardContent className="space-y-4">
             <div className="rounded-md border border-border/60 bg-muted/40 p-4 space-y-3">
@@ -1045,9 +1085,15 @@ export function ProjectChat({
                       </div>
                     ) : null}
                     {message.role === "assistant" && message.plan && (
-                      <div className="max-w-[80%] rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground space-y-2">
+                      <div className={`max-w-[80%] rounded-md border px-3 py-2 text-xs text-muted-foreground space-y-2 ${
+                        !message.plan.executionSuccess && index !== messages.length - 1
+                          ? "border-border/30 bg-muted/30 opacity-50"
+                          : "border-primary/30 bg-primary/5"
+                      }`}>
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-semibold text-primary">Planning summary</span>
+                          <span className="font-semibold text-primary">
+                            {index === messages.length - 1 ? "Planning summary" : "Previous run"}
+                          </span>
                           <div className="flex items-center gap-1">
                             <Badge
                               variant={message.plan.executionSuccess ? "default" : "destructive"}
@@ -1067,6 +1113,9 @@ export function ProjectChat({
                             )}
                           </div>
                         </div>
+                        {/* Hide detailed plan content for old failed messages */}
+                        {(index === messages.length - 1 || message.plan.executionSuccess) ? (
+                          <>
                         <p className="text-muted-foreground">{message.plan.planSummary}</p>
                         {message.plan.analysis && (
                           <div className="rounded bg-background/70 px-2 py-1 text-[11px] text-muted-foreground space-y-1">
@@ -1246,6 +1295,10 @@ export function ProjectChat({
                             </pre>
                           </details>
                         )}
+                          </>
+                        ) : (
+                          <p className="text-[11px] text-muted-foreground">{message.plan.planSummary}</p>
+                        )}
                       </div>
                     )}
                     {/* Guided workflow panel (neural/hybrid requests) */}
@@ -1421,6 +1474,30 @@ export function ProjectChat({
                 )}
               </div>
             )}
+
+            {/* Agent inline status — Thinking indicator + tool call log */}
+            {agentActive && (
+              <div className="flex items-center gap-2 mb-3 px-1">
+                <svg
+                  className="w-4 h-4 animate-spin shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="hsl(var(--forge-accent))"
+                  strokeWidth="2"
+                >
+                  <circle cx="12" cy="12" r="10" opacity="0.25" />
+                  <path d="M12 2a10 10 0 0 1 10 10" />
+                </svg>
+                <span
+                  className="text-xs font-medium"
+                  style={{ color: "hsl(var(--forge-accent))" }}
+                >
+                  Thinking…
+                </span>
+              </div>
+            )}
+            <AgentActivity events={agentEvents} isActive={agentActive} />
+
             <form onSubmit={handleSend} className="space-y-3">
               <input
                 ref={fileInputRef}
@@ -1562,9 +1639,26 @@ export function ProjectChat({
                     Start New Conversation
                   </Button>
                 </div>
-                <Button type="submit" disabled={!canSend}>
-                  {isSending ? "Thinking..." : "Send to ModelForge"}
-                </Button>
+                {isSending ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => {
+                      userStoppedRef.current = true
+                      abortControllerRef.current?.abort()
+                      abortControllerRef.current = null
+                      setAgentActive(false)
+                      // isSending will be set to false by the catch/finally block
+                    }}
+                  >
+                    <Square className="mr-2 h-4 w-4" />
+                    Stop Processing
+                  </Button>
+                ) : (
+                  <Button type="submit" disabled={!canSend}>
+                    Send to ModelForge
+                  </Button>
+                )}
               </div>
             </form>
           </CardContent>

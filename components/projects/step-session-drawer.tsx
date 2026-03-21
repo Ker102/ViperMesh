@@ -1,9 +1,47 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { cn } from "@/lib/utils"
 import { MonitoringPanel } from "./monitoring-panel"
+import { AgentActivity } from "./agent-activity"
 import type { WorkflowTimelineStep } from "./workflow-timeline"
+
+// Tool name → friendly label mapping (shared with agent-activity.tsx)
+const TOOL_LABELS: Record<string, string> = {
+    get_scene_info: "Inspecting scene",
+    get_object_info: "Reading object",
+    get_all_object_info: "Reading all objects",
+    get_viewport_screenshot: "Capturing viewport",
+    execute_code: "Running Python code",
+    set_object_transform: "Transforming object",
+    create_material: "Creating material",
+    assign_material: "Assigning material",
+    list_materials: "Listing materials",
+    add_light: "Adding light",
+    set_light_properties: "Configuring light",
+    add_camera: "Adding camera",
+    set_camera_properties: "Configuring camera",
+    add_modifier: "Adding modifier",
+    apply_modifier: "Applying modifier",
+    shade_smooth: "Setting shading",
+    set_render_settings: "Configuring render",
+    render_image: "Rendering image",
+    move_to_collection: "Organizing scene",
+    rename_object: "Renaming object",
+    duplicate_object: "Duplicating object",
+    delete_object: "Deleting object",
+    parent_set: "Setting parent",
+    join_objects: "Joining objects",
+    export_object: "Exporting model",
+    search_polyhaven_assets: "Searching PolyHaven",
+    download_polyhaven_asset: "Downloading asset",
+    set_texture: "Applying texture",
+    list_installed_addons: "Detecting addons",
+}
+
+function getToolLabel(toolName: string): string {
+    return TOOL_LABELS[toolName] ?? toolName.replace(/_/g, " ")
+}
 
 // ============================================================================
 // Props
@@ -13,6 +51,7 @@ interface StepSessionDrawerProps {
     step: WorkflowTimelineStep
     onClose: () => void
     onSendMessage: (stepId: string, message: string) => void
+    onStop?: (stepId: string) => void
 }
 
 // ============================================================================
@@ -47,6 +86,7 @@ export function StepSessionDrawer({
     step,
     onClose,
     onSendMessage,
+    onStop,
 }: StepSessionDrawerProps) {
     const [followUp, setFollowUp] = useState("")
     const [isVisible, setIsVisible] = useState(false)
@@ -82,9 +122,19 @@ export function StepSessionDrawer({
         setFollowUp("")
     }
 
-    const messages = step.messages ?? []
+    const rawMessages = step.messages ?? []
     const logs = step.monitoringLogs ?? []
     const summary = step.monitoringSummary ?? null
+
+    // Filter out the first user message when it duplicates the "YOUR PROMPT" header
+    const messages = useMemo(() => {
+        if (!step.inputs?.prompt || rawMessages.length === 0) return rawMessages
+        const first = rawMessages[0]
+        if (first?.role === "user" && first.content?.trim() === step.inputs.prompt.trim()) {
+            return rawMessages.slice(1)
+        }
+        return rawMessages
+    }, [rawMessages, step.inputs?.prompt])
 
     return (
         <div
@@ -172,18 +222,22 @@ export function StepSessionDrawer({
                                 >
                                     {msg.content || (
                                         step.status === "running" && msg.role === "assistant" ? (
-                                            <span className="flex items-center gap-2" style={{ color: "hsl(var(--forge-text-subtle))" }}>
-                                                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <span className="flex items-center gap-2" style={{ color: "hsl(var(--forge-accent))" }}>
+                                                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--forge-accent))" strokeWidth="2">
                                                     <circle cx="12" cy="12" r="10" opacity="0.25" />
                                                     <path d="M12 2a10 10 0 0 1 10 10" />
                                                 </svg>
-                                                Generating...
+                                                Thinking…
                                             </span>
                                         ) : null
                                     )}
                                 </div>
                             </div>
                         ))}
+                        {/* Agent tool call activity */}
+                        {step.status === "running" && step.agentEvents && step.agentEvents.length > 0 && (
+                            <AgentActivity events={step.agentEvents} isActive={true} />
+                        )}
                         <div ref={messagesEndRef} />
                     </div>
                 )}
@@ -266,40 +320,35 @@ export function StepSessionDrawer({
                             className="text-xs font-semibold uppercase tracking-wider"
                             style={{ color: "hsl(var(--forge-text-subtle))" }}
                         >
-                            Executed Commands ({step.commandResults.length})
+                            Tool Calls ({step.commandResults.length})
                         </span>
                         <div className="space-y-1">
                             {step.commandResults.map((cmd) => (
                                 <div
                                     key={cmd.id}
-                                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-mono"
+                                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
                                     style={{
-                                        backgroundColor: "hsl(var(--forge-surface-dim))",
-                                        border: "1px solid hsl(var(--forge-border))",
-                                        color: "hsl(var(--forge-text))",
+                                        backgroundColor: cmd.status === "failed"
+                                            ? "hsl(0 84% 60% / 0.08)"
+                                            : "hsl(var(--forge-surface-dim))",
+                                        border: `1px solid ${cmd.status === "failed"
+                                            ? "hsl(0 84% 60% / 0.25)"
+                                            : "hsl(var(--forge-border))"}`,
+                                        color: cmd.status === "failed"
+                                            ? "hsl(0 84% 60%)"
+                                            : "hsl(var(--forge-text))",
                                     }}
+                                    title={cmd.tool}
                                 >
                                     <span className="shrink-0">
-                                        {cmd.status === "executed" ? "✅" : cmd.status === "failed" ? "❌" : "⏳"}
+                                        {cmd.status === "executed" ? "✓" : cmd.status === "failed" ? "✕" : "⏳"}
                                     </span>
-                                    <span className="truncate flex-1">{cmd.tool}</span>
-                                    {cmd.description && (
-                                        <span
-                                            className="text-[10px] truncate max-w-[40%]"
-                                            style={{ color: "hsl(var(--forge-text-subtle))" }}
-                                        >
-                                            {cmd.description}
-                                        </span>
-                                    )}
-                                    {cmd.error && (
-                                        <span
-                                            className="text-[10px] max-w-[40%] overflow-x-auto whitespace-nowrap"
-                                            style={{ color: "hsl(0 84% 60%)" }}
-                                            title={cmd.error}
-                                        >
-                                            {cmd.error}
-                                        </span>
-                                    )}
+                                    <span className="truncate flex-1 font-medium">
+                                        {cmd.status === "failed"
+                                            ? `Execution of ${getToolLabel(cmd.tool)} failed`
+                                            : `Tool call: ${getToolLabel(cmd.tool)}`
+                                        }
+                                    </span>
                                 </div>
                             ))}
                         </div>
@@ -358,9 +407,22 @@ export function StepSessionDrawer({
                         <circle cx="12" cy="12" r="10" opacity="0.25" />
                         <path d="M12 2a10 10 0 0 1 10 10" />
                     </svg>
-                    <span className="text-sm font-medium" style={{ color: "hsl(var(--forge-accent))" }}>
+                    <span className="text-sm font-medium flex-1" style={{ color: "hsl(var(--forge-accent))" }}>
                         Agent is processing...
                     </span>
+                    {onStop && (
+                        <button
+                            type="button"
+                            onClick={() => onStop(step.id)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold transition hover:opacity-90"
+                            style={{
+                                backgroundColor: "hsl(0 84% 60%)",
+                                color: "#fff",
+                            }}
+                        >
+                            ■ Stop
+                        </button>
+                    )}
                 </div>
             )}
         </div>

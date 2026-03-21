@@ -145,6 +145,39 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         []
     )
 
+    const appendCommandResult = useCallback(
+        (stepId: string, cmd: StepCommandResult) => {
+            setWorkflowSteps((prev) =>
+                prev.map((s) => {
+                    if (s.id !== stepId) return s
+                    const existing = s.commandResults ?? []
+                    // Update if same tool id exists (started → completed), else append
+                    const idx = existing.findIndex((c) => c.id === cmd.id)
+                    if (idx >= 0) {
+                        const updated = [...existing]
+                        updated[idx] = cmd
+                        return { ...s, commandResults: updated }
+                    }
+                    return { ...s, commandResults: [...existing, cmd] }
+                })
+            )
+        },
+        []
+    )
+
+    const appendAgentEvent = useCallback(
+        (stepId: string, event: { type: string; [key: string]: unknown }) => {
+            setWorkflowSteps((prev) =>
+                prev.map((s) =>
+                    s.id === stepId
+                        ? { ...s, agentEvents: [...(s.agentEvents ?? []), event] }
+                        : s
+                )
+            )
+        },
+        []
+    )
+
     // ── Execute a step via the chat API ─────────────────────────
 
     const executeStep = useCallback(
@@ -267,11 +300,23 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                                     }
                                 })
 
-                                updateStep(stepId, {
-                                    status: "done",
+                                // If live tool call results were already streamed in,
+                                // don't overwrite them with the batch from commandSuggestions.
+                                // Only use batch results if no live results exist.
+                                const patch: Partial<WorkflowTimelineStep> = {
+                                    status: "done" as const,
                                     planData,
-                                    commandResults: commandResults.length > 0 ? commandResults : undefined,
-                                })
+                                }
+
+                                // Check if we already have live-streamed results
+                                const currentStep = workflowSteps.find((s) => s.id === stepId)
+                                const hasLiveResults = (currentStep?.commandResults ?? []).length > 0
+
+                                if (!hasLiveResults && commandResults.length > 0) {
+                                    patch.commandResults = commandResults
+                                }
+
+                                updateStep(stepId, patch)
                                 done = true
                                 break
                             }
@@ -281,25 +326,42 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                                 done = true
                                 break
                             }
-                            default: {
-                                // Handle agent stream events
-                                if (eventType.startsWith("agent:")) {
-                                    if (eventType === "agent:monitoring_log") {
-                                        const logEntry = (event as Record<string, unknown>).entry as StepMonitoringLog | undefined
-                                        if (logEntry) {
-                                            appendMonitoringLog(stepId, logEntry)
+                                default: {
+                                        // Handle agent stream events
+                                        if (eventType.startsWith("agent:")) {
+                                            if (eventType === "agent:monitoring_log") {
+                                                const logEntry = (event as Record<string, unknown>).entry as StepMonitoringLog | undefined
+                                                if (logEntry) {
+                                                    appendMonitoringLog(stepId, logEntry)
+                                                }
+                                            } else if (eventType === "agent:monitoring_summary") {
+                                                const summaryData = (event as Record<string, unknown>).summary
+                                                if (summaryData) {
+                                                    updateStep(stepId, {
+                                                        monitoringSummary: summaryData as WorkflowTimelineStep["monitoringSummary"],
+                                                    })
+                                                }
+                                            } else if (eventType === "agent:tool_call") {
+                                                // Live tool call streaming — only show after completion/failure
+                                                const toolName = typeof event.toolName === "string" ? event.toolName : "unknown"
+                                                const status = typeof event.status === "string" ? event.status : "started"
+
+                                                // Only add to commandResults when tool is done (skip "started")
+                                                if (status === "completed" || status === "failed") {
+                                                    appendCommandResult(stepId, {
+                                                        id: `tc-${toolName}-${Date.now()}`,
+                                                        tool: toolName,
+                                                        status: status === "completed" ? "executed" : "failed",
+                                                    })
+                                                }
+                                                // Also push to agentEvents for AgentActivity component
+                                                appendAgentEvent(stepId, event as { type: string; [key: string]: unknown })
+                                            } else if (eventType === "agent:planning_start") {
+                                                appendAgentEvent(stepId, event as { type: string; [key: string]: unknown })
+                                            }
                                         }
-                                    } else if (eventType === "agent:monitoring_summary") {
-                                        const summaryData = (event as Record<string, unknown>).summary
-                                        if (summaryData) {
-                                            updateStep(stepId, {
-                                                monitoringSummary: summaryData as WorkflowTimelineStep["monitoringSummary"],
-                                            })
-                                        }
+                                        break
                                     }
-                                }
-                                break
-                            }
                         }
                     }
                 }
@@ -320,7 +382,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                 updateStep(stepId, { status: "failed", error: errorMessage })
             }
         },
-        [projectId, updateStep, appendMessage, appendMonitoringLog, updateAssistantContent]
+        [projectId, updateStep, appendMessage, appendMonitoringLog, updateAssistantContent, appendCommandResult, appendAgentEvent]
     )
 
     // ── Handlers ────────────────────────────────────────────────
@@ -387,6 +449,18 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         setSelectedStepId((prev) => (prev === stepId ? null : stepId))
     }, [])
 
+    const handleStopStep = useCallback((stepId: string) => {
+        abortControllerRef.current?.abort()
+        abortControllerRef.current = null
+        setWorkflowSteps((prev) =>
+            prev.map((s) =>
+                s.id === stepId && s.status === "running"
+                    ? { ...s, status: "failed" as const, error: "Stopped by user" }
+                    : s
+            )
+        )
+    }, [])
+
     const handleSendMessage = useCallback(
         (stepId: string, message: string) => {
             const step = workflowSteps.find((s) => s.id === stepId)
@@ -437,6 +511,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                         step={selectedStep}
                         onClose={() => setSelectedStepId(null)}
                         onSendMessage={handleSendMessage}
+                        onStop={handleStopStep}
                     />
                 )}
             </div>

@@ -23,7 +23,6 @@ import type {
 import { recordExecutionLog } from "@/lib/orchestration/monitor"
 import { buildSystemPrompt } from "@/lib/orchestration/prompts"
 import { searchFirecrawl, type FirecrawlSearchResult } from "@/lib/firecrawl"
-import { similaritySearch } from "@/lib/ai/vectorstore"
 import { formatContextFromSources } from "@/lib/ai/rag"
 import { classifyStrategy } from "@/lib/orchestration/strategy-router"
 import type { StrategyDecision } from "@/lib/orchestration/strategy-types"
@@ -268,6 +267,13 @@ const chatRequestSchema = z.object({
   useLocalModel: z.boolean().optional(),
   workflowMode: z.enum(["autopilot", "studio"]).optional(),
   studioStep: z.boolean().optional(),
+  attachments: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    type: z.string(),
+    size: z.number().optional(),
+    data: z.string(), // base64 encoded image data
+  })).optional(),
 })
 
 async function ensureConversation({
@@ -275,12 +281,16 @@ async function ensureConversation({
   userId,
   conversationId,
   startNew,
+  workflowMode,
 }: {
   projectId: string
   userId: string
   conversationId?: string
   startNew?: boolean
+  workflowMode?: string
 }) {
+  const mode = workflowMode ?? "autopilot"
+
   if (conversationId) {
     const conversation = await prisma.conversation.findFirst({
       where: {
@@ -304,6 +314,7 @@ async function ensureConversation({
   if (!startNew) {
     const existing = await prisma.conversation.findFirst({
       where: {
+        workflowMode: mode,
         project: {
           id: projectId,
           userId,
@@ -324,6 +335,7 @@ async function ensureConversation({
   const conversation = await prisma.conversation.create({
     data: {
       projectId,
+      workflowMode: mode,
     },
     select: { id: true },
   })
@@ -341,7 +353,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const { projectId, conversationId, startNew, message, useLocalModel, workflowMode, studioStep } =
+    const { projectId, conversationId, startNew, message, useLocalModel, workflowMode, studioStep, attachments } =
       chatRequestSchema.parse(body)
 
     const project = await prisma.project.findFirst({
@@ -444,6 +456,7 @@ export async function POST(req: Request) {
         userId: session.user.id,
         conversationId,
         startNew,
+        workflowMode,
       })
     } catch {
       return NextResponse.json(
@@ -641,36 +654,101 @@ export async function POST(req: Request) {
                 agentPrompt += `\n\nWeb Research Context:\n${researchContext.promptContext}`
               }
 
-              // ── RAG: Vector search for blender-script references ──
-              // Tool-specific domain guides are bound to tool descriptions
-              // in agents.ts (see TOOL_GUIDE_MAP). Here we only search the
-              // vectorstore for supplemental blender-script code examples.
+              // ── CRAG: Corrective RAG with batch LLM grading ──
+              // Search BOTH blender-scripts AND tool-guides sources, then grade
+              // all documents in a single LLM call (1 API call, not N).
+              // Falls back to bare similarity search if CRAG fails.
               ragDocCount = 0
               try {
                 monitor.startTimer("rag_search")
-                console.log(`[RAG] Searching blender-scripts for: "${message.slice(0, 80)}..."`)
+                console.log(`[CRAG] Searching both sources for: "${message.slice(0, 80)}..."`)
 
-                const searchPromise = similaritySearch(message, { limit: 3, source: "blender-scripts" })
+                const { correctiveRetrieve } = await import("@/lib/ai/crag")
+
+                // Search both vectorstore sources in parallel with 15s timeout
+                const cragPromise = Promise.all([
+                  correctiveRetrieve(message, {
+                    topK: 4,
+                    source: "blender-scripts",
+                    minSimilarity: 0.3,
+                    minRelevantDocs: 1,
+                    monitor,
+                  }),
+                  correctiveRetrieve(message, {
+                    topK: 3,
+                    source: "tool-guides",
+                    minSimilarity: 0.3,
+                    minRelevantDocs: 1,
+                    monitor,
+                  }),
+                ])
                 const timeoutPromise = new Promise<never>((_, reject) =>
-                  setTimeout(() => reject(new Error("RAG search timed out after 10s")), 10_000)
+                  setTimeout(() => reject(new Error("CRAG search timed out after 15s")), 15_000)
                 )
-                const ragResults = await Promise.race([searchPromise, timeoutPromise])
-                ragDocCount = ragResults.length
-                console.log(`[RAG] Found ${ragDocCount} script references`)
 
-                if (ragResults.length > 0) {
-                  const scriptContext = formatContextFromSources(ragResults)
-                  agentPrompt += `\n\n${scriptContext}`
+                const [scriptCrag, guideCrag] = await Promise.race([cragPromise, timeoutPromise])
+
+                // Combine: guides first (planning context), then scripts (code examples)
+                const allDocs = [...guideCrag.documents, ...scriptCrag.documents]
+                ragDocCount = allDocs.length
+
+                console.log(
+                  `[CRAG] Scripts: ${scriptCrag.totalRetrieved} retrieved → ${scriptCrag.totalRelevant} relevant` +
+                  ` | Guides: ${guideCrag.totalRetrieved} retrieved → ${guideCrag.totalRelevant} relevant` +
+                  ` | Total injected: ${ragDocCount}`
+                )
+
+                // Log individual document grades for debugging
+                for (const doc of scriptCrag.documents) {
+                  console.log(`  [CRAGScript] ${doc.grade} (sim: ${doc.similarity.toFixed(3)}) — ${doc.source ?? "unknown"} — ${doc.gradeReason}`)
+                }
+                for (const doc of guideCrag.documents) {
+                  console.log(`  [CRAG Guide]  ${doc.grade} (sim: ${doc.similarity.toFixed(3)}) — ${doc.source ?? "unknown"} — ${doc.gradeReason}`)
                 }
 
-                monitor.info("rag", `Injected ${ragDocCount} script references`, {
-                  scriptResults: ragResults.map((r) => ({ source: r.source, similarity: r.similarity.toFixed(3) })),
+                if (allDocs.length > 0) {
+                  const ragContext = formatContextFromSources(allDocs)
+                  agentPrompt += `\n\n${ragContext}`
+                }
+
+                monitor.info("rag", `CRAG injected ${ragDocCount} relevant docs`, {
+                  scripts: {
+                    retrieved: scriptCrag.totalRetrieved,
+                    relevant: scriptCrag.totalRelevant,
+                    fallback: scriptCrag.usedFallback,
+                  },
+                  guides: {
+                    retrieved: guideCrag.totalRetrieved,
+                    relevant: guideCrag.totalRelevant,
+                    fallback: guideCrag.usedFallback,
+                  },
                 })
-                monitor.trackRAGRetrieval(ragDocCount, ragDocCount, false)
+                monitor.trackRAGRetrieval(
+                  scriptCrag.totalRetrieved + guideCrag.totalRetrieved,
+                  ragDocCount,
+                  scriptCrag.usedFallback || guideCrag.usedFallback
+                )
                 monitor.endTimer("rag_search")
               } catch (ragError) {
-                console.warn(`[RAG] Non-fatal error:`, ragError)
-                monitor.warn("rag", `RAG search failed (non-fatal): ${ragError instanceof Error ? ragError.message : String(ragError)}`)
+                console.warn(`[CRAG] Failed, falling back to similarity search:`, ragError)
+                monitor.warn("rag", `CRAG failed, using similarity fallback: ${ragError instanceof Error ? ragError.message : String(ragError)}`)
+
+                // Fallback: bare similarity search (no grading) so agent still gets context
+                try {
+                  const { similaritySearch } = await import("@/lib/ai/vectorstore")
+                  const [scripts, guides] = await Promise.all([
+                    similaritySearch(message, { limit: 5, source: "blender-scripts", minSimilarity: 0.3 }),
+                    similaritySearch(message, { limit: 5, source: "tool-guides", minSimilarity: 0.3 }),
+                  ])
+                  const fallbackDocs = [...guides, ...scripts]
+                  ragDocCount = fallbackDocs.length
+                  if (fallbackDocs.length > 0) {
+                    agentPrompt += `\n\n${formatContextFromSources(fallbackDocs)}`
+                  }
+                  console.log(`[RAG Fallback] Injected ${ragDocCount} docs without grading`)
+                } catch (fallbackErr) {
+                  console.warn(`[RAG Fallback] Also failed:`, fallbackErr)
+                }
               }
 
               // Diagnostic: log LangSmith env vars to confirm they're loaded
@@ -694,17 +772,59 @@ export async function POST(req: Request) {
                 onStreamEvent: (event) => send(event),
               })
 
+              // ── Pre-inject scene state so agent is always scene-aware ──
+              // The agent often ignores the "call get_scene_info first" instruction,
+              // so we call it proactively and prepend the result to the prompt.
+              try {
+                const { executeMcpCommand } = await import("@/lib/ai/agents")
+                const sceneInfoRaw = await executeMcpCommand("get_scene_info")
+                const sceneInfo = JSON.parse(sceneInfoRaw)
+                if (!sceneInfo.error) {
+                  const scenePrefix = `## Current Scene State (auto-injected)\n` +
+                    `The following is the CURRENT scene state from Blender. Use this to understand what already exists before making changes.\n` +
+                    `If there are default objects (e.g. "Cube", "Light", "Camera") that should be removed for a fresh scene, delete them.\n\n` +
+                    `\`\`\`json\n${JSON.stringify(sceneInfo, null, 2)}\n\`\`\`\n\n`
+                  agentPrompt = scenePrefix + agentPrompt
+                  console.log(`[AGENT] Pre-injected scene info: ${Object.keys(sceneInfo).length} keys`)
+                }
+              } catch (sceneErr) {
+                console.warn(`[AGENT] Failed to pre-inject scene info:`, sceneErr)
+              }
+
               // Use a unique thread_id to avoid stale MemorySaver state from
               // prior planner sessions that wrote to the same projectId
               const threadId = `${projectId}-${Date.now()}`
               console.log(`[AGENT] Invoking v2 agent, thread_id=${threadId}, prompt length=${agentPrompt.length}`)
 
+              // Build multimodal content when image attachments are present
+              const hasImageAttachments = attachments && attachments.length > 0
+              const messageContent = hasImageAttachments
+                ? [
+                    { type: "text" as const, text: agentPrompt },
+                    ...attachments.map(a => ({
+                      type: "image_url" as const,
+                      image_url: { url: `data:${a.type};base64,${a.data}` },
+                    })),
+                  ]
+                : agentPrompt
+
+              if (hasImageAttachments) {
+                console.log(`[AGENT] Sending ${attachments.length} image(s) as multimodal content`)
+              }
+
+              // Emit planning_start so the UI activates the "Thinking…" indicator
+              send({
+                type: "agent:planning_start",
+                timestamp: new Date().toISOString(),
+              })
+
               const agentResult = await agent.invoke(
                 {
-                  messages: [{ role: "user" as const, content: agentPrompt }],
+                  messages: [{ role: "user" as const, content: messageContent }],
                 },
                 {
                   configurable: { thread_id: threadId },
+                  recursionLimit: 50,
                   runName: "blender-agent",
                   tags: ["modelforge", studioStep ? "studio" : "autopilot"],
                   metadata: {
@@ -717,7 +837,7 @@ export async function POST(req: Request) {
 
               monitor.endTimer("agent_execution")
 
-              // Extract tool calls from agent messages for the commands list
+              // Extract messages from agent result
               const agentMessages = agentResult.messages ?? []
               const toolCallMessages = agentMessages.filter(
                 (m: unknown) => {
@@ -732,9 +852,29 @@ export async function POST(req: Request) {
               )
 
               // Build executed commands from agent tool calls
+              // First, collect tool_call_ids that were skipped by dedup middleware
+              const skippedToolCallIds = new Set<string>()
+              for (const m of agentMessages) {
+                if (!m || typeof m !== "object") continue
+                const msg = m as { _getType?: () => string; tool_call_id?: string; content?: string }
+                const msgType = typeof msg._getType === "function" ? msg._getType.call(msg) : undefined
+                if (msgType === "tool" && msg.content && typeof msg.content === "string") {
+                  try {
+                    if (msg.content.includes("_skipped_duplicate")) {
+                      if (msg.tool_call_id) skippedToolCallIds.add(msg.tool_call_id)
+                    }
+                  } catch { /* ignore parse errors */ }
+                }
+              }
+
               for (const msg of toolCallMessages) {
-                const aiMsg = msg as { tool_calls?: Array<{ name: string; args: Record<string, unknown> }> }
+                const aiMsg = msg as { tool_calls?: Array<{ id?: string; name: string; args: Record<string, unknown> }> }
                 for (const tc of aiMsg.tool_calls ?? []) {
+                  // Skip tool calls that the dedup middleware already caught
+                  if (tc.id && skippedToolCallIds.has(tc.id)) {
+                    console.log(`[Agent] Skipped duplicate: ${tc.name} (dedup middleware caught this)`)
+                    continue
+                  }
                   const args = tc.args ?? {}
                   console.log(`[Agent] Tool: ${tc.name} | Args: ${JSON.stringify(args)}`)
                   executedCommands.push({
@@ -838,7 +978,6 @@ export async function POST(req: Request) {
 
           // ── Generate post-execution summary + follow-up ──
           try {
-            console.log("[Chat] Generating post-execution follow-up...", { overallSuccess, executedCommandsCount: executedCommands.length })
             const completedList = executedCommands
               .filter(c => c.status === "executed")
               .map(c => c.tool)
@@ -847,48 +986,77 @@ export async function POST(req: Request) {
               .map(c => `${c.tool}: ${c.error?.substring(0, 80)}`)
               .join("; ")
 
+            // Friendly tool summary for fallback messages
+            const friendlyTools = executedCommands
+              .filter(c => c.status === "executed")
+              .map(c => {
+                const map: Record<string, string> = {
+                  execute_code: "ran Python code",
+                  set_camera_properties: "set up the camera",
+                  get_viewport_screenshot: "captured a viewport screenshot",
+                  add_light: "added lighting",
+                  set_render_settings: "configured render settings",
+                  get_scene_info: "analyzed the scene",
+                  add_camera: "added a camera",
+                }
+                return map[c.tool] || c.tool
+              })
+
+            console.log("[Chat] Generating post-execution follow-up...", {
+              overallSuccess,
+              executedCommandsCount: executedCommands.length,
+              completedList,
+              providerType: llmProvider.type,
+            })
+
             const summaryPromptText = overallSuccess
-              ? `The Blender scene has been created successfully. Commands executed: ${completedList || "none"}. User's original request: "${message}". Write a brief 2-3 sentence summary of what was done, then ask a short follow-up question suggesting a possible refinement or next step (e.g. "Would you like to adjust the lighting?" or "I can add textures if you'd like"). Keep it conversational and helpful.`
-              : `The Blender operation partially failed. Succeeded: ${completedList || "none"}. Failed: ${failedList || "none"}. User's request was: "${message}". Write a brief 2-3 sentence summary explaining what happened and what failed. Then suggest what the user could try next. Keep it conversational.`
+              ? `You just finished a Blender task. Here is the context:\n- User's request: "${message}"\n- Tools used: ${completedList || "none"}\n\nWrite a brief 2-3 sentence summary of what you created or modified in the scene. Then ask ONE specific follow-up question about what the user might want to do next with this scene — reference specific things you created (e.g. materials, lighting, rigging). Do NOT say generic phrases like "Would you like me to refine anything?" — be specific to the scene.`
+              : `You attempted a Blender task but some steps failed.\n- User's request: "${message}"\n- Succeeded: ${completedList || "none"}\n- Failed: ${failedList || "none"}\n\nExplain briefly what went wrong (1-2 sentences). Then suggest a specific next step the user could try to fix it.`
 
             let followUpText = ""
+            let chunkCount = 0
             for await (const chunk of streamLlmResponse(llmProvider, {
               history: [],
               messages: [{ role: "user", content: summaryPromptText }],
-              maxOutputTokens: 256,
-              systemPrompt: "You are ModelForge, a helpful Blender assistant. Respond conversationally. Do NOT use markdown headers. Keep your response to 2-4 sentences.",
+              maxOutputTokens: 300,
+              temperature: 0.6,
+              systemPrompt: "You are ModelForge, a Blender 3D assistant. Respond conversationally in 2-4 sentences. Do NOT use markdown headers or bullet points. Be specific about what was done in the scene.",
             })) {
+              chunkCount++
               if (chunk.textDelta) {
                 followUpText += chunk.textDelta
                 send({ type: "followup_delta", delta: chunk.textDelta })
               }
             }
 
-            console.log("[Chat] Follow-up generated:", followUpText.length, "chars")
+            console.log("[Chat] Follow-up generated:", followUpText.length, "chars,", chunkCount, "chunks")
 
             // Append follow-up to assistant text so BOTH the initial response
             // and the follow-up are preserved when saved to DB
             if (followUpText.trim()) {
               assistantText = (assistantText || "").trimEnd() + "\n\n" + followUpText.trim()
             } else {
-              // The LLM yielded 0 chunks — send a fallback so the UI isn't empty
-              console.warn("[Chat] Follow-up stream returned empty text, sending fallback")
+              // The LLM yielded 0 chunks — send a scene-aware fallback
+              console.warn("[Chat] Follow-up stream returned empty text, sending scene-aware fallback")
+              const toolSummary = friendlyTools.length > 0
+                ? `I ${friendlyTools.slice(0, 3).join(", ")}${friendlyTools.length > 3 ? ` and ${friendlyTools.length - 3} more` : ""}.`
+                : "I've set up the scene."
               const emptyFallback = overallSuccess
-                ? `Done! I've completed the task. Would you like me to refine anything?`
-                : `The execution encountered some issues. Would you like me to try a different approach?`
+                ? `${toolSummary} What would you like to adjust or add next?`
+                : `Some steps didn't go as planned. Would you like me to retry with a different approach?`
               send({ type: "followup_delta", delta: emptyFallback })
               assistantText = emptyFallback
             }
           } catch (followUpError) {
             console.error("[Chat] Post-execution follow-up generation FAILED:", followUpError)
-            // Make the error visible in the UI + send a fallback follow-up
             const errMsg = followUpError instanceof Error ? followUpError.message : String(followUpError)
+            // Scene-aware error fallback
+            const toolCount = executedCommands.filter(c => c.status === "executed").length
             const fallbackText = overallSuccess
-              ? `I've completed the task. Would you like me to refine anything?`
-              : `The execution encountered some issues. Would you like me to try a different approach?`
+              ? `I completed ${toolCount} operation${toolCount !== 1 ? "s" : ""} on the scene. What would you like to do next?`
+              : `The execution ran into some issues. Would you like me to try a different approach?`
             send({ type: "followup_delta", delta: `\n\n${fallbackText}` })
             assistantText += `\n\n${fallbackText}`
-            // Log the error in monitoring for the session log
             monitor.error("system", `Follow-up generation failed: ${errMsg}`)
           }
 

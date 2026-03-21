@@ -1,5 +1,8 @@
 # ModelForge Project Notes
 
+> ⚠️ **LEGACY DOCUMENT** — This file describes the v1 (planner + executor) architecture from Feb 2026.  
+> The current architecture has changed significantly. See **[`architecture.md`](./architecture.md)** for the canonical reference.
+
 ## Current Status (2026-02-16)
 
 ### System Architecture

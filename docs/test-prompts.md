@@ -238,6 +238,132 @@ angle. Set up a camera that frames the whole scene nicely and render it.
 
 ---
 
+### Test 11: Stylized Interior Scene (Creative Spatial Reasoning)
+**Tests:** Spatial layout of multiple furnishings, wall-relative placement, warm atmospheric lighting, material variety — all from a vague "vibes" prompt with no exact values
+```
+Create a cozy low-poly style coffee shop interior. I want a small room about
+4 meters wide and 5 meters deep with walls and a floor. Put a service counter
+along the back wall with a simple coffee machine on it. Place 3 bar stools
+in front of the counter. Add a small round table with two chairs near the
+front-left corner. There should be a large window on the left wall letting
+in natural light. Make it feel warm — use wooden materials for furniture
+and warm-toned lighting. Set up a nice camera angle and render it.
+```
+**What to verify (spatial + aesthetic checks):**
+- Room exists with roughly correct proportions (~4×5m), has floor and at least 2-3 walls
+- Counter is **against the back wall** (Y ≈ back wall position, not floating in middle)
+- Coffee machine is **on top of** the counter (Z = counter height + half machine height)
+- 3 bar stools are in front of the counter (between counter and camera), evenly spaced
+- Table + 2 chairs are in the front-left area, chairs near the table
+- Window exists on the left wall
+- Materials are varied: wood for furniture, different material for walls/floor
+- Lighting is warm-toned, not harsh or cold
+- Objects are **grounded** — nothing floating
+- Camera frames the room showing the interior nicely
+- **Timing target:** < 180 seconds (complex scene)
+
+---
+
+### Test 12: Modular Game Asset (Technical Precision)
+**Tests:** Technical asset creation, emissive materials, dimensional precision, export pipeline
+```
+Build a stone dungeon corridor wall segment for a game. The wall should be exactly
+3 meters wide, 3 meters tall, and 0.3 meters thick. Use a dark gray stone material
+with some roughness. Add two wall-mounted torch holders (simple bracket shapes)
+placed symmetrically at 2 meter height, one on each side. Give the torches a warm
+orange emissive glow. The segment should be centered at the origin so it's easy
+to tile. Export as GLB to /tmp/dungeon_wall.glb and also render a preview.
+```
+**What to verify:**
+- Wall dimensions match: ~3m wide (X), ~3m tall (Z), ~0.3m thick (Y)
+- Wall is centered at origin (position ≈ 0,0,1.5 for centered origin)
+- Stone material applied: dark gray, roughness > 0.5
+- 2 torch holders exist, symmetrically placed (±X offset, same Z height ~2m)
+- Torches have emissive material (emission strength > 0, orange/warm color)
+- GLB file exported to the specified path
+- `render_image` called for preview
+- Objects are properly named and organized
+- **Timing target:** < 120 seconds
+
+---
+
+### Test 13: Basic Rigging with Rigify (Skeleton Tool)
+**Tests:** `blender-agent-skeleton` — Rigify meta-rig generation, armature fitting, automatic weight painting
+```
+Create a simple humanoid figure using basic shapes — a cylinder for the torso,
+a sphere for the head, cylinders for arms and legs. Join them into one mesh.
+Then add a biped skeleton rig to the character using Rigify so it can be posed.
+Make sure the bones are properly weighted to the mesh.
+```
+**What to verify:**
+- Humanoid figure exists as a single joined mesh object
+- An armature (skeleton) is visible in the scene outliner
+- The armature has proper biped bone structure (spine, arms, legs, head)
+- The mesh is parented to the armature with weight painting applied
+- Posing a bone (e.g., moving an arm) deforms the mesh correctly
+- Rigify controls are visible (if generate rig was used)
+- **Timing target:** < 120 seconds
+
+---
+
+### Test 14: AI Auto-Rigging with UniRig (Neural Skeleton)
+**Tests:** `unirig` — AI auto-rigging pipeline, GLB export with embedded armature
+```
+Create a simple four-legged creature — an elongated body with four legs, a
+tail, and a head. Give it a green reptile-like material. Then use UniRig AI
+to automatically generate a skeleton and skin weights for it. Export the
+rigged model as GLB to /tmp/creature_rigged.glb.
+```
+**What to verify:**
+- Creature mesh exists with 4 legs, body, head, tail-like shapes
+- Green material applied
+- **If UniRig is available:** UniRig API call is present in agent logs, armature is embedded in the model, and GLB contains bone data when re-imported
+- **If UniRig is unavailable:** agent explicitly reports "unavailable" and proceeds without recursive retries (graceful degradation)
+- GLB file exported to /tmp/creature_rigged.glb
+- **Timing target:** < 180 seconds (includes AI processing time)
+
+---
+
+### Test 15: Keyframe Animation (Motion Tool — Procedural)
+**Tests:** `blender-agent-motion` — keyframe insertion, timeline setup, animation rendering
+```
+Take the default cube and create a bouncing ball animation: the cube should
+start at position Z=5, fall to the ground (Z=0.5) over 30 frames, then
+bounce back up to Z=3 over the next 20 frames, repeating once more.
+Set the animation length to 120 frames at 24fps. Add ease-in on the drops
+and ease-out on the bounces for natural motion. Render frame 15 as a
+preview to check the animation.
+```
+**What to verify:**
+- Default cube has keyframes set on the Z location
+- Timeline shows keyframes at appropriate frames (0, 30, 50, etc.)
+- Animation length is 120 frames, FPS set to 24
+- Playing the animation shows the cube bouncing (Z changes over time)
+- Easing/interpolation is set (not linear — should have ease-in/out curves)
+- A rendered preview frame exists
+- **Timing target:** < 90 seconds
+
+---
+
+### Test 16: AI Motion Generation with MoMask (Text-to-Motion)
+**Tests:** `momask` + `blender-agent-skeleton` — AI motion generation, BVH import, motion applied to rig
+```
+Create a simple humanoid stick figure and rig it with a biped skeleton.
+Then generate a 3-second walking animation using AI motion generation.
+Apply the generated motion to the character so it walks forward naturally.
+Set up a side-view camera and render a preview frame at the midpoint
+of the animation.
+```
+**What to verify:**
+- Humanoid figure exists with a biped skeleton/armature
+- **If MoMask is available:** MoMask API call is present in agent logs, BVH/motion data is generated and imported, armature has animation data, and playing animation shows walking motion
+- **If MoMask is unavailable:** agent explicitly reports "unavailable" and proceeds/finalizes gracefully without recursive retries
+- Camera is positioned from the side
+- Rendered preview exists
+- **Timing target:** < 180 seconds (includes AI processing time)
+
+---
+
 ## AI Model Availability Analysis
 
 The table below shows which tool categories currently have or could benefit from

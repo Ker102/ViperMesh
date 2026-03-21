@@ -1,51 +1,70 @@
-# gemini.md — ModelForge Dev Tracker
+# ModelForge — Current Progress
 
-## Current Task
-Session 2026-03-18 — Agent Intelligence, Dedup Middleware, Conversation Isolation
+## Last Session: 2026-03-20 (03:00–05:15 AM)
 
-## What Changed (Session 2026-03-18)
+### What Was Done
+1. **Chat UI Fixes** (`project-chat.tsx`):
+   - Cleared agent streaming state (`agentEvents`, `agentActive`, `monitoringLogs`, `monitoringSummary`) on new sends
+   - Old failed plan blocks now collapsed with "Previous run" label — hides stale error details
+   - TypeScript compilation verified clean for touched files (repo has known legacy error: missing `ExecutionResult` import in `route.ts`)
+   - Committed: `fix: clear agent state on new send + collapse old plan errors`
 
-### RAG → Tool-Guide Binding ✅
-- Removed middleware-based RAG injection (was ignored by `createAgent`)
-- Built `TOOL_GUIDE_MAP`: loads `data/tool-guides/*.md`, parses `triggered_by` YAML
-- `withGuide()` appends full domain guide to tool description (zero latency)
-- Vector search retained for blender-scripts examples only
+2. **Aesthetic Quality Skill Guide** (`data/tool-guides/aesthetic-quality-guide.md`):
+   - Created new guide teaching agent anti-minimalism, stylistic coherence, and multi-component assembly
+   - Refactored to remove scene-specific code (torch/chair Python) — replaced with generic multi-component assembly template
+   - Ingested into vectorstore (13 total guides)
+   - Committed: `feat: add aesthetic quality & stylistic coherence guide` + refactor commit
 
-### Detailed Tool Logging ✅
-- `route.ts`: logs `[Agent] Tool: {name} | Args: {JSON}` for every tool call
-- `executeMcpCommand` returns `_applied` params so agent sees what was configured
+3. **Test Prompts 13-16** (`docs/test-prompts.md`):
+   - Test 13: Rigify biped rigging with weight painting
+   - Test 14: UniRig AI auto-rigging for quadrupeds  
+   - Test 15: Keyframe bouncing ball animation with easing
+   - Test 16: MoMask AI text-to-motion walking animation
+   - Committed: `test: add rigging/animation/skeleton test prompts (13-16)`
 
-### Dedup Middleware ✅
-- Sequential dedup: caches last successful result per tool, skips identical re-calls
-- Parallel dedup: coalesces concurrent identical calls via in-flight promise tracking
-- Retries allowed after failures — no false blocking
+### Open Bugs / Issues
+- **Test 13 failed**: Agent didn't execute any tools — didn't even remove default cube. Root cause NOT YET diagnosed (terminal logs rotated). Need to reproduce and check:
+  - Was it run in Studio or Autopilot?
+  - Which tool card was selected?
+  - Did the agent respond with text-only or error?
+  - Possible: skeleton tools might not be available under the selected tool card
+- **Pre-existing TS error**: `ExecutionResult` type not imported in `route.ts` line 192 (legacy dead code)
 
-### Autopilot/Studio Conversation Isolation ✅
-- Fixed `studio-layout.tsx`: sends `workflowMode: "studio"` (was incorrectly `"autopilot"`)
-- `route.ts`: tags every saved message with `workflowMode` in `mcpResults` JSON
-- History loading filters by current mode — studio messages don't leak into autopilot
+### Next Steps
+1. **Live test reasoning streaming** — verify `agent:reasoning` events appear inline in chat during execution
+2. **Live test friendly tool names** — verify Executed Commands list shows "Running Python code" instead of `execute_code`
+3. **Reproduce and debug Test 13** — check agent routing for skeleton/rigging tool card
+4. Run Tests 14-16 (UniRig, keyframe animation, MoMask)
 
-### Test Suite Expansion ✅
-- Tests 4b/4c: multi-camera cinematic rig, architectural interior wide-angle
-- Test 9: full production stress test (14 tools, pedestal + 3 objects + lighting + camera + render)
-- Test 10: spatial reasoning with no exact values (park bench scene)
+### Architecture (Actual — as of 2026-03-20)
 
-### Test Results
-| Test | Tools | Time | Result |
-|---|---|---|---|
-| 4 | 4 | 36s | ✅ 85mm at ~9.8m |
-| 4b | 6 | 60s | ✅ 3 cameras, correct distances |
-| 4c | 4 | 28s | ✅ 24mm, zero duplicates |
-| 5 | 4 | ~30s | ✅ Org + export pipeline |
+**Two separate modes, fully decoupled:**
 
-## Previous Sessions
-- **2026-03-17**: RAG middleware fixes, legacy planner removal, agent system prompt update
-- **2026-03-16**: Tool Context Guides (7 domain knowledge guides ingested into vectorstore)
-- **2026-03-15**: MCP tool verification (13/14 pass), Studio persistence API, agent test runs
+1. **Autopilot** (`workflowMode: "autopilot"` — default):
+   - `chat/route.ts` → strategy router classifies `procedural|neural|hybrid`
+   - Procedural path → `createBlenderAgentV2()` directly (no planner)
+   - Agent uses LangChain v1 `createAgent` with built-in ReAct loop (LangGraph)
+   - Middleware stack: Dedup → Streaming → ViewportScreenshot → RAG/CRAG
+   - System prompt loaded from `lib/orchestration/prompts/blender-agent-system.md`
+   - Domain guides bound to tool descriptions from `data/tool-guides/*.md` 
+   - RAG: blender-scripts searched in route.ts, tool-guides injected via agents.ts at module load
+   - Recursion limit: 50 (line 738 in `route.ts`)
 
-## Known Issues / Blockers
-- **Render dedup verification**: need to confirm render_image dedup works in Tests 9/10
-- **Pre-existing lint errors**: `ExecutionResult` (route.ts:190), `.filter()` type mismatch (route.ts:644)
+2. **Studio** (`workflowMode: "studio"`):
+   - `chat/route.ts` → `workflow-advisor.ts` generates a workflow proposal (step-by-step cards)
+   - UI shows cards; user clicks Execute/Skip/Manual Done per step
+   - Each step hits `workflow-step/route.ts` which creates a fresh `createBlenderAgentV2()` per step
+   - Neural steps use `lib/neural/registry` → provider clients (fal.ai, RunPod, YVO3D)
 
-## Branch
-`feature/addon-tools-phase3` → PR #23
+**Dead code (preserved for reference/revert):**
+- `planner.ts` — old planner prompt; NOT in the live execution path
+- `executor.legacy.ts` — old hand-rolled step executor (37KB)
+- `agents.legacy.ts` — old agent without LangChain v1 (19KB)
+
+**Key rules:**
+- Tool guides must be GENERAL, never scene-specific (RAG matches wrong guides otherwise)
+- 13 tool guides total; ingestion: `npx tsx scripts/ingestion/ingest-tool-guides.ts --force`
+
+### Future Implementation Plans
+> See `docs/future-plans.md` — the single source of truth for P0-P3 roadmap  
+> See `docs/architecture.md` — the canonical architecture reference (current vs legacy)

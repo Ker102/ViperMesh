@@ -113,7 +113,7 @@ function withGuide(toolName: string, baseDescription: string): string {
  * Includes the applied parameters in the response so the agent can verify
  * what was configured without needing to call get_scene_info.
  */
-async function executeMcpCommand(
+export async function executeMcpCommand(
   commandType: string,
   params: Record<string, unknown> = {}
 ): Promise<string> {
@@ -883,8 +883,27 @@ for (const t of ALL_TOOLS) {
  * If the previous/in-flight call failed, retries are allowed.
  */
 function createDedupMiddleware() {
-  // Cache of last successful result per tool
-  const lastCalls = new Map<string, { argsHash: string; result: unknown; failed: boolean }>()
+  // Stable hash: deep-sort keys so {a:1,b:2} and {b:2,a:1} produce the same string,
+  // including nested objects (e.g. {properties:{width:0.01}} vs {properties:{width:0.2}})
+  function stableHash(args: Record<string, unknown>): string {
+    const sortDeep = (value: unknown): unknown => {
+      if (Array.isArray(value)) return value.map(sortDeep)
+      if (value && typeof value === "object") {
+        return Object.fromEntries(
+          Object.entries(value as Record<string, unknown>)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([key, child]) => [key, sortDeep(child)])
+        )
+      }
+      return value
+    }
+
+    return JSON.stringify(sortDeep(args))
+  }
+
+  // Cache of last successful result per tool+args combo
+  // Key = "toolName:stableHash(args)"
+  const lastCalls = new Map<string, { result: unknown; failed: boolean }>()
   // In-flight calls: key = "toolName:argsHash" → promise of result
   const inFlight = new Map<string, Promise<unknown>>()
 
@@ -892,12 +911,12 @@ function createDedupMiddleware() {
     name: "DedupMiddleware",
     wrapToolCall: async (request, handler) => {
       const toolName = request.toolCall.name
-      const argsHash = JSON.stringify(request.toolCall.args ?? {})
+      const argsHash = stableHash((request.toolCall.args as Record<string, unknown>) ?? {})
       const flightKey = `${toolName}:${argsHash}`
 
       // Check 1: Sequential duplicate — same tool+args already succeeded
-      const lastCall = lastCalls.get(toolName)
-      if (lastCall && lastCall.argsHash === argsHash && !lastCall.failed) {
+      const lastCall = lastCalls.get(flightKey)
+      if (lastCall && !lastCall.failed) {
         console.log(`[Dedup] Skipping duplicate: ${toolName} (identical args, previous call succeeded)`)
         const { ToolMessage: TM } = await import("@langchain/core/messages")
         return new TM({
@@ -939,9 +958,57 @@ function createDedupMiddleware() {
         throw error
       } finally {
         // Cache result and clear in-flight
-        lastCalls.set(toolName, { argsHash, result: result!, failed })
+        lastCalls.set(flightKey, { result: result!, failed })
         resolveInFlight!(result!)
         inFlight.delete(flightKey)
+      }
+
+      return result
+    },
+  })
+}
+
+function createStreamingMiddleware(onStreamEvent?: (event: AgentStreamEvent) => void) {
+  return createMiddleware({
+    name: "StreamingMiddleware",
+    wrapToolCall: async (request, handler) => {
+      const toolName = request.toolCall.name
+
+      // Emit tool_call started
+      onStreamEvent?.({
+        type: "agent:tool_call",
+        toolName,
+        status: "started",
+        timestamp: new Date().toISOString(),
+      })
+
+      let result: Awaited<ReturnType<typeof handler>>
+      try {
+        result = await handler(request)
+
+        // Check if the result indicates a skipped duplicate
+        const content = typeof result === "object" && "content" in result ? String(result.content) : ""
+        if (content.includes("_skipped_duplicate")) {
+          // Don't emit completed for skipped duplicates
+          return result
+        }
+
+        // Emit tool_call completed
+        onStreamEvent?.({
+          type: "agent:tool_call",
+          toolName,
+          status: "completed",
+          timestamp: new Date().toISOString(),
+        })
+      } catch (error) {
+        // Emit tool_call failed
+        onStreamEvent?.({
+          type: "agent:tool_call",
+          toolName,
+          status: "failed",
+          timestamp: new Date().toISOString(),
+        })
+        throw error
       }
 
       return result
@@ -1157,6 +1224,7 @@ export function createBlenderAgentV2(options: BlenderAgentV2Options = {}) {
   // Build middleware stack (dedup runs first to catch duplicates before side effects)
   const middleware = [
     createDedupMiddleware(),
+    createStreamingMiddleware(onStreamEvent),
     createViewportMiddleware(onStreamEvent),
   ]
 

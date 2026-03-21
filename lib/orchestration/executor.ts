@@ -139,7 +139,13 @@ export class PlanExecutor {
         `\nExecute this plan step by step. For each step, use the most appropriate tool — ` +
           `prefer direct MCP tools (add_camera, set_camera_properties, add_light, set_render_settings, etc.) over execute_code when available. ` +
           `After each major geometry change, capture a viewport screenshot to verify. ` +
-          `If a step fails, attempt recovery before moving on.`,
+          `If a step fails, attempt recovery up to a MAXIMUM of 3 times with different approaches. ` +
+          `After 3 failed recovery attempts for the same step, skip it and move to the next step. ` +
+          `If a step requires a tool or API that is not available (e.g. an external AI service), ` +
+          `report it as unavailable and move on — do NOT try to replicate external AI services with execute_code.`,
+        `\nIMPORTANT: Do NOT call the same tool with identical arguments more than once. ` +
+          `If you already created a material or assigned it, do not repeat the call. ` +
+          `Check your previous tool results before making a new call.`,
       ].join("\n")
 
       // Emit planning complete event
