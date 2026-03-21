@@ -47,8 +47,8 @@ Tripo API accepts exactly 4 views (front, left, back, right).
 |-------|--------|--------|----------|
 | Topology | ⚠️ Basic | ✅ Auto retopology | Quadriflow/Instant Meshes via MCP |
 | UV Unwrap | ❌ Not automated | ✅ Smart UV unwrap | Blender's Smart UV Project via MCP |
-| Rigging | ✅ Guide created | ✅ Auto-rig | Rigify via `rigging-guide.md` + `auto_rigify.py` + UniRig AI |
-| Animation | ✅ Guide created | ✅ AI-driven animation | `animation-guide.md` + MoMask + keyframe gen |
+| Rigging | ✅ Guide created | ✅ Auto-rig | Rigify via `rigging-guide.md` + `auto_rigify.py` + Blender addon integration |
+| Animation | ✅ Guide created | ✅ Keyframe animation | `animation-guide.md` + keyframe gen via agent |
 | Weight Paint | ✅ Guide created | ✅ Quality weights | `weight-painting-guide.md` cleanup pipeline |
 | Export | ❌ Not implemented | ✅ Multi-format | FBX/glTF/USD via Blender export API |
 
@@ -95,6 +95,21 @@ Inspired by Tripo Studio and Modiff:
 3. **Fine-tuning pipeline** — Custom Qwen3 for Blender code (269+ training pairs exist)
 4. **Revenue/monetization** — Credits + tiers system (Free/Starter/Pro)
 5. **Production pipeline completeness** — Concept → Export in one session
+
+### 🤖 Autopilot: Neural Model Agent Integration (Far Future)
+Connect the Blender agent to neural models so it can command the full 3D pipeline autonomously.
+Requires RunPod Serverless deployment for each model + agent tool wiring.
+
+| Model | Purpose | Client Code | RunPod Status |
+|-------|---------|-------------|---------------|
+| Hunyuan Paint | Texture painting | `runpod-client.ts` | ✅ Deployed |
+| Hunyuan Part | Part segmentation | `runpod-client.ts` | ✅ Deployed |
+| UniRig | AI auto-rigging (SIGGRAPH 2025) | `unirig-client.ts` | ❌ Not deployed |
+| MoMask | Text-to-motion animation | `momask-client.ts` | ❌ Not deployed |
+| MeshAnything V2 | AI retopology | `meshanything-v2-client.ts` | ❌ Not deployed |
+
+**Flow:** Agent creates mesh → exports GLB → calls neural API → imports rigged/animated result back.
+**Prerequisite:** Verify agent+RAG capability first, then addon integration, then neural model wiring.
 
 ---
 
