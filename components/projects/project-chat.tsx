@@ -213,6 +213,12 @@ export function ProjectChat({
   }, [])
 
   useEffect(() => {
+    // Skip sync while a message is being sent — local state is authoritative
+    // during streaming. Without this guard, router.refresh() can deliver
+    // updated initialConversation props before the batched setConversationId
+    // state update takes effect, causing the user message to appear twice.
+    if (isSending) return
+
     if (initialConversation?.id && initialConversation.id !== conversationId) {
       setConversationId(initialConversation.id)
       setMessages(initialConversation.messages.map((msg) => ({ ...msg })))
@@ -223,7 +229,7 @@ export function ProjectChat({
       setConversationId(null)
       setMessages([])
     }
-  }, [initialConversation, conversationId, history])
+  }, [initialConversation, conversationId, history, isSending])
 
   const renderStatusBadge = (status: CommandStub["status"]) => {
     const variantMap: Record<CommandStub["status"], { variant: "default" | "secondary" | "outline" | "destructive"; label: string }> = {

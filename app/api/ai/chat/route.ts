@@ -812,6 +812,12 @@ export async function POST(req: Request) {
                 console.log(`[AGENT] Sending ${attachments.length} image(s) as multimodal content`)
               }
 
+              // Emit planning_start so the UI activates the "Thinking…" indicator
+              send({
+                type: "agent:planning_start",
+                timestamp: new Date().toISOString(),
+              })
+
               const agentResult = await agent.invoke(
                 {
                   messages: [{ role: "user" as const, content: messageContent }],
