@@ -84,19 +84,38 @@ bpy.context.view_layer.update()
 
 > **Source:** StackExchange "Set Keyframe interpolation CONSTANT"
 
-### Finding F-Curves
+### Finding F-Curves (Blender 5.0+ Channelbag API)
+
+> **CRITICAL:** In Blender 5.0+, `action.fcurves` was REMOVED.
+> Use the channelbag API instead:
+
 ```python
-action = bpy.data.actions.get(obj.animation_data.action.name)
-# Use fcurves.find(data_path, index) — available since Blender 2.76
-fcu = action.fcurves.find('rotation_euler', index=1)  # Y rotation
+from bpy_extras import anim_utils
+
+action = obj.animation_data.action
+slot = obj.animation_data.action_slot
+channelbag = anim_utils.action_get_channelbag_for_slot(action, slot)
+
+# Find a specific F-curve
+fcu = channelbag.fcurves.find('rotation_euler', index=1)  # Y rotation
+
+# Or iterate all F-curves
+for fcu in channelbag.fcurves:
+    print(fcu.data_path, fcu.array_index)
 ```
 
 ### Setting Interpolation Per-Keyframe
 ```python
-# All keyframes on a curve
+# All keyframes on a curve — both interpolation AND easing are valid properties
 for pt in fcu.keyframe_points:
-    pt.interpolation = 'BEZIER'  # or 'LINEAR', 'CONSTANT', 'BOUNCE', etc.
-    pt.easing = 'EASE_IN_OUT'
+    pt.interpolation = 'BEZIER'  # or 'LINEAR', 'CONSTANT', 'BOUNCE'
+    pt.easing = 'EASE_IN_OUT'   # or 'EASE_IN', 'EASE_OUT', 'AUTO'
+
+# Alternative: use handle types for finer control
+for pt in fcu.keyframe_points:
+    pt.interpolation = 'BEZIER'
+    pt.handle_left_type = 'AUTO_CLAMPED'
+    pt.handle_right_type = 'AUTO_CLAMPED'
 
 # Specific frame only
 frame_num = 24
@@ -108,9 +127,14 @@ if target:
 ### Material Animation F-Curves
 ```python
 # Material animations live in node_tree, NOT in object.animation_data
+from bpy_extras import anim_utils
+
 mat = bpy.data.materials['Material']
 mat_action = mat.node_tree.animation_data.action
-mat_fcu = mat_action.fcurves  # access material fcurves here
+mat_slot = mat.node_tree.animation_data.action_slot
+mat_cb = anim_utils.action_get_channelbag_for_slot(mat_action, mat_slot)
+for fcu in mat_cb.fcurves:  # access material fcurves here
+    print(fcu.data_path)
 ```
 
 ---
@@ -120,8 +144,14 @@ mat_fcu = mat_action.fcurves  # access material fcurves here
 > **Source:** StackExchange "modifying fcurve modifiers in python"
 
 ```python
-# Add a Noise modifier to an F-curve
-fcu = action.fcurves.find('location', index=2)
+# Add a Noise modifier to an F-curve (use channelbag API)
+from bpy_extras import anim_utils
+
+action = obj.animation_data.action
+slot = obj.animation_data.action_slot
+channelbag = anim_utils.action_get_channelbag_for_slot(action, slot)
+
+fcu = channelbag.fcurves.find('location', index=2)
 modifier = fcu.modifiers.new('NOISE')
 modifier.scale = 10      # adjust noise scale
 modifier.strength = 0.5  # adjust noise strength
