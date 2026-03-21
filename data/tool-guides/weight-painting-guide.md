@@ -100,42 +100,15 @@ bpy.ops.object.parent_set(type='ARMATURE_AUTO')
 
 > **Source:** Reddit "Mesh deforms differently in Unity than in Blender"
 
-Raw auto-weights are never production-quality. Always run cleanup:
+Raw auto-weights are never production-quality. Always run the **4-step cleanup pipeline** after binding:
 
-```python
-import bpy
+1. `vertex_group_limit_total(limit=4)` — Cap bone influences per vertex
+2. `vertex_group_smooth(factor=0.5, repeat=3)` — Smooth jagged deformations
+3. `vertex_group_normalize_all()` — Ensure every vertex sums to 1.0
+4. `vertex_group_clean(limit=0.01)` — Remove tiny weights below threshold
 
-mesh = bpy.data.objects['CharacterMesh']
-bpy.context.view_layer.objects.active = mesh
-bpy.ops.object.mode_set(mode='WEIGHT_PAINT')
-
-# Step 1: Limit max bone influences per vertex
-# Game engine standard: 4 bones max (Unity uses 2-4 by default)
-# Blender auto-weights may assign up to 8 bones per vertex
-bpy.ops.object.vertex_group_limit_total(limit=4)
-
-# Step 2: Smooth weights (reduces jagged deformations)
-bpy.ops.object.vertex_group_smooth(
-    group_select_mode='ALL',
-    factor=0.5,
-    repeat=3
-)
-
-# Step 3: Normalize (every vertex's weights sum to 1.0)
-bpy.ops.object.vertex_group_normalize_all(
-    group_select_mode='ALL',
-    lock_active=False
-)
-
-# Step 4: Clean tiny weights below threshold
-bpy.ops.object.vertex_group_clean(
-    group_select_mode='ALL',
-    limit=0.01,
-    keep_single=False
-)
-
-bpy.ops.object.mode_set(mode='OBJECT')
-```
+> **📌 Full code:** See `rigging-guide.md` → Section 3 for the complete Python implementation.
+> This guide focuses on the *weight data architecture* (Section 1-2) and *advanced techniques* (Sections 4-7) that the rigging guide does not cover.
 
 ---
 
