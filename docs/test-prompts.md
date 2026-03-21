@@ -317,10 +317,9 @@ rigged model as GLB to /tmp/creature_rigged.glb.
 **What to verify:**
 - Creature mesh exists with 4 legs, body, head, tail-like shapes
 - Green material applied
-- UniRig was called (check agent logs for UniRig API call)
-- A skeleton/armature is embedded in the model
+- **If UniRig is available:** UniRig API call is present in agent logs, armature is embedded in the model, and GLB contains bone data when re-imported
+- **If UniRig is unavailable:** agent explicitly reports "unavailable" and proceeds without recursive retries (graceful degradation)
 - GLB file exported to /tmp/creature_rigged.glb
-- The exported GLB contains armature data (bones visible when re-imported)
 - **Timing target:** < 180 seconds (includes AI processing time)
 
 ---
@@ -357,10 +356,8 @@ of the animation.
 ```
 **What to verify:**
 - Humanoid figure exists with a biped skeleton/armature
-- MoMask was called (check agent logs for MoMask API call)
-- A BVH or motion data file was generated/imported
-- The armature has animation data applied (bones move over time)
-- Playing the animation shows a walking motion
+- **If MoMask is available:** MoMask API call is present in agent logs, BVH/motion data is generated and imported, armature has animation data, and playing animation shows walking motion
+- **If MoMask is unavailable:** agent explicitly reports "unavailable" and proceeds/finalizes gracefully without recursive retries
 - Camera is positioned from the side
 - Rendered preview exists
 - **Timing target:** < 180 seconds (includes AI processing time)

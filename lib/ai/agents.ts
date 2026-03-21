@@ -883,9 +883,22 @@ for (const t of ALL_TOOLS) {
  * If the previous/in-flight call failed, retries are allowed.
  */
 function createDedupMiddleware() {
-  // Stable hash: sort keys so {a:1,b:2} and {b:2,a:1} produce the same string
+  // Stable hash: deep-sort keys so {a:1,b:2} and {b:2,a:1} produce the same string,
+  // including nested objects (e.g. {properties:{width:0.01}} vs {properties:{width:0.2}})
   function stableHash(args: Record<string, unknown>): string {
-    return JSON.stringify(args, Object.keys(args).sort())
+    const sortDeep = (value: unknown): unknown => {
+      if (Array.isArray(value)) return value.map(sortDeep)
+      if (value && typeof value === "object") {
+        return Object.fromEntries(
+          Object.entries(value as Record<string, unknown>)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([key, child]) => [key, sortDeep(child)])
+        )
+      }
+      return value
+    }
+
+    return JSON.stringify(sortDeep(args))
   }
 
   // Cache of last successful result per tool+args combo

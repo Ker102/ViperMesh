@@ -53,6 +53,7 @@ User Message
 ```
 
 **Key files:**
+
 | File | Role |
 |------|------|
 | `app/api/ai/chat/route.ts` | Main entry point (1100 lines) — handles both modes |
@@ -113,6 +114,7 @@ User Message
 ```
 
 **Key files:**
+
 | File | Role |
 |------|------|
 | `lib/orchestration/workflow-advisor.ts` | Generates step-by-step workflow proposals |

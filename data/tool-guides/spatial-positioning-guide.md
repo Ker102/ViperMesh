@@ -91,8 +91,9 @@ import math
 H, D = 0.8, 0.1
 theta = math.radians(15)
 effective_h = abs(H * math.cos(theta)) + abs(D * math.sin(theta))  # ≈ 0.799m
-bottom_shift = (D / 2) * math.sin(theta)  # ≈ 0.013m upward
-# The bottom edge lifts 0.013m off the expected surface
+bottom_shift = (H / 2) * (1 - math.cos(theta)) - (D / 2) * math.sin(theta)
+# ≈ 0.0007m upward (nearly zero — the two effects almost cancel)
+# For thin objects (D << H), the shift is tiny; for thick objects it matters more
 ```
 
 **Rule: When placing a rotated object flush against a surface, account for the bottom-edge shift.**

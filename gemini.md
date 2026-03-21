@@ -6,7 +6,7 @@
 1. **Chat UI Fixes** (`project-chat.tsx`):
    - Cleared agent streaming state (`agentEvents`, `agentActive`, `monitoringLogs`, `monitoringSummary`) on new sends
    - Old failed plan blocks now collapsed with "Previous run" label — hides stale error details
-   - TypeScript compilation verified clean
+   - TypeScript compilation verified clean for touched files (repo has known legacy error: missing `ExecutionResult` import in `route.ts`)
    - Committed: `fix: clear agent state on new send + collapse old plan errors`
 
 2. **Aesthetic Quality Skill Guide** (`data/tool-guides/aesthetic-quality-guide.md`):
