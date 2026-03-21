@@ -129,7 +129,6 @@ export function ProjectChat({
   const [localReady, setLocalReady] = useState<boolean>(localProviderConfigured)
   const [agentEvents, setAgentEvents] = useState<AgentStreamEvent[]>([])
   const [agentActive, setAgentActive] = useState(false)
-  const [agentReasoning, setAgentReasoning] = useState("")
   const [activeWorkflow, setActiveWorkflow] = useState<WorkflowProposal | null>(null)
   const [mcpConnected, setMcpConnected] = useState<boolean | null>(null)
   const [workflowMode, setWorkflowMode] = useState<WorkflowMode>("autopilot")
@@ -284,7 +283,6 @@ export function ProjectChat({
     setAttachments([])
     setAgentEvents([])
     setAgentActive(false)
-    setAgentReasoning("")
   }
 
   const handleAttachmentButton = () => {
@@ -391,7 +389,6 @@ export function ProjectChat({
     // Clear agent streaming state for fresh run
     setAgentEvents([])
     setAgentActive(false)
-    setAgentReasoning("")
     setMonitoringLogs([])
     setMonitoringSummary(null)
     setMessages((prev) => [
@@ -723,17 +720,9 @@ export function ProjectChat({
                   } else if (agentEvent.type === "agent:complete") {
                     setAgentEvents((prev) => [...prev, agentEvent])
                     // Keep active briefly so user can see the final status
-                  } else if (agentEvent.type === "agent:reasoning") {
-                    // Show agent's reasoning/analysis text
-                    const reasoningEvent = agentEvent as unknown as { content: string }
-                    if (reasoningEvent.content) {
-                      setAgentReasoning(reasoningEvent.content)
-                    }
                   } else if (agentEvent.type === "agent:tool_call") {
                     // Auto-activate when first tool call arrives (v2 agent may skip planning_start)
                     setAgentActive(true)
-                    // Clear reasoning when a tool call starts (reasoning is pre-tool thinking)
-                    setAgentReasoning("")
                     setAgentEvents((prev) => [...prev, agentEvent])
                   } else {
                     setAgentEvents((prev) => [...prev, agentEvent])
@@ -828,7 +817,6 @@ export function ProjectChat({
     setAttachments([])
     setAgentEvents([])
     setAgentActive(false)
-    setAgentReasoning("")
   }
 
   async function updateAssetConfig(partial: Partial<typeof assetConfig>) {
@@ -1481,29 +1469,27 @@ export function ProjectChat({
               </div>
             )}
 
-            {/* Agent activity panel — shows tool calls in real-time */}
-            {/* Agent reasoning text — shows LLM analysis inline */}
-            {agentReasoning && (
-              <div
-                className="rounded-xl px-4 py-3 mb-3 text-sm transition-all duration-300"
-                style={{
-                  backgroundColor: "var(--forge-glass)",
-                  color: "hsl(var(--forge-text-muted))",
-                  borderLeft: "3px solid hsl(var(--forge-accent) / 0.5)",
-                  backdropFilter: "blur(12px)",
-                }}
-              >
+            {/* Agent inline status — Thinking indicator + tool call log */}
+            {agentActive && (
+              <div className="flex items-center gap-2 mb-3 px-1">
+                <svg
+                  className="w-4 h-4 animate-spin shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="hsl(var(--forge-accent))"
+                  strokeWidth="2"
+                >
+                  <circle cx="12" cy="12" r="10" opacity="0.25" />
+                  <path d="M12 2a10 10 0 0 1 10 10" />
+                </svg>
                 <span
-                  className="text-[10px] uppercase tracking-wider font-semibold block mb-1"
+                  className="text-xs font-medium"
                   style={{ color: "hsl(var(--forge-accent))" }}
                 >
-                  Agent analysis
+                  Thinking…
                 </span>
-                <span className="whitespace-pre-wrap">{agentReasoning}</span>
               </div>
             )}
-
-            {/* Agent activity panel — shows tool calls in real-time */}
             <AgentActivity events={agentEvents} isActive={agentActive} />
 
             <form onSubmit={handleSend} className="space-y-3">

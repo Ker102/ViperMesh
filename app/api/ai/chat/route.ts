@@ -814,22 +814,6 @@ export async function POST(req: Request) {
 
               // Extract messages from agent result
               const agentMessages = agentResult.messages ?? []
-
-              // Post-process: extract reasoning text from AI messages that don't have tool calls
-              // and emit as agent:reasoning events for the UI
-              for (const m of agentMessages) {
-                if (!m || typeof m !== "object") continue
-                const msg = m as { _getType?: () => string; content?: unknown; tool_calls?: unknown[] }
-                const msgType = typeof msg._getType === "function" ? msg._getType.call(msg) : undefined
-                const hasToolCalls = Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0
-                if (msgType === "ai" && !hasToolCalls && typeof msg.content === "string" && msg.content.length > 0) {
-                  send({
-                    type: "agent:reasoning",
-                    content: msg.content,
-                    timestamp: new Date().toISOString(),
-                  })
-                }
-              }
               const toolCallMessages = agentMessages.filter(
                 (m: unknown) => {
                   if (!m || typeof m !== "object") return false
