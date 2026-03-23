@@ -986,32 +986,62 @@ export async function POST(req: Request) {
               .map(c => `${c.tool}: ${c.error?.substring(0, 80)}`)
               .join("; ")
 
-            // Friendly tool summary for fallback messages
-            const friendlyTools = executedCommands
-              .filter(c => c.status === "executed")
-              .map(c => {
-                const map: Record<string, string> = {
-                  execute_code: "ran Python code",
-                  set_camera_properties: "set up the camera",
-                  get_viewport_screenshot: "captured a viewport screenshot",
-                  add_light: "added lighting",
-                  set_render_settings: "configured render settings",
-                  get_scene_info: "analyzed the scene",
-                  add_camera: "added a camera",
-                }
-                return map[c.tool] || c.tool
-              })
+            // Friendly tool summary grouped by action type for human-readable follow-up
+            const friendlyToolMap: Record<string, string> = {
+              execute_code: "ran Python code",
+              set_camera_properties: "set up the camera",
+              get_viewport_screenshot: "captured a viewport screenshot",
+              add_light: "added lighting",
+              set_light_properties: "configured lighting",
+              set_render_settings: "configured render settings",
+              get_scene_info: "analyzed the scene",
+              get_object_info: "inspected an object",
+              get_all_object_info: "inspected all objects",
+              add_camera: "added a camera",
+              delete_object: "cleaned up the scene",
+              create_material: "created materials",
+              assign_material: "applied materials",
+              set_object_transform: "positioned objects",
+              add_modifier: "added modifiers",
+              apply_modifier: "applied modifiers",
+              shade_smooth: "set smooth shading",
+              rename_object: "renamed objects",
+              duplicate_object: "duplicated objects",
+              move_to_collection: "organized the scene",
+              parent_set: "set up object hierarchy",
+              join_objects: "joined objects together",
+              export_object: "exported a model",
+              render_image: "rendered an image",
+              search_polyhaven_assets: "searched PolyHaven",
+              download_polyhaven_asset: "downloaded assets",
+              set_texture: "applied textures",
+              list_materials: "listed materials",
+            }
+
+            // Group and deduplicate friendly labels
+            const executedTools = executedCommands.filter(c => c.status === "executed")
+            const labelCounts = new Map<string, number>()
+            for (const c of executedTools) {
+              const label = friendlyToolMap[c.tool] || c.tool.replace(/_/g, " ")
+              labelCounts.set(label, (labelCounts.get(label) || 0) + 1)
+            }
+            const groupedLabels = [...labelCounts.entries()]
+              .map(([label, count]) => count > 1 ? `${label} (${count}×)` : label)
+
+            const humanReadableSummary = groupedLabels.length > 0
+              ? groupedLabels.join(", ")
+              : "no tools were used"
 
             console.log("[Chat] Generating post-execution follow-up...", {
               overallSuccess,
               executedCommandsCount: executedCommands.length,
-              completedList,
+              humanReadableSummary,
               providerType: llmProvider.type,
             })
 
             const summaryPromptText = overallSuccess
-              ? `You just finished a Blender task. Here is the context:\n- User's request: "${message}"\n- Tools used: ${completedList || "none"}\n\nWrite a brief 2-3 sentence summary of what you created or modified in the scene. Then ask ONE specific follow-up question about what the user might want to do next with this scene — reference specific things you created (e.g. materials, lighting, rigging). Do NOT say generic phrases like "Would you like me to refine anything?" — be specific to the scene.`
-              : `You attempted a Blender task but some steps failed.\n- User's request: "${message}"\n- Succeeded: ${completedList || "none"}\n- Failed: ${failedList || "none"}\n\nExplain briefly what went wrong (1-2 sentences). Then suggest a specific next step the user could try to fix it.`
+              ? `You just finished building a scene in Blender for the user. Here is the context:\n- User's original request: "${message}"\n- What you did: ${humanReadableSummary}\n\nWrite a conversational 2-3 sentence summary describing what you built or changed in the scene — focus on what the user can see (objects, lighting, materials, composition), NOT on tool names. Then ask ONE specific, creative follow-up question about what the user might want to adjust or add next — reference specific visual elements you created (e.g. "Would you like me to add some warm volumetric lighting behind the awning?" or "I could add a weathered texture to the wood — want me to try that?"). Do NOT be generic or list tool names.`
+              : `You attempted a Blender task but some steps failed.\n- User's request: "${message}"\n- What succeeded: ${humanReadableSummary || "nothing"}\n- What failed: ${failedList || "unknown"}\n\nExplain briefly what went wrong (1-2 sentences, in plain language). Then suggest a specific, actionable next step the user could try.`
 
             let followUpText = ""
             let chunkCount = 0
@@ -1020,7 +1050,7 @@ export async function POST(req: Request) {
               messages: [{ role: "user", content: summaryPromptText }],
               maxOutputTokens: 300,
               temperature: 0.6,
-              systemPrompt: "You are ModelForge, a Blender 3D assistant. Respond conversationally in 2-4 sentences. Do NOT use markdown headers or bullet points. Be specific about what was done in the scene.",
+              systemPrompt: "You are ViperMesh, a friendly and knowledgeable Blender 3D assistant. Respond conversationally in 2-4 sentences. Never use markdown headers, bullet points, or tool/function names. Describe the scene visually — what it looks like, not what tools were called. Be warm and creative with your follow-up suggestion.",
             })) {
               chunkCount++
               if (chunk.textDelta) {
@@ -1038,11 +1068,11 @@ export async function POST(req: Request) {
             } else {
               // The LLM yielded 0 chunks — send a scene-aware fallback
               console.warn("[Chat] Follow-up stream returned empty text, sending scene-aware fallback")
-              const toolSummary = friendlyTools.length > 0
-                ? `I ${friendlyTools.slice(0, 3).join(", ")}${friendlyTools.length > 3 ? ` and ${friendlyTools.length - 3} more` : ""}.`
+              const sceneSummary = groupedLabels.length > 0
+                ? `I've set up your scene — ${groupedLabels.slice(0, 3).join(", ")}${groupedLabels.length > 3 ? ` and more` : ""}.`
                 : "I've set up the scene."
               const emptyFallback = overallSuccess
-                ? `${toolSummary} What would you like to adjust or add next?`
+                ? `${sceneSummary} What would you like to adjust or add next?`
                 : `Some steps didn't go as planned. Would you like me to retry with a different approach?`
               send({ type: "followup_delta", delta: emptyFallback })
               assistantText = emptyFallback

@@ -1,6 +1,29 @@
 # ViperMesh — Current Progress
 
-## Last Session: 2026-03-23 (20:10–20:30 PM)
+## Last Session: 2026-03-23 (20:30–20:50 PM)
+
+### What Was Done
+1. **Streaming UI Fix** (`project-chat.tsx`, `agent-activity.tsx`):
+   - Hid per-message `mcpCommands` (TOOL CALLS) block during active streaming — only `AgentActivity` shows live
+   - Fixed "Thinking…" indicator — now only appears when agent is reasoning, NOT during tool execution
+   - `AgentActivity` collapses into a closed-by-default `<details>` dropdown ("✓ N tools used") when agent finishes
+   - MCP execution summary is also now a `<details>` (closed by default) for past messages
+
+2. **Follow-up Quality Fix** (`route.ts`):
+   - Expanded `friendlyToolMap` from 7 to 27 entries — all common Blender tools now have human-readable labels
+   - Grouped & deduplicated tool labels (e.g. "cleaned up the scene (3×)" instead of "delete_object, delete_object, delete_object")
+   - Summary prompt now references visual outcomes, not tool names
+   - Fallback message uses grouped labels instead of raw tool names
+   - System prompt updated from "ModelForge" to "ViperMesh"
+
+3. **Documentation Rebrand (previous sub-session)** — All ~50 "ModelForge" → "ViperMesh" references updated across 13 doc files
+
+4. **New Test Prompts** (`docs/test-prompts.md`):
+   - Test 17: Multi-Object Fruit Market Stall (spatial + lighting)
+   - Test 18: Image Reference Recreation (vision + spatial)
+   - Tests 14-16 marked as future-only
+
+## Previous Session: 2026-03-23 (20:10–20:30 PM)
 
 ### What Was Done
 1. **Documentation Rebrand** — Renamed all ~50 "ModelForge" → "ViperMesh" references across 13 doc files:

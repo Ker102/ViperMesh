@@ -1325,14 +1325,16 @@ export function ProjectChat({
                           />
                         </div>
                       )}
+                    {/* MCP execution summary — hidden on the latest message while agent is still streaming */}
                     {message.role === "assistant" &&
                       Array.isArray(message.mcpCommands) &&
-                      message.mcpCommands.length > 0 && (
-                        <div className="max-w-[80%] rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground space-y-2">
-                          <p className="font-medium text-primary">
-                            MCP execution summary
-                          </p>
-                          <ul className="space-y-2">
+                      message.mcpCommands.length > 0 &&
+                      !(agentActive && index === messages.length - 1) && (
+                        <details className="max-w-[80%] rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground space-y-2">
+                          <summary className="cursor-pointer font-medium text-primary">
+                            MCP execution summary ({message.mcpCommands.length} tool{message.mcpCommands.length !== 1 ? "s" : ""})
+                          </summary>
+                          <ul className="space-y-2 mt-2">
                             {message.mcpCommands.map((command) => (
                               <li key={command.id} className="flex flex-col gap-1 rounded-md border border-border/60 bg-background/70 p-2 text-xs">
                                 <div className="flex items-center justify-between gap-2">
@@ -1358,7 +1360,7 @@ export function ProjectChat({
                               </li>
                             ))}
                           </ul>
-                        </div>
+                        </details>
                       )}
                     {message.createdAt && (
                       <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
@@ -1475,27 +1477,41 @@ export function ProjectChat({
               </div>
             )}
 
-            {/* Agent inline status — Thinking indicator + tool call log */}
-            {agentActive && (
-              <div className="flex items-center gap-2 mb-3 px-1">
-                <svg
-                  className="w-4 h-4 animate-spin shrink-0"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="hsl(var(--forge-accent))"
-                  strokeWidth="2"
-                >
-                  <circle cx="12" cy="12" r="10" opacity="0.25" />
-                  <path d="M12 2a10 10 0 0 1 10 10" />
-                </svg>
-                <span
-                  className="text-xs font-medium"
-                  style={{ color: "hsl(var(--forge-accent))" }}
-                >
-                  Thinking…
-                </span>
-              </div>
-            )}
+            {/* Agent inline status — Thinking indicator (only when NOT executing a tool) */}
+            {(() => {
+              // Derive whether a tool call is currently in-flight
+              const startedTools = new Set<string>()
+              for (const evt of agentEvents) {
+                if (evt.type === "agent:tool_call") {
+                  const tc = evt as unknown as { toolName: string; status: string }
+                  if (tc.status === "started") startedTools.add(tc.toolName)
+                  else startedTools.delete(tc.toolName)
+                }
+              }
+              const hasActiveTool = startedTools.size > 0
+              const isThinking = agentActive && !hasActiveTool
+
+              return isThinking ? (
+                <div className="flex items-center gap-2 mb-3 px-1">
+                  <svg
+                    className="w-4 h-4 animate-spin shrink-0"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="hsl(var(--forge-accent))"
+                    strokeWidth="2"
+                  >
+                    <circle cx="12" cy="12" r="10" opacity="0.25" />
+                    <path d="M12 2a10 10 0 0 1 10 10" />
+                  </svg>
+                  <span
+                    className="text-xs font-medium"
+                    style={{ color: "hsl(var(--forge-accent))" }}
+                  >
+                    Thinking…
+                  </span>
+                </div>
+              ) : null
+            })()}
             <AgentActivity events={agentEvents} isActive={agentActive} />
 
             <form onSubmit={handleSend} className="space-y-3">
