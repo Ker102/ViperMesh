@@ -1,4 +1,4 @@
-# ModelForge — Architecture Reference
+# ViperMesh — Architecture Reference
 
 > **Last Updated:** 2026-03-20  
 > **Rule:** This is the canonical architecture doc. Update here when the architecture changes. `gemini.md` should just reference this file.
@@ -7,7 +7,7 @@
 
 ## Current Architecture (v2 — LangGraph Agent)
 
-ModelForge has **two fully decoupled execution modes**. They share the same LLM (Gemini), RAG pipeline, and MCP tools, but their execution flows are completely independent.
+ViperMesh has **two fully decoupled execution modes**. They share the same LLM (Gemini), RAG pipeline, and MCP tools, but their execution flows are completely independent.
 
 ### Autopilot Mode (`workflowMode: "autopilot"`)
 

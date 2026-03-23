@@ -1,4 +1,4 @@
-# ModelForge Project Notes
+# ViperMesh Project Notes
 
 > ⚠️ **LEGACY DOCUMENT** — This file describes the v1 (planner + executor) architecture from Feb 2026.  
 > The current architecture has changed significantly. See **[`architecture.md`](./architecture.md)** for the canonical reference.
@@ -12,7 +12,7 @@
 - **Together.ai Embeddings**: Model `Alibaba-NLP/gte-modernbert-base` (768 dims, 8192 token context)
 - **Neon pgvector**: Vector store for RAG, 113 documents ingested from `data/blender-scripts/*.py` under source label **`blender-scripts`** (NOT `blender-docs`)
 - **Supabase Auth**: Full auth flow (NextAuth completely removed)
-- **Electron Desktop**: `desktop/` directory, launches via `cd desktop && MODELFORGE_DESKTOP_ENV=development ./node_modules/.bin/electron .`
+- **Electron Desktop**: `desktop/` directory, launches via `cd desktop && VIPERMESH_DESKTOP_ENV=development ./node_modules/.bin/electron .`
 - **Stripe**: Free / Starter ($12/mo) / Pro ($29/mo) tiers
 
 ### Two-Phase Orchestration Architecture
@@ -133,9 +133,9 @@ npm run dev
 
 # Terminal 2: Electron app
 cd desktop
-MODELFORGE_DESKTOP_ENV=development ./node_modules/.bin/electron .
+VIPERMESH_DESKTOP_ENV=development ./node_modules/.bin/electron .
 
-# Blender: Must be running with ModelForge addon enabled and connected (port 9876)
+# Blender: Must be running with ViperMesh addon enabled and connected (port 9876)
 ```
 
 ## How to Re-ingest RAG Embeddings

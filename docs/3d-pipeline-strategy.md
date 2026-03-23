@@ -1,4 +1,4 @@
-# ModelForge — 3D Production Pipeline Strategy
+# ViperMesh — 3D Production Pipeline Strategy
 
 > **Last Updated:** 2026-02-17  
 > **Status:** Research Complete — Ready for Implementation Planning
@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-After deep research across 15+ sources (academic papers, competitor interviews, leaderboards, API docs), we've identified **three distinct approaches** to AI 3D generation. ModelForge's procedural code-gen approach is **academically validated** by the Proc3D paper (SIGGRAPH-track) and is the only approach that produces **editable, parametric, animation-ready** output. This is our moat.
+After deep research across 15+ sources (academic papers, competitor interviews, leaderboards, API docs), we've identified **three distinct approaches** to AI 3D generation. ViperMesh's procedural code-gen approach is **academically validated** by the Proc3D paper (SIGGRAPH-track) and is the only approach that produces **editable, parametric, animation-ready** output. This is our moat.
 
 ---
 
@@ -26,7 +26,7 @@ After deep research across 15+ sources (academic papers, competitor interviews, 
 | **Production readiness** | ❌ Requires manual retopology, UV unwrap, rigging — NOT animation-ready |
 
 ### 2. Procedural Code-Gen (LLM → Blender/DCC Code)
-**Used by:** ModelForge (us!), 3D-Agent, Proc3D, 3D-GPT, SceneCraft, BlenderGPT
+**Used by:** ViperMesh (us!), 3D-Agent, Proc3D, 3D-GPT, SceneCraft, BlenderGPT
 
 | Aspect | Details |
 |--------|---------|
@@ -38,7 +38,7 @@ After deep research across 15+ sources (academic papers, competitor interviews, 
 | **Production readiness** | ✅ Native Blender output — proper topology, UV-ready, riggable |
 
 ### 3. Hybrid (Neural Generation + Procedural Refinement)
-**The future approach — and ModelForge's opportunity**
+**The future approach — and ViperMesh's opportunity**
 
 | Aspect | Details |
 |--------|---------|
@@ -97,7 +97,7 @@ Stage 8: RENDERING         → Final output (Cycles/EEVEE)
 Stage 9: EXPORT            → Production formats (FBX, glTF, USD)
 ```
 
-### ModelForge Coverage Today vs. Target
+### ViperMesh Coverage Today vs. Target
 
 | Stage | Current | Target | Approach |
 |-------|---------|--------|----------|
@@ -113,7 +113,7 @@ Stage 9: EXPORT            → Production formats (FBX, glTF, USD)
 
 ---
 
-## ModelForge's Competitive Advantages
+## ViperMesh's Competitive Advantages
 
 ### Why We Win
 
@@ -131,7 +131,7 @@ The Proc3D paper (Jan 2026, arXiv) directly validates our approach:
 - Their PCG representation is **4-10x more compact** than raw Blender code
 - Edits are **400x faster** than neural regeneration methods
 - They outperform SDFusion, Shap-E, LLaMA-Mesh on ULIP alignment scores
-- **ModelForge already exceeds their capabilities** with RAG, visual feedback, and MCP integration
+- **ViperMesh already exceeds their capabilities** with RAG, visual feedback, and MCP integration
 
 ---
 

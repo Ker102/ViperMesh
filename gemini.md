@@ -1,6 +1,17 @@
-# ViperMesh (formerly ModelForge) — Current Progress
+# ViperMesh — Current Progress
 
-## Last Session: 2026-03-23 (04:00–04:20 AM)
+## Last Session: 2026-03-23 (20:10–20:30 PM)
+
+### What Was Done
+1. **Documentation Rebrand** — Renamed all ~50 "ModelForge" → "ViperMesh" references across 13 doc files:
+   - `docs/future-plans.md`, `docs/architecture.md`, `docs/architecture-notes.md`
+   - `docs/3d-pipeline-strategy.md`, `docs/3d-pipeline-integration.md`
+   - `docs/HANDOFF.md`, `docs/research-pipeline-techniques.md`, `docs/test-prompts.md`
+   - `docs/addon-integration-roadmap.md`
+   - `SETUP.md`, `SECURITY.md`, `deploy/runpod/README.md`
+   - **Zero remaining `ModelForge` references in the entire project** (code + docs + config verified)
+
+## Previous Session: 2026-03-23 (04:00–04:20 AM)
 
 ### What Was Done
 1. **Code Logic Rebrand** — Renamed `window.modelforge` → `window.vipermesh` and `modelforge-addon.py` → `vipermesh-addon.py`:

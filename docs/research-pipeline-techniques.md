@@ -1,4 +1,4 @@
-# ModelForge — 3D Pipeline Technique Research
+# ViperMesh — 3D Pipeline Technique Research
 
 > **Generated:** 2026-02-17  
 > **Sources:** NotebookLM Deep Research (61 web sources + 90 existing notebook sources)
@@ -251,7 +251,7 @@ noise_strip.blend_type = 'ADD'  # Layer on top
 
 ---
 
-## Key Takeaways for ModelForge Implementation
+## Key Takeaways for ViperMesh Implementation
 
 ### What We Can Build NOW
 1. **Retopology Pipeline**: Voxel Remesh + Quadriflow are both single-line API calls — add to MCP

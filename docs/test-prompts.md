@@ -1,4 +1,4 @@
-# ModelForge Blender Agent — Stress Test Prompts
+# ViperMesh Blender Agent — Stress Test Prompts
 
 ## How to Use
 
