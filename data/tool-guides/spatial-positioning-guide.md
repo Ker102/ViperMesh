@@ -138,6 +138,96 @@ for i, offset in enumerate([-1.5, 0, 1.5]):
     obj_copy.location.x = center_x + offset
 ```
 
+## PROXIMITY & CONTACT RELATIONSHIPS
+
+These patterns handle natural language like "leaning against", "beside", "resting on", "inside a container". The core principle: **always compute the actual surface boundary of BOTH objects before positioning.**
+
+### CRITICAL: Scaled Dimensions
+A sphere with `radius=R` and `scale=(sx, sy, sz)` has actual extents:
+```
+actual_extent_x = R × sx    (NOT just R)
+actual_extent_y = R × sy
+actual_extent_z = R × sz
+```
+
+A cube with `size=S` and `scale=(sx, sy, sz)` has half-extents:
+```
+half_x = (S / 2) × sx
+half_y = (S / 2) × sy  
+half_z = (S / 2) × sz
+```
+
+**ALWAYS multiply dimensions by scale factors before computing offsets.**
+
+### "Leaning Against" / "Beside" (Surface Contact)
+Object B should touch but NOT penetrate object A:
+```python
+# Compute A's rightmost surface
+A_right_edge = A.location.x + A_actual_half_width
+# Compute B's leftmost surface offset from B's center
+B_left_offset = B_actual_half_width
+# Place B so its left surface touches A's right surface
+B.location.x = A_right_edge + B_left_offset + margin  # margin ≥ 0.01
+```
+
+**Example — bananas leaning against a watermelon:**
+```python
+# Watermelon: radius=0.2, scale=(1.3, 1.0, 1.0) at X=-0.5
+wm_right_x = -0.5 + (0.2 * 1.3)  # = -0.24
+
+# Banana: radius=0.03 at whatever position
+banana_x = wm_right_x + 0.03 + 0.01  # = -0.20 (just outside)
+```
+
+❌ **WRONG:** `banana_x = watermelon_x + 0.25`  (ignores watermelon's actual width)  
+✅ **RIGHT:** `banana_x = watermelon_x + wm_radius * wm_scale_x + banana_radius + margin`
+
+### "Resting On" / "Sitting On" (Vertical Contact)
+Object B sits on top of object A's surface:
+```python
+A_top_z = A.location.z + A_actual_half_height
+B.location.z = A_top_z + B_actual_half_height + margin
+```
+
+For spheres on flat surfaces:
+```python
+# Sphere rests on table top
+sphere.location.z = table_top_z + sphere_radius * sphere_scale_z
+```
+
+### "Inside a Container" (Contained Within)
+Object B should be within the bounds of object A:
+```python
+# B center must satisfy:
+# A.loc.x - (A_half_w - B_half_w) < B.loc.x < A.loc.x + (A_half_w - B_half_w)
+# Same for Y and Z
+
+# Example: apples inside a crate
+crate_interior_half_w = (crate_width / 2) - wall_thickness - apple_radius
+apple.location.x = crate.location.x + random_offset  # |offset| < crate_interior_half_w
+apple.location.z = crate_floor_z + apple_radius  # resting on crate floor
+```
+
+### "Clustered Together" / "Grouped"
+Spread objects with minimum separation to avoid overlap:
+```python
+min_separation = obj_radius_A + obj_radius_B + 0.02  # 2cm gap
+# For each new object, check distance to all existing objects
+from mathutils import Vector
+for existing in placed_objects:
+    dist = (Vector(new_loc) - Vector(existing.location)).length
+    if dist < min_separation:
+        # push new_loc outward
+```
+
+### Safety Margin Reference
+| Relationship | Minimum margin |
+|---|---|
+| Touching / leaning | 0.005–0.02 m |
+| "Close but not touching" | 0.05–0.10 m |
+| "Nearby" / "beside" | 0.10–0.30 m |
+| "Well separated" | 0.50+ m |
+
 ## REAL-WORLD DIMENSION REFERENCE
 
 Use these to validate proportions when the user doesn't provide exact sizes.
@@ -188,3 +278,6 @@ Use these to validate proportions when the user doesn't provide exact sizes.
 5. ❌ **Forgetting center-origin offset** — Bottom of a size=2 cube at origin is at Z=-1
 6. ❌ **Using `*` for matrix math** — Use `@` in Blender 2.8+ (PEP 465)
 7. ❌ **Using absolute coords for relative instructions** — "3m right of table" ≠ x=3
+8. ❌ **Ignoring scale when computing proximity offsets** — A sphere(r=0.2, scale_x=1.3) extends 0.26m, NOT 0.2m. Always multiply: `actual_extent = radius × scale`
+9. ❌ **Placing "beside" objects at a fixed offset from center instead of from surface** — "Beside" means surface-to-surface contact, not center-to-center distance
+10. ❌ **Objects inside each other when meant to be touching** — Always compute both surfaces: `A_surface + B_half_width + margin`, never just `A_center + arbitrary_offset`
