@@ -1019,7 +1019,7 @@ export function ProjectChat({
                     What would you like to create?
                   </h3>
                   <p className="text-xs mt-1 mb-4" style={{ color: "hsl(var(--forge-text-muted))" }}>
-                    Describe your vision and ModelForge will plan and build it
+                    Describe your vision and ViperMesh will plan and build it
                   </p>
                   <div className="grid grid-cols-2 gap-2 w-full max-w-md">
                     {SUGGESTIONS.map((s) => (
@@ -1577,7 +1577,7 @@ export function ProjectChat({
                   )}
                 />
                 {mcpConnected === true && "Blender addon connected (port 9876)"}
-                {mcpConnected === false && "Blender addon not connected — open Blender and connect the ModelForge addon on port 9876"}
+                {mcpConnected === false && "Blender addon not connected — open Blender and connect the ViperMesh addon on port 9876"}
                 {mcpConnected === null && "Checking Blender connection…"}
               </div>
               {attachments.length > 0 && (
@@ -1610,7 +1610,7 @@ export function ProjectChat({
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Describe what you need—ModelForge can craft Blender geometry, tweak materials, set up lighting, and more."
+                placeholder="Describe what you need—ViperMesh can craft Blender geometry, tweak materials, set up lighting, and more."
                 rows={3}
                 disabled={isSending}
                 className={cn(
@@ -1656,7 +1656,7 @@ export function ProjectChat({
                   </Button>
                 ) : (
                   <Button type="submit" disabled={!canSend}>
-                    Send to ModelForge
+                    Send to ViperMesh
                   </Button>
                 )}
               </div>

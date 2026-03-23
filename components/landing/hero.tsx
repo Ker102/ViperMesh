@@ -45,7 +45,7 @@ function StudioPreview() {
             <path d="M16 2L4 8v16l12 6 12-6V8L16 2z" />
           </svg>
           <span className="text-xs font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
-            ModelForge Studio
+            ViperMesh Studio
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -231,7 +231,7 @@ export function Hero() {
             className="text-lg md:text-xl max-w-2xl mx-auto leading-relaxed"
             style={{ color: "hsl(var(--forge-text-muted))" }}
           >
-            ModelForge brings AI-powered automation to Blender. Create, modify,
+            ViperMesh brings AI-powered automation to Blender. Create, modify,
             and enhance your 3D projects through simple conversation.
           </motion.p>
 

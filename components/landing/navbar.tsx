@@ -46,7 +46,7 @@ export function Navbar() {
               <circle cx="16" cy="14" r="3" fill="hsl(var(--forge-accent))" />
             </svg>
             <span className="text-xl font-bold tracking-tight" style={{ color: "hsl(var(--forge-text))" }}>
-              ModelForge
+              ViperMesh
             </span>
           </Link>
 

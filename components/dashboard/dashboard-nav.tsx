@@ -35,7 +35,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center gap-2">
             <Hammer className="h-6 w-6 text-primary" />
-            <span className="text-xl font-bold">ModelForge</span>
+            <span className="text-xl font-bold">ViperMesh</span>
           </Link>
           <div className="flex items-center gap-4">
             <Link href="/dashboard">

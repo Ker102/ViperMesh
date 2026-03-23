@@ -13,7 +13,7 @@ const SETUP_STEPS: SetupStep[] = [
     {
         step: 1,
         title: "Download the Addon",
-        description: "Click the button below to open the folder containing the ModelForge Blender addon.",
+        description: "Click the button below to open the folder containing the ViperMesh Blender addon.",
         action: "open-folder",
     },
     {
@@ -29,12 +29,12 @@ const SETUP_STEPS: SetupStep[] = [
     {
         step: 4,
         title: "Enable the Addon",
-        description: "Search for 'ModelForge' and check the box next to 'Interface: ModelForge Blender'",
+        description: "Search for 'ViperMesh' and check the box next to 'Interface: ViperMesh Blender'",
     },
     {
         step: 5,
-        title: "Connect to ModelForge",
-        description: "In Blender's 3D View, press N to open the sidebar, then click the 'ModelForge' tab and hit 'Connect to ModelForge'",
+        title: "Connect to ViperMesh",
+        description: "In Blender's 3D View, press N to open the sidebar, then click the 'ViperMesh' tab and hit 'Connect to ViperMesh'",
     },
 ]
 
@@ -86,7 +86,7 @@ export default function SetupPage() {
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold mb-2">Blender Addon Setup</h1>
                     <p className="text-gray-600">
-                        Follow these steps to connect Blender to ModelForge.
+                        Follow these steps to connect Blender to ViperMesh.
                     </p>
                 </div>
 
@@ -109,7 +109,7 @@ export default function SetupPage() {
                 {!isDesktop && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-8">
                         <p className="text-yellow-800">
-                            ⚠️ You're viewing this in a browser. For the best experience, open this page in the ModelForge desktop app.
+                            ⚠️ You're viewing this in a browser. For the best experience, open this page in the ViperMesh desktop app.
                         </p>
                     </div>
                 )}
@@ -153,7 +153,7 @@ export default function SetupPage() {
                 <div className="mt-8 bg-green-50 border border-green-200 rounded-lg p-6">
                     <h3 className="font-semibold text-green-800 mb-2">🎉 You're all set!</h3>
                     <p className="text-green-700">
-                        Once connected, ModelForge can communicate with Blender to help you create, modify, and enhance your 3D projects.
+                        Once connected, ViperMesh can communicate with Blender to help you create, modify, and enhance your 3D projects.
                     </p>
                 </div>
 

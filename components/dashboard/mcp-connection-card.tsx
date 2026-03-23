@@ -115,7 +115,7 @@ export function McpConnectionCard({ host, port, initialStatus }: McpConnectionCa
         <div>
           <CardTitle>MCP Connection</CardTitle>
           <CardDescription>
-            Bridge between ModelForge and Blender for live scene control. Start the Blender addon to connect.
+            Bridge between ViperMesh and Blender for live scene control. Start the Blender addon to connect.
           </CardDescription>
         </div>
         {connectionBadge}
@@ -138,7 +138,7 @@ export function McpConnectionCard({ host, port, initialStatus }: McpConnectionCa
                 </div>
               )}
               <p className="text-xs text-muted-foreground">
-                Make sure Blender is running with the ModelForge addon enabled and connected. In Blender, press <strong>N</strong> → <strong>ModelForge</strong> tab → <strong>&quot;Connect to ModelForge&quot;</strong>.
+                Make sure Blender is running with the ViperMesh addon enabled and connected. In Blender, press <strong>N</strong> → <strong>ViperMesh</strong> tab → <strong>&quot;Connect to ViperMesh&quot;</strong>.
               </p>
             </div>
           )}

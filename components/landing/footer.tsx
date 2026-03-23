@@ -60,7 +60,7 @@ export function Footer() {
                 />
                 <circle cx="16" cy="14" r="3" fill="hsl(170 55% 65%)" />
               </svg>
-              <span className="text-lg font-bold text-white">ModelForge</span>
+              <span className="text-lg font-bold text-white">ViperMesh</span>
             </div>
             <p className="text-sm leading-relaxed" style={{ color: "hsl(215 20% 55%)" }}>
               AI-powered 3D creation for everyone. Build professional Blender
@@ -127,7 +127,7 @@ export function Footer() {
           transition={{ duration: 0.6, delay: 0.4 }}
         >
           <p className="text-xs" style={{ color: "hsl(215 20% 45%)" }}>
-            © 2026 ModelForge. All rights reserved.
+            © 2026 ViperMesh. All rights reserved.
           </p>
           <div className="flex items-center gap-4">
             <Link href="/privacy" className="text-xs hover:text-white transition-colors" style={{ color: "hsl(215 20% 45%)" }}>

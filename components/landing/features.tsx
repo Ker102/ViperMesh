@@ -8,7 +8,7 @@ const features = [
   {
     title: "Natural Language to 3D",
     description:
-      "Describe complex objects in plain text and watch ModelForge generate detailed 3D assets. No scripting, no menus — just conversation.",
+      "Describe complex objects in plain text and watch ViperMesh generate detailed 3D assets. No scripting, no menus — just conversation.",
     image: "/images/features/nlp-to-3d.png",
   },
   {
@@ -32,7 +32,7 @@ const features = [
   {
     title: "Neural 3D Generation",
     description:
-      "Generate meshes from text or images using Hunyuan3D and TRELLIS 2. ModelForge imports, cleans, and rigs the result in one pipeline.",
+      "Generate meshes from text or images using Hunyuan3D and TRELLIS 2. ViperMesh imports, cleans, and rigs the result in one pipeline.",
     image: "/images/features/neural-3d.png",
   },
   {
@@ -197,7 +197,7 @@ export function Features() {
             className="text-lg max-w-2xl mx-auto"
             style={{ color: "hsl(var(--forge-text-muted))" }}
           >
-            From natural language to finished 3D model — ModelForge handles the entire pipeline.
+            From natural language to finished 3D model — ViperMesh handles the entire pipeline.
           </motion.p>
         </div>
 

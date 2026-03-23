@@ -195,7 +195,7 @@ export default function AddonsPage() {
               Recommended Addons
             </h1>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Curated Blender addons that work great with ModelForge.
+              Curated Blender addons that work great with ViperMesh.
               Addons marked with{" "}
               <Badge variant="secondary" className="gap-1 text-xs align-middle">
                 <Sparkles className="h-3 w-3" /> AI Compatible
@@ -216,7 +216,7 @@ export default function AddonsPage() {
                     What does &quot;AI Compatible&quot; mean?
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    When you connect to ModelForge, our agent automatically detects which
+                    When you connect to ViperMesh, our agent automatically detects which
                     addons you have installed. For recognized addons, it gains knowledge of
                     their operators and capabilities — so it can use them in your workflows
                     without you writing any code. Just install the addon, and the agent
@@ -338,7 +338,7 @@ export default function AddonsPage() {
             </Button>
             <p className="text-xs text-muted-foreground max-w-md mx-auto">
               Addons you install from the Blender Extensions Platform will be
-              automatically detected by the ModelForge agent if they are in our
+              automatically detected by the ViperMesh agent if they are in our
               registry.
             </p>
           </div>

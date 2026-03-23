@@ -233,7 +233,7 @@ export default function DocsPage() {
           </div>
           <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-3"
             style={{ color: "hsl(var(--forge-text))" }}>
-            Learn ModelForge
+            Learn ViperMesh
           </h1>
           <p className="text-lg max-w-2xl mx-auto" style={{ color: "hsl(var(--forge-text-muted))" }}>
             Everything you need to go from installation to your first AI-generated 3D model in minutes.
@@ -253,12 +253,12 @@ export default function DocsPage() {
                 <StepCard num={1} title="Install Blender 5.x (Recommended)">
                   <p>Download from <a href="https://www.blender.org/download/" target="_blank" rel="noreferrer"
                     className="font-medium underline" style={{ color: "hsl(var(--forge-accent))" }}>blender.org</a> and
-                    follow the installer for your platform. <strong>Blender 5.x is strongly recommended</strong> — ModelForge&apos;s code generation, RAG scripts, and API compatibility layer are built around the 5.x API. Older versions (3.x / 4.x) may work but are not actively tested.</p>
+                    follow the installer for your platform. <strong>Blender 5.x is strongly recommended</strong> — ViperMesh&apos;s code generation, RAG scripts, and API compatibility layer are built around the 5.x API. Older versions (3.x / 4.x) may work but are not actively tested.</p>
                 </StepCard>
 
-                <StepCard num={2} title="Install the ModelForge Addon">
+                <StepCard num={2} title="Install the ViperMesh Addon">
                   <div className="space-y-3">
-                    <p>The addon is bundled with the ModelForge desktop app. You can also download it directly:</p>
+                    <p>The addon is bundled with the ViperMesh desktop app. You can also download it directly:</p>
                     <a href="/downloads/modelforge-addon.py" download
                       className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:shadow-md"
                       style={{ backgroundColor: "hsl(var(--forge-accent))" }}>
@@ -270,7 +270,7 @@ export default function DocsPage() {
                       Download Addon (.py)
                     </a>
                     <p>In Blender, go to <strong>Edit → Preferences → Add-ons → Install</strong>, select the downloaded file,
-                      and enable <strong>&quot;Interface: ModelForge Blender&quot;</strong>.</p>
+                      and enable <strong>&quot;Interface: ViperMesh Blender&quot;</strong>.</p>
                   </div>
                 </StepCard>
 
@@ -278,8 +278,8 @@ export default function DocsPage() {
                   <div className="space-y-2">
                     <p>In Blender&apos;s 3D View, press <kbd className="px-1.5 py-0.5 rounded text-xs font-mono border"
                       style={{ borderColor: "hsl(var(--forge-border))", backgroundColor: "hsl(var(--forge-surface-dim))" }}>N</kbd> to
-                      open the sidebar, click the <strong>ModelForge</strong> tab, and hit <strong>&quot;Connect to ModelForge&quot;</strong>.</p>
-                    <p>Back in the ModelForge dashboard, the <em>MCP Connection</em> card should show &quot;Connected&quot;. You&apos;re ready to go!</p>
+                      open the sidebar, click the <strong>ViperMesh</strong> tab, and hit <strong>&quot;Connect to ViperMesh&quot;</strong>.</p>
+                    <p>Back in the ViperMesh dashboard, the <em>MCP Connection</em> card should show &quot;Connected&quot;. You&apos;re ready to go!</p>
                   </div>
                 </StepCard>
 
@@ -289,7 +289,7 @@ export default function DocsPage() {
                   style={{ borderColor: "hsl(168 75% 42% / 0.3)", backgroundColor: "hsl(168 75% 42% / 0.06)" }}>
                   <span className="text-lg">💡</span>
                   <div className="text-sm" style={{ color: "hsl(var(--forge-text))" }}>
-                    <strong>No extra dependencies needed.</strong> ModelForge bundles everything — no separate Python, Git,
+                    <strong>No extra dependencies needed.</strong> ViperMesh bundles everything — no separate Python, Git,
                     or <code className="text-xs px-1 py-0.5 rounded" style={{ backgroundColor: "hsl(var(--forge-surface-dim))" }}>uv</code> install
                     required. The addon runs inside Blender&apos;s built-in Python and communicates over a local socket.
                   </div>
@@ -349,7 +349,7 @@ export default function DocsPage() {
 
             {/* ── 3. Core Features ────────────────────────────── */}
             <Section id="features">
-              <SectionTitle icon="⚡" title="Core Features" subtitle="What you can do with ModelForge" />
+              <SectionTitle icon="⚡" title="Core Features" subtitle="What you can do with ViperMesh" />
               <div className="space-y-4">
                 <FeatureBlock
                   title="Natural Language Commands"
@@ -363,7 +363,7 @@ export default function DocsPage() {
                 />
                 <FeatureBlock
                   title="Neural 3D Generation"
-                  description="Generate meshes from text or images using Hunyuan3D 2.1 and TRELLIS 2. ModelForge imports the result, cleans the mesh, and rigs it — all in one pipeline."
+                  description="Generate meshes from text or images using Hunyuan3D 2.1 and TRELLIS 2. ViperMesh imports the result, cleans the mesh, and rigs it — all in one pipeline."
                   examples={[
                     "\"Generate a treasure chest using neural 3D\"",
                     "\"Create a detailed robot from this image [upload]\"",
@@ -386,22 +386,22 @@ export default function DocsPage() {
 
             {/* ── 4. Architecture ─────────────────────────────── */}
             <Section id="architecture">
-              <SectionTitle icon="🏗️" title="Architecture" subtitle="How ModelForge controls Blender through MCP" />
+              <SectionTitle icon="🏗️" title="Architecture" subtitle="How ViperMesh controls Blender through MCP" />
               <motion.div variants={fadeUp} initial="hidden" whileInView="visible"
                 viewport={{ once: true, margin: "-40px" }} custom={0}
                 className="rounded-2xl border p-6 space-y-4"
                 style={{ borderColor: "hsl(var(--forge-border))", backgroundColor: "white" }}>
                 <p className="text-sm" style={{ color: "hsl(var(--forge-text-muted))" }}>
-                  The ModelForge addon creates a lightweight socket server inside Blender (port 9876). When you send a prompt,
+                  The ViperMesh addon creates a lightweight socket server inside Blender (port 9876). When you send a prompt,
                   the AI generates Blender Python code, which is sent to the addon and executed directly in your scene.
                 </p>
                 <div className="space-y-3">
                   {[
-                    { num: "1", text: "You type a natural-language instruction in the ModelForge chat." },
+                    { num: "1", text: "You type a natural-language instruction in the ViperMesh chat." },
                     { num: "2", text: "The orchestration engine plans the steps and generates Blender Python code via Gemini." },
-                    { num: "3", text: "ModelForge sends the code to the addon over a local TCP socket (MCP bridge)." },
+                    { num: "3", text: "ViperMesh sends the code to the addon over a local TCP socket (MCP bridge)." },
                     { num: "4", text: "The addon executes the code inside Blender and returns results." },
-                    { num: "5", text: "ModelForge captures a viewport screenshot and runs visual validation." },
+                    { num: "5", text: "ViperMesh captures a viewport screenshot and runs visual validation." },
                     { num: "6", text: "If issues are detected, auto-correction code is generated and re-executed." },
                   ].map((step) => (
                     <div key={step.num} className="flex items-start gap-3 text-sm">
@@ -412,7 +412,7 @@ export default function DocsPage() {
                   ))}
                 </div>
                 <div className="rounded-lg p-3 text-xs" style={{ backgroundColor: "hsl(var(--forge-accent-subtle))", color: "hsl(var(--forge-accent))" }}>
-                  <strong>Tip:</strong> Only run one connection to the addon at a time (Cursor, Claude Desktop, or ModelForge) to avoid port conflicts.
+                  <strong>Tip:</strong> Only run one connection to the addon at a time (Cursor, Claude Desktop, or ViperMesh) to avoid port conflicts.
                 </div>
               </motion.div>
             </Section>
@@ -466,19 +466,19 @@ export default function DocsPage() {
               <div className="space-y-3">
                 <FaqItem
                   question="Which Blender versions are supported?"
-                  answer="Blender 5.x is strongly recommended and is the primary supported version. ModelForge's RAG scripts, code generation, and API compatibility layer are all built around the Blender 5.x API. We track 21 categories of breaking changes. Older versions (3.x / 4.x) may work for basic tasks but are not actively tested."
+                  answer="Blender 5.x is strongly recommended and is the primary supported version. ViperMesh's RAG scripts, code generation, and API compatibility layer are all built around the Blender 5.x API. We track 21 categories of breaking changes. Older versions (3.x / 4.x) may work for basic tasks but are not actively tested."
                 />
                 <FaqItem
-                  question="Can I use ModelForge with other MCP clients?"
-                  answer="Yes! The Blender addon works with any MCP-compatible client — Cursor, Claude Desktop, or ModelForge. Just make sure only one client is connected at a time to avoid port conflicts on port 9876."
+                  question="Can I use ViperMesh with other MCP clients?"
+                  answer="Yes! The Blender addon works with any MCP-compatible client — Cursor, Claude Desktop, or ViperMesh. Just make sure only one client is connected at a time to avoid port conflicts on port 9876."
                 />
                 <FaqItem
                   question="What happens if the AI generates bad code?"
-                  answer="ModelForge has a built-in visual feedback loop. After each code execution, it captures a viewport screenshot and analyzes the result with Gemini Vision. If something looks wrong, it automatically generates corrective code and re-executes — up to 3 correction attempts."
+                  answer="ViperMesh has a built-in visual feedback loop. After each code execution, it captures a viewport screenshot and analyzes the result with Gemini Vision. If something looks wrong, it automatically generates corrective code and re-executes — up to 3 correction attempts."
                 />
                 <FaqItem
                   question="Do I need a GPU for neural 3D generation?"
-                  answer="No — neural generation (Hunyuan3D, TRELLIS 2) runs on our cloud infrastructure. Your local machine only needs to run Blender with the ModelForge addon. The generated meshes are sent to Blender for import and post-processing."
+                  answer="No — neural generation (Hunyuan3D, TRELLIS 2) runs on our cloud infrastructure. Your local machine only needs to run Blender with the ViperMesh addon. The generated meshes are sent to Blender for import and post-processing."
                 />
                 <FaqItem
                   question="What's the difference between Autopilot and Studio mode?"
@@ -490,7 +490,7 @@ export default function DocsPage() {
                 />
                 <FaqItem
                   question="Can I export models for game engines?"
-                  answer="Yes! ModelForge supports exporting to USDZ, FBX, GLTF, and OBJ with LOD generation and format-specific optimization presets for Unity, Unreal, web, and print."
+                  answer="Yes! ViperMesh supports exporting to USDZ, FBX, GLTF, and OBJ with LOD generation and format-specific optimization presets for Unity, Unreal, web, and print."
                 />
               </div>
             </Section>
