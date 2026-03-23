@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Hammer, LogOut, Settings, FolderOpen } from "lucide-react"
+import { LogOut, Settings, FolderOpen } from "lucide-react"
 import { AnimatedLogo } from "@/components/ui/animated-logo"
 import { createClient } from "@/lib/supabase/client"
 
