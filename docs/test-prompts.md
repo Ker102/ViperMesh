@@ -306,6 +306,9 @@ Make sure the bones are properly weighted to the mesh.
 
 ---
 
+> ⚠️ **Tests 14-16 require neural AI models (UniRig, MoMask) that are NOT yet integrated.**  
+> These are future tests — skip them during current testing sessions.
+
 ### Test 14: AI Auto-Rigging with UniRig (Neural Skeleton)
 **Tests:** `unirig` — AI auto-rigging pipeline, GLB export with embedded armature
 ```
@@ -361,6 +364,75 @@ of the animation.
 - Camera is positioned from the side
 - Rendered preview exists
 - **Timing target:** < 180 seconds (includes AI processing time)
+
+---
+
+### Test 17: Multi-Object Scene with Complex Spatial Relationships & Lighting
+**Tests:** Spatial reasoning across multiple grounded objects, relative positioning, height reasoning, lighting direction/color/shadow quality, material variety — all from a descriptive prompt with minimal exact values
+```
+Build an outdoor fruit market stall scene:
+
+1. Create a wooden market table (roughly 2m wide, 0.9m tall) in the center.
+2. On the table, arrange 5 different fruits in a natural cluster:
+   - A large watermelon (ellipsoid) on the left side
+   - A bunch of 3 bananas (curved cylinders) leaning against the watermelon
+   - Two oranges (small spheres) to the right of the bananas
+3. Behind the table, place a tall canvas awning supported by two thin poles
+   (poles should be taller than the table, awning stretched between them).
+4. In front of the table, place a small wooden crate on the ground with
+   a few apples (red spheres) inside it.
+5. Add a directional "sun" light coming from the upper-left at roughly
+   30 degrees, warm yellow tone, casting visible shadows to the right.
+6. Add a subtle cool-blue fill light from the right side at low intensity
+   to soften the shadows.
+7. Give everything appropriate materials: brown wood for table/crate,
+   green/red for watermelon, yellow for bananas, orange for oranges,
+   red for apples, off-white canvas for the awning.
+8. Set up a camera from a front-right angle (like a shopper approaching)
+   at eye level, and render the scene.
+```
+**What to verify (spatial + lighting + materials):**
+- Table is at realistic height (~0.9m), all fruits sitting ON the table (not floating)
+- Watermelon is noticeably larger than oranges/apples
+- Bananas are curved, not straight cylinders — leaning against watermelon means touching it
+- Awning is BEHIND the table, stretching between poles that are taller than the table (~2-2.5m)
+- Crate is IN FRONT of the table, on the ground (z ≈ 0), apples are inside/on top of it
+- Sun light comes from upper-left → shadows should fall to the right side
+- Fill light is visible as a subtle blue tint on shadow areas
+- Each object type has a distinct material color
+- Camera captures the full scene from a natural human perspective
+- **Timing target:** < 180 seconds, ≤ 20 tool calls
+
+---
+
+### Test 18: Image Reference Recreation (Vision + Spatial)
+**Tests:** Vision analysis of a reference image, translating visual understanding into Blender objects with correct spatial layout, proportions, and materials
+
+**Reference image:** `docs/test18-reading-nook-reference.png`
+
+```
+Look at this reference image carefully. Recreate this scene in Blender as
+accurately as you can using basic shapes:
+
+- Match the overall layout and spatial arrangement of objects
+- Use appropriate materials that match the colors/textures in the image
+- Set up lighting that matches the mood and direction in the reference
+- Position a camera to match approximately the same viewing angle
+- Render a preview so we can compare
+
+Don't worry about perfect detail — focus on getting the right objects,
+their relative positions, proportions, and the overall atmosphere correct.
+```
+**What to verify (vision → spatial fidelity):**
+- Agent should call `get_viewport_screenshot` or describe what it sees in the reference
+- Scene should contain the major objects from the reference image (armchair, lamp, side table, mug, book, rug)
+- Relative positions match: chair centered, lamp behind-left, table to the right
+- Proportions are reasonable: chair is human-scale, lamp taller than chair, table is small
+- Materials approximate the reference: brown/leather for chair, warm tones for lamp light, wood for table
+- Lighting direction and warmth match the reference
+- Camera angle approximates the reference viewpoint
+- **This test evaluates the agent's ability to "see" and translate to 3D — partial credit for getting layout right even if details differ**
+- **Timing target:** < 180 seconds
 
 ---
 
