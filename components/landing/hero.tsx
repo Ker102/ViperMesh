@@ -289,21 +289,59 @@ export function Hero() {
 
         {/* Tilted Preview */}
         <motion.div
-          className="mt-20 mx-auto max-w-5xl relative"
+          className="mt-28 mx-auto max-w-5xl relative"
           style={{ perspective: "2000px" }}
           variants={scaleIn}
           initial="hidden"
           animate="visible"
         >
+          {/* Viper illustration wrapping behind the preview panel */}
+          <motion.img
+            src="/images/c815e7cf-ee13-48ff-a8a9-2189ac48a424.png"
+            alt=""
+            aria-hidden="true"
+            className="absolute pointer-events-none select-none"
+            style={{
+              width: "185%",
+              maxWidth: "none",
+              bottom: "-95%",
+              left: "50%",
+              marginLeft: "-90%",
+              zIndex: 2,
+              filter: "drop-shadow(0 4px 20px rgba(20, 184, 166, 0.15))",
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1.2, delay: 0.6, ease: "easeOut" }}
+          />
           <div
             className="relative z-10 transition-transform duration-1000 ease-out hover:scale-[1.02]"
             style={{
-              transform: "translateY(10px) rotateX(12deg) rotateY(8deg) rotateZ(-3deg) scale(0.95)",
+              transform: "translateY(100px) rotateX(12deg) rotateY(8deg) rotateZ(-3deg) scale(0.95)",
               transformOrigin: "center center",
             }}
           >
             <StudioPreview />
           </div>
+          {/* Viper OVERLAY — body crossing ABOVE the panel */}
+          <motion.img
+            src="/images/c815e7cf-ee13-48ff-a8a9-2189ac48a424.png"
+            alt=""
+            aria-hidden="true"
+            className="absolute pointer-events-none select-none"
+            style={{
+              width: "185%",
+              maxWidth: "none",
+              bottom: "-95%",
+              left: "50%",
+              marginLeft: "-90%",
+              zIndex: 20,
+              clipPath: "polygon(0% 0%, 50% 0%, 50% 100%, 0% 100%)",
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1.2, delay: 0.6, ease: "easeOut" }}
+          />
           {/* Intense teal glow immediately behind the card */}
           <div
             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[110%] h-[110%] pointer-events-none"
