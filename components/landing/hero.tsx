@@ -201,8 +201,9 @@ function StudioPreview() {
                     color: isActive ? "hsl(var(--forge-accent))" : "hsl(var(--forge-text-subtle))",
                   }}>{tool.name}</span>
                 )}
-              </div>)
-            ))}
+              </div>
+              )
+            })}
           </div>
 
           <div className="flex items-center justify-between mb-2">
