@@ -11,6 +11,7 @@ import { LineShadowText } from "@/components/ui/line-shadow-text"
 
 function StudioPreview() {
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
+  const [activeTool, setActiveTool] = useState("Geometry")
 
   const sidebarIcons = [
     "M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z",
@@ -24,7 +25,6 @@ function StudioPreview() {
   const tools = [
     {
       name: "Geometry",
-      active: true,
       desc: "Create and edit 3D meshes, primitives, and complex geometry",
       icon: (color: string) => (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
@@ -182,23 +182,26 @@ function StudioPreview() {
           </div>
 
           <div className="grid grid-cols-6 gap-1.5 mb-4">
-            {tools.map((tool, idx) => (
+            {tools.map((tool, idx) => {
+              const isActive = tool.name === activeTool
+              return (
               <div key={tool.name || `empty-${idx}`}
                 className={`aspect-square rounded-lg border flex flex-col items-center justify-center gap-1 ${tool.desc ? 'cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-md' : ''}`}
                 style={{
-                  borderColor: tool.active ? "hsl(var(--forge-accent))" : "hsl(var(--forge-border))",
-                  backgroundColor: tool.active ? "hsl(var(--forge-accent-subtle))" : "hsl(var(--forge-surface-dim))",
+                  borderColor: isActive ? "hsl(var(--forge-accent))" : "hsl(var(--forge-border))",
+                  backgroundColor: isActive ? "hsl(var(--forge-accent-subtle))" : "hsl(var(--forge-surface-dim))",
                 }}
+                onClick={() => tool.name && setActiveTool(tool.name)}
                 onMouseMove={(e) => handleMouseMove(e, tool.desc)}
                 onMouseLeave={() => setTooltip(null)}
               >
-                {tool.icon(tool.active ? "hsl(var(--forge-accent))" : "hsl(var(--forge-text-subtle))")}
+                {tool.icon(isActive ? "hsl(var(--forge-accent))" : "hsl(var(--forge-text-subtle))")}
                 {tool.name && (
                   <span className="text-[8px]" style={{
-                    color: tool.active ? "hsl(var(--forge-accent))" : "hsl(var(--forge-text-subtle))",
+                    color: isActive ? "hsl(var(--forge-accent))" : "hsl(var(--forge-text-subtle))",
                   }}>{tool.name}</span>
                 )}
-              </div>
+              </div>)
             ))}
           </div>
 
