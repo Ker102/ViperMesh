@@ -11,7 +11,7 @@ export function ElectronAuthListener() {
 
     useEffect(() => {
         // Only run in Electron
-        if (typeof window === "undefined" || !window.modelforge?.onAuthToken) {
+        if (typeof window === "undefined" || !window.vipermesh?.onAuthToken) {
             return
         }
 
@@ -19,7 +19,7 @@ export function ElectronAuthListener() {
         if (processedRef.current) return
 
         // Listen for auth tokens from Electron's local HTTP callback server
-        window.modelforge.onAuthToken(async (tokens) => {
+        window.vipermesh.onAuthToken(async (tokens) => {
             if (processedRef.current) return
             processedRef.current = true
 

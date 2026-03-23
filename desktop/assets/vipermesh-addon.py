@@ -1,6 +1,6 @@
-# ModelForge Blender Addon
+# ViperMesh Blender Addon
 # Based on BlenderMCP by Siddharth Ahuja (www.github.com/ahujasid)
-# Modified for ModelForge - AI-Powered Blender Assistant
+# Modified for ViperMesh - AI-Powered Blender Assistant
 
 import bpy
 import mathutils
@@ -19,12 +19,12 @@ import io
 from contextlib import redirect_stdout, suppress
 
 bl_info = {
-    "name": "ModelForge Blender",
-    "author": "ModelForge Team",
+    "name": "ViperMesh Blender",
+    "author": "ViperMesh Team",
     "version": (1, 1, 0),
     "blender": (3, 0, 0),
-    "location": "View3D > Sidebar > ModelForge",
-    "description": "Connect Blender to ModelForge AI Assistant",
+    "location": "View3D > Sidebar > ViperMesh",
+    "description": "Connect Blender to ViperMesh AI Assistant",
     "category": "Interface",
     "doc_url": "https://github.com/Ker102/ModelForge",
 }
@@ -33,7 +33,7 @@ RODIN_FREE_TRIAL_KEY = os.environ.get("RODIN_FREE_TRIAL_KEY", "")
 
 # Add User-Agent as required by Poly Haven API
 REQ_HEADERS = requests.utils.default_headers()
-REQ_HEADERS.update({"User-Agent": "modelforge-blender"})
+REQ_HEADERS.update({"User-Agent": "vipermesh-blender"})
 
 class BlenderMCPServer:
     def __init__(self, host='localhost', port=9876):
@@ -1435,7 +1435,7 @@ class BlenderMCPServer:
             if asset_type not in ["hdris", "textures", "models", "all"]:
                 return {"error": f"Invalid asset type: {asset_type}. Must be one of: hdris, textures, models, all"}
 
-            response = requests.get(f"https://api.polyhaven.com/categories/{asset_type}", headers=REQ_HEADERS, timeout=30)
+            response = requests.get(f"https://api.polyhaven.com/categories/{asset_type}", headers=REQ_HEADERS)
             if response.status_code == 200:
                 return {"categories": response.json()}
             else:
@@ -1457,7 +1457,7 @@ class BlenderMCPServer:
             if categories:
                 params["categories"] = categories
 
-            response = requests.get(url, params=params, headers=REQ_HEADERS, timeout=30)
+            response = requests.get(url, params=params, headers=REQ_HEADERS)
             if response.status_code == 200:
                 # Limit the response size to avoid overwhelming Blender
                 assets = response.json()
@@ -1477,7 +1477,7 @@ class BlenderMCPServer:
     def download_polyhaven_asset(self, asset_id, asset_type, resolution="1k", file_format=None):
         try:
             # First get the files information
-            files_response = requests.get(f"https://api.polyhaven.com/files/{asset_id}", headers=REQ_HEADERS, timeout=30)
+            files_response = requests.get(f"https://api.polyhaven.com/files/{asset_id}", headers=REQ_HEADERS)
             if files_response.status_code != 200:
                 return {"error": f"Failed to get asset files: {files_response.status_code}"}
 
@@ -1601,7 +1601,7 @@ class BlenderMCPServer:
                                 # Use NamedTemporaryFile like we do for HDRIs
                                 with tempfile.NamedTemporaryFile(suffix=f".{file_format}", delete=False) as tmp_file:
                                     # Download the file
-                                    response = requests.get(file_url, headers=REQ_HEADERS, timeout=120)
+                                    response = requests.get(file_url, headers=REQ_HEADERS)
                                     if response.status_code == 200:
                                         tmp_file.write(response.content)
                                         tmp_path = tmp_file.name
@@ -1738,7 +1738,7 @@ class BlenderMCPServer:
                         main_file_name = file_url.split("/")[-1]
                         main_file_path = os.path.join(temp_dir, main_file_name)
 
-                        response = requests.get(file_url, headers=REQ_HEADERS, timeout=120)
+                        response = requests.get(file_url, headers=REQ_HEADERS)
                         if response.status_code != 200:
                             return {"error": f"Failed to download model: {response.status_code}"}
 
@@ -1756,7 +1756,7 @@ class BlenderMCPServer:
                                 os.makedirs(os.path.dirname(include_file_path), exist_ok=True)
 
                                 # Download the included file
-                                include_response = requests.get(include_url, headers=REQ_HEADERS, timeout=120)
+                                include_response = requests.get(include_url, headers=REQ_HEADERS)
                                 if include_response.status_code == 200:
                                     with open(include_file_path, "wb") as f:
                                         f.write(include_response.content)
@@ -2674,12 +2674,12 @@ class BlenderMCPServer:
     #endregion
 
 # Blender UI Panel
-class MODELFORGE_PT_Panel(bpy.types.Panel):
-    bl_label = "ModelForge"
-    bl_idname = "MODELFORGE_PT_Panel"
+class VIPERMESH_PT_Panel(bpy.types.Panel):
+    bl_label = "ViperMesh"
+    bl_idname = "VIPERMESH_PT_Panel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'ModelForge'
+    bl_category = 'ViperMesh'
 
     def draw(self, context):
         layout = self.layout
@@ -2706,9 +2706,9 @@ class MODELFORGE_PT_Panel(bpy.types.Panel):
 
         # Connection button
         if not scene.blendermcp_server_running:
-            layout.operator("modelforge.start_server", text="Connect to ModelForge", icon='PLAY')
+            layout.operator("vipermesh.start_server", text="Connect to ViperMesh", icon='PLAY')
         else:
-            layout.operator("modelforge.stop_server", text="Disconnect", icon='PAUSE')
+            layout.operator("vipermesh.stop_server", text="Disconnect", icon='PAUSE')
             layout.label(text=f"Port: {scene.blendermcp_port}")
 
         layout.separator()
@@ -2730,7 +2730,7 @@ class MODELFORGE_PT_Panel(bpy.types.Panel):
             col = box.column(align=True)
             col.prop(scene, "blendermcp_hyper3d_mode", text="Mode")
             col.prop(scene, "blendermcp_hyper3d_api_key", text="API Key")
-            col.operator("modelforge.set_hyper3d_free_trial_api_key", text="Use Free Trial Key")
+            col.operator("vipermesh.set_hyper3d_free_trial_api_key", text="Use Free Trial Key")
 
         box.prop(scene, "blendermcp_use_sketchfab", text="Sketchfab")
         if scene.blendermcp_use_sketchfab:
@@ -2738,8 +2738,8 @@ class MODELFORGE_PT_Panel(bpy.types.Panel):
             col.prop(scene, "blendermcp_sketchfab_api_key", text="API Key")
 
 # Operator to set Hyper3D API Key
-class MODELFORGE_OT_SetFreeTrialHyper3DAPIKey(bpy.types.Operator):
-    bl_idname = "modelforge.set_hyper3d_free_trial_api_key"
+class VIPERMESH_OT_SetFreeTrialHyper3DAPIKey(bpy.types.Operator):
+    bl_idname = "vipermesh.set_hyper3d_free_trial_api_key"
     bl_label = "Set Free Trial API Key"
 
     def execute(self, context):
@@ -2749,10 +2749,10 @@ class MODELFORGE_OT_SetFreeTrialHyper3DAPIKey(bpy.types.Operator):
         return {'FINISHED'}
 
 # Operator to start the server
-class MODELFORGE_OT_StartServer(bpy.types.Operator):
-    bl_idname = "modelforge.start_server"
-    bl_label = "Connect to ModelForge"
-    bl_description = "Start the server to connect with ModelForge"
+class VIPERMESH_OT_StartServer(bpy.types.Operator):
+    bl_idname = "vipermesh.start_server"
+    bl_label = "Connect to ViperMesh"
+    bl_description = "Start the server to connect with ViperMesh"
 
     def execute(self, context):
         scene = context.scene
@@ -2768,10 +2768,10 @@ class MODELFORGE_OT_StartServer(bpy.types.Operator):
         return {'FINISHED'}
 
 # Operator to stop the server
-class MODELFORGE_OT_StopServer(bpy.types.Operator):
-    bl_idname = "modelforge.stop_server"
-    bl_label = "Disconnect from ModelForge"
-    bl_description = "Stop the connection to ModelForge"
+class VIPERMESH_OT_StopServer(bpy.types.Operator):
+    bl_idname = "vipermesh.stop_server"
+    bl_label = "Disconnect from ViperMesh"
+    bl_description = "Stop the connection to ViperMesh"
 
     def execute(self, context):
         scene = context.scene
@@ -2854,15 +2854,15 @@ def register():
         default=""
     )
 
-    bpy.utils.register_class(MODELFORGE_PT_Panel)
-    bpy.utils.register_class(MODELFORGE_OT_SetFreeTrialHyper3DAPIKey)
-    bpy.utils.register_class(MODELFORGE_OT_StartServer)
-    bpy.utils.register_class(MODELFORGE_OT_StopServer)
+    bpy.utils.register_class(VIPERMESH_PT_Panel)
+    bpy.utils.register_class(VIPERMESH_OT_SetFreeTrialHyper3DAPIKey)
+    bpy.utils.register_class(VIPERMESH_OT_StartServer)
+    bpy.utils.register_class(VIPERMESH_OT_StopServer)
 
     # Re-sync server status after File → New / File → Open
     bpy.app.handlers.load_post.append(_sync_server_status)
 
-    print("ModelForge Blender addon registered")
+    print("ViperMesh Blender addon registered")
 
 def unregister():
     # Stop the server if it's running
@@ -2870,8 +2870,8 @@ def unregister():
         bpy.types.blendermcp_server.stop()
         del bpy.types.blendermcp_server
 
-    for cls in (MODELFORGE_OT_StopServer, MODELFORGE_OT_StartServer,
-                MODELFORGE_OT_SetFreeTrialHyper3DAPIKey, MODELFORGE_PT_Panel):
+    for cls in (VIPERMESH_OT_StopServer, VIPERMESH_OT_StartServer,
+                VIPERMESH_OT_SetFreeTrialHyper3DAPIKey, VIPERMESH_PT_Panel):
         try:
             bpy.utils.unregister_class(cls)
         except RuntimeError:
@@ -2892,7 +2892,7 @@ def unregister():
         except AttributeError:
             pass
 
-    print("ModelForge Blender addon unregistered")
+    print("ViperMesh Blender addon unregistered")
 
 if __name__ == "__main__":
     register()

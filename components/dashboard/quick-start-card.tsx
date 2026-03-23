@@ -25,7 +25,7 @@ export function QuickStartCard() {
             <div className="mt-2 space-y-2 text-xs text-muted-foreground">
               <p>The addon is bundled with the desktop app. You can also download it here:</p>
               <Button asChild size="sm" className="gap-2">
-                <a href="/downloads/modelforge-addon.py" download>
+                <a href="/downloads/vipermesh-addon.py" download>
                   <Download className="h-3.5 w-3.5" />
                   Download addon
                 </a>

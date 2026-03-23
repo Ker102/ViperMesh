@@ -24,7 +24,7 @@ const SETUP_STEPS: SetupStep[] = [
     {
         step: 3,
         title: "Install the Addon",
-        description: "Click 'Install...' and select 'modelforge-addon.py' from the folder that opened.",
+        description: "Click 'Install...' and select 'vipermesh-addon.py' from the folder that opened.",
     },
     {
         step: 4,
@@ -46,22 +46,22 @@ export default function SetupPage() {
 
     useEffect(() => {
         // Check if running in Electron (desktop app)
-        if (typeof window !== "undefined" && window.modelforge) {
+        if (typeof window !== "undefined" && window.vipermesh) {
             setIsDesktop(true)
 
-            window.modelforge.getAddonPath().then((result) => {
+            window.vipermesh.getAddonPath().then((result) => {
                 setAddonPath(result.path)
             })
 
-            window.modelforge.getAppInfo().then((info) => {
+            window.vipermesh.getAppInfo().then((info) => {
                 setPlatform(info.platform)
             })
         }
     }, [])
 
     const handleOpenFolder = async () => {
-        if (window.modelforge) {
-            await window.modelforge.openAddonFolder()
+        if (window.vipermesh) {
+            await window.vipermesh.openAddonFolder()
             setFolderOpened(true)
         }
     }

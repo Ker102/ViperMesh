@@ -1,22 +1,28 @@
 # ViperMesh (formerly ModelForge) — Current Progress
 
-## Last Session: 2026-03-23 (03:30–04:15 AM)
+## Last Session: 2026-03-23 (04:00–04:20 AM)
 
 ### What Was Done
-1. **ViperMesh UI Rebrand** — Replaced all ~80 user-facing "ModelForge" text strings with "ViperMesh" across 20 files:
-   - Landing pages: `navbar.tsx`, `hero.tsx`, `footer.tsx`, `features.tsx`
-   - App metadata: `layout.tsx` (title)
-   - Auth: `login/page.tsx`, `signup/page.tsx`, `start-oauth/page.tsx`, `electron-callback/page.tsx`
-   - Chat UI: `project-chat.tsx`, `studio-advisor.tsx`
-   - Dashboard: `dashboard-nav.tsx`, `quick-start-card.tsx`, `mcp-connection-card.tsx`, `local-llm-settings-card.tsx`
-   - Content pages: `docs/page.tsx` (22 replacements), `download/page.tsx`, `setup/page.tsx`, `addons/page.tsx`, `[id]/page.tsx`
-   - CSS: `globals.css` (design system comments)
-   - **NOT changed**: `window.modelforge` Electron IPC API, addon download URLs, `--forge-` CSS variable prefix
+1. **Code Logic Rebrand** — Renamed `window.modelforge` → `window.vipermesh` and `modelforge-addon.py` → `vipermesh-addon.py`:
+   - Electron bridge: `preload.js` (exposeInMainWorld key), `electron.d.ts` (interface + Window prop)
+   - Frontend consumers: `login-form.tsx`, `electron-auth-listener.tsx`, `setup/page.tsx`
+   - Desktop app: `main.js` (env vars, deep link protocol, window title, HTML auth pages, addon paths)
+   - Desktop metadata: `package.json` (name, description, author, appId, productName, copyright)
+   - Addon file: renamed in both `desktop/assets/` and `public/downloads/`
+   - Addon internals: bl_info, User-Agent, sidebar panel category, class names, operator bl_idnames, UI text
+   - Download URLs: `docs/page.tsx`, `quick-start-card.tsx`
+   - **Build passed** (exit code 0). Zero remaining `window.modelforge`, `modelforge-addon`, or `modelforge` refs.
+
+## Previous Session: 2026-03-23 (03:30–04:00 AM)
+
+### What Was Done
+1. **ViperMesh UI Rebrand** — Replaced all ~80 user-facing "ModelForge" text strings with "ViperMesh" across 20 files
+   - **NOT changed**: `--forge-` CSS variable prefix (user confirmed leave as-is)
 
 ### Still TODO for Full Rebrand
-- [ ] `window.modelforge` → `window.vipermesh` (needs coordinated Electron app update)
-- [ ] `modelforge-addon.py` → `vipermesh-addon.py` (addon file rename)
-- [ ] `--forge-*` CSS variable prefix → `--viper-*` (optional cosmetic)
+- [x] `window.modelforge` → `window.vipermesh` ✅
+- [x] `modelforge-addon.py` → `vipermesh-addon.py` ✅
+- [ ] `--forge-*` CSS variable prefix → `--viper-*` (optional cosmetic, user deferred)
 - [ ] GitHub repo, Vercel project, domain
 
 ## Previous Session: 2026-03-20 (03:00–05:15 AM)

@@ -1,8 +1,8 @@
 /**
- * Global type definitions for ModelForge Electron IPC
+ * Global type definitions for ViperMesh Electron IPC
  */
 
-export interface ModelForgeElectronAPI {
+export interface ViperMeshElectronAPI {
     // MCP Configuration
     getMcpConfig: () => Promise<{ host: string; port: number }>
 
@@ -29,7 +29,7 @@ export interface ModelForgeElectronAPI {
 
 declare global {
     interface Window {
-        modelforge?: ModelForgeElectronAPI
+        vipermesh?: ViperMeshElectronAPI
     }
 }
 

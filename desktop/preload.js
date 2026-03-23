@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require("electron")
 
-contextBridge.exposeInMainWorld("modelforge", {
+contextBridge.exposeInMainWorld("vipermesh", {
   // MCP Configuration
   getMcpConfig: async () => {
     return ipcRenderer.invoke("mcp:get-config")

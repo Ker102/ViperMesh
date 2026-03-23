@@ -259,7 +259,7 @@ export default function DocsPage() {
                 <StepCard num={2} title="Install the ViperMesh Addon">
                   <div className="space-y-3">
                     <p>The addon is bundled with the ViperMesh desktop app. You can also download it directly:</p>
-                    <a href="/downloads/modelforge-addon.py" download
+                    <a href="/downloads/vipermesh-addon.py" download
                       className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:shadow-md"
                       style={{ backgroundColor: "hsl(var(--forge-accent))" }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

@@ -59,12 +59,12 @@ export function LoginForm({ initialErrorCode, callbackUrl }: LoginFormProps) {
     try {
       const targetUrl = callbackUrl ?? "/dashboard"
 
-      if (isElectron && window.modelforge?.openExternal) {
+      if (isElectron && window.vipermesh?.openExternal) {
         // For Electron: Open the browser with start-oauth page using shell.openExternal
         // This opens the REAL system browser (not an Electron window)
         // The browser will handle the entire OAuth flow and deep link back
         const startOAuthUrl = `${window.location.origin}/auth/start-oauth?provider=google`
-        const result = await window.modelforge.openExternal(startOAuthUrl)
+        const result = await window.vipermesh.openExternal(startOAuthUrl)
 
         if (!result.success) {
           setError("Failed to open browser for authentication")
