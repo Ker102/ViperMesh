@@ -4,6 +4,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Sparkles } from "lucide-react"
 import { motion } from "framer-motion"
+import { LineShadowText } from "@/components/ui/line-shadow-text"
 
 // ── Simplified Studio workspace preview (pure CSS/HTML) ────────
 
@@ -217,9 +218,19 @@ export function Hero() {
             className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.1]"
             style={{ color: "hsl(var(--forge-text))" }}
           >
-            Build 3D Models with
+            Build <LineShadowText shadowColor="hsl(var(--forge-accent))">3D Models</LineShadowText> with
             <br />
-            <span style={{ color: "hsl(var(--forge-accent))" }}>Natural Language</span>
+            <span 
+              style={{ 
+                backgroundImage: "linear-gradient(to top, rgba(0,0,0,0.6) 0%, hsl(var(--forge-accent)) 40%, hsl(var(--forge-accent)) 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                color: "transparent"
+              }}
+            >
+              Natural Language
+            </span>
           </motion.h1>
 
           {/* Subtitle */}

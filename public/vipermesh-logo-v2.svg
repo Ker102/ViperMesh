@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <!-- Vibrant Emerald & Teal Gradient -->
+    <linearGradient id="viperVGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669" /> <!-- Dark Emerald -->
+      <stop offset="30%" stop-color="#10b981" /> <!-- Bright Emerald -->
+      <stop offset="70%" stop-color="#14b8a6" /> <!-- Teal -->
+      <stop offset="100%" stop-color="#0f766e" /> <!-- Dark Teal -->
+    </linearGradient>
+    
+    <linearGradient id="viperVWireframe" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2dd4bf" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+
+    <!-- Intense Glow -->
+    <filter id="intenseGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="4" result="blur1" />
+      <feGaussianBlur stdDeviation="8" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur2" />
+        <feMergeNode in="blur1" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="200" height="200" fill="transparent"/>
+
+  <g transform="translate(100, 100)">
+    <!-- Abstract V Shape / Snake Head -->
+    <!-- The thick continuous ribbon -->
+    <path 
+      d="M -50,-40
+         C -20,-40 -10,-10 0,30
+         C 10,-10 20,-40 50,-40
+         C 40,-10 30,20 0,60
+         C -30,20 -40,-10 -50,-40 Z" 
+      fill="url(#viperVGradient)" 
+      opacity="0.9"
+      class="viper-v-base"
+    />
+
+    <!-- Overlapping wireframe mesh styling -->
+    <path 
+      d="M -50,-40
+         L -25,-20
+         L 0,10
+         L 25,-20
+         L 50,-40
+         M -25,-20
+         L 0,-30
+         L 25,-20
+         M 0,10
+         L 0,60" 
+      fill="none" 
+      stroke="url(#viperVWireframe)" 
+      stroke-width="2" 
+      stroke-linejoin="round"
+      stroke-linecap="round"
+      class="viper-v-wireframe"
+    />
+
+    <!-- Animated Snake Line sweeping across the V -->
+    <path
+      d="M -45,-30
+         C -15,-20 -5,10 0,40
+         C 5,10 15,-20 45,-30"
+      fill="none"
+      stroke="#ffffff"
+      stroke-width="2"
+      stroke-linecap="round"
+      filter="url(#intenseGlow)"
+      class="viper-v-energy"
+    />
+  </g>
+</svg>

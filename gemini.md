@@ -93,3 +93,5 @@
 ### Future Implementation Plans
 > See `docs/future-plans.md` — the single source of truth for P0-P3 roadmap  
 > See `docs/architecture.md` — the canonical architecture reference (current vs legacy)
+- Added glassmorphism floating pill navbar with magnetic hover pills and spring CTA animations.
+- Added LineShadowText component (Magic UI) to '3D Models' hero text with teal shadow.

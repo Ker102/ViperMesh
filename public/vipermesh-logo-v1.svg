@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <!-- Teal to Emerald Gradient -->
+    <linearGradient id="emeraldTeal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d9488" /> <!-- Teal -->
+      <stop offset="50%" stop-color="#10b981" /> <!-- Emerald -->
+      <stop offset="100%" stop-color="#0284c7" /> <!-- Deep Sky Blue accent -->
+    </linearGradient>
+
+    <!-- Secondary Gradient for the mesh -->
+    <linearGradient id="meshGradient" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="rgba(13, 148, 136, 0.4)" />
+      <stop offset="100%" stop-color="rgba(16, 185, 129, 0.1)" />
+    </linearGradient>
+
+    <!-- Glow Effect -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background Base (Optional: helps contrast if testing stand-alone) -->
+  <rect width="200" height="200" fill="transparent"/>
+
+  <g transform="translate(100, 100)">
+    <!-- The Hexagon Mesh Base -->
+    <polygon 
+      points="0,-70 60.62,-35 60.62,35 0,70 -60.62,35 -60.62,-35" 
+      fill="none" 
+      stroke="url(#meshGradient)" 
+      stroke-width="2" 
+      stroke-linejoin="round"
+      class="mesh-base"
+    />
+    
+    <!-- Inner wireframe lines for the mesh aesthetic -->
+    <g stroke="url(#meshGradient)" stroke-width="1.5" stroke-dasharray="4 4" class="mesh-lines">
+      <line x1="0" y1="-70" x2="0" y2="70" />
+      <line x1="-60.62" y1="-35" x2="60.62" y2="35" />
+      <line x1="-60.62" y1="35" x2="60.62" y2="-35" />
+    </g>
+
+    <!-- The Viper Snake Path (Animatable) -->
+    <!-- It traces a path forming an 'S' and 'V' inside the hexagon -->
+    <path 
+      d="M -30.31,-52.5 
+         L 30.31,-17.5 
+         L 30.31, 17.5 
+         L -15, 45 
+         L -45, 10 
+         L -15, -20 
+         L 45, 0 
+         L 15, 52.5" 
+      fill="none" 
+      stroke="url(#emeraldTeal)" 
+      stroke-width="6" 
+      stroke-linecap="round" 
+      stroke-linejoin="round"
+      filter="url(#glow)"
+      class="viper-path"
+    />
+    
+    <!-- Snake Eye -->
+    <circle cx="15" cy="-3" r="2.5" fill="#ffffff" filter="url(#glow)" class="viper-eye" />
+  </g>
+</svg>
