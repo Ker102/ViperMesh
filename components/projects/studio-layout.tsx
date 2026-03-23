@@ -181,7 +181,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
     // ── Execute a step via the chat API ─────────────────────────
 
     const executeStep = useCallback(
-        async (stepId: string, message: string, conversationId?: string) => {
+        async (stepId: string, message: string, conversationId?: string, attachments?: Array<{ id: string; name: string; type: string; size: number; data: string }>) => {
             // Abort any previous request
             abortControllerRef.current?.abort()
             const abort = new AbortController()
@@ -195,18 +195,23 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
             let streamConversationId = conversationId
 
             try {
+                const payload: Record<string, unknown> = {
+                    projectId,
+                    conversationId: streamConversationId,
+                    message,
+                    // Studio step execution: skip text streaming + strategy classification
+                    // (the user already chose the tool, we just need the agent to execute it)
+                    workflowMode: "studio",
+                    studioStep: true,
+                }
+                if (attachments && attachments.length > 0) {
+                    payload.attachments = attachments
+                }
+
                 const res = await fetch("/api/ai/chat", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        projectId,
-                        conversationId: streamConversationId,
-                        message,
-                        // Studio step execution: skip text streaming + strategy classification
-                        // (the user already chose the tool, we just need the agent to execute it)
-                        workflowMode: "studio",
-                        studioStep: true,
-                    }),
+                    body: JSON.stringify(payload),
                     signal: abort.signal,
                 })
 
@@ -382,6 +387,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                 updateStep(stepId, { status: "failed", error: errorMessage })
             }
         },
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         [projectId, updateStep, appendMessage, appendMonitoringLog, updateAssistantContent, appendCommandResult, appendAgentEvent]
     )
 
@@ -438,9 +444,27 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
             setWorkflowSteps((prev) => [...prev, step])
             setSelectedStepId(stepId)
 
+            // Extract image inputs as attachments
+            const attachments: Array<{ id: string; name: string; type: string; size: number; data: string }> = []
+            for (const inp of tool.inputs ?? []) {
+                if (inp.type === "image" && inputs[inp.key]) {
+                    const dataUrl = inputs[inp.key]
+                    // Extract mime type from data URL (e.g. data:image/png;base64,...)
+                    const mimeMatch = dataUrl.match(/^data:(image\/[^;]+);/)
+                    const mimeType = mimeMatch?.[1] ?? "image/png"
+                    attachments.push({
+                        id: `img-${Date.now()}`,
+                        name: `reference.${mimeType.split("/")[1] ?? "png"}`,
+                        type: mimeType,
+                        size: Math.round(dataUrl.length * 0.75), // approximate decoded size
+                        data: dataUrl,
+                    })
+                }
+            }
+
             // Execute immediately
             const prompt = inputs.prompt ?? inputs.description ?? `Run ${tool.name}`
-            executeStep(stepId, prompt)
+            executeStep(stepId, prompt, undefined, attachments.length > 0 ? attachments : undefined)
         },
         [executeStep]
     )
@@ -462,10 +486,10 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
     }, [])
 
     const handleSendMessage = useCallback(
-        (stepId: string, message: string) => {
+        (stepId: string, message: string, attachments?: Array<{ id: string; name: string; type: string; size: number; data: string }>) => {
             const step = workflowSteps.find((s) => s.id === stepId)
             if (!step) return
-            executeStep(stepId, message, step.conversationId)
+            executeStep(stepId, message, step.conversationId, attachments)
         },
         [workflowSteps, executeStep]
     )
