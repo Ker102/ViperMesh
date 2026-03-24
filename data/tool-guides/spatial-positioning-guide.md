@@ -271,6 +271,75 @@ Use these to validate proportions when the user doesn't provide exact sizes.
 | Shoulder width | 0.40–0.50 m |
 | Seated height | 0.80–0.90 m |
 
+## OBJECT FUNCTIONAL DIRECTION & CLEARANCE
+
+In professional 3D modeling, many objects have a **functional direction** — they are designed to be used, viewed, or accessed from a specific side. Understanding functional direction is critical for realistic scene composition.
+
+### Functional Direction Principle
+Every object that serves a user or interacts with another object has an **intended usage axis**:
+
+| Object Type | Forward/Open Side | Back/Closed Side |
+|---|---|---|
+| Seating (chairs, sofas, benches) | Open seat side (where user sits from) | Backrest / back panel |
+| Displays (monitors, TVs, paintings) | Screen / visible face | Back housing / wall mount |
+| Storage (shelves, cabinets, fridges) | Door / access opening | Back panel against wall |
+| Vehicles | Hood / front grille | Trunk / tailgate |
+| Appliances (ovens, microwaves) | Door / control panel | Back venting |
+| Speakers / audio equipment | Driver cone / front grille | Wiring / port panel |
+
+### Placement Rule: Face the Companion Object
+When an object is described as being "at", "facing", or "pushed in" to another object, its **open/functional side faces the companion object**, and its **closed/back side faces away**.
+
+This means the back geometry extends **away** from the companion, never into it.
+
+### Algorithmic Placement for Directional Objects
+
+```python
+# General formula: place object B facing object A
+# 1. Determine A's near edge (the surface closest to where B should be)
+A_near_edge = A_center - A_half_depth  # or + depending on direction
+
+# 2. Place B so its FUNCTIONAL side (front) faces A,
+#    with its center offset by B's half-depth + clearance gap
+B_center = A_near_edge - B_half_depth - clearance_gap
+
+# 3. The back of B extends AWAY from A:
+B_back = B_center - B_back_extent  # always farther from A, never closer
+
+# 4. Verify: B's closest point to A should not overlap A
+B_closest_to_A = B_center + B_half_depth
+assert B_closest_to_A < A_near_edge  # must be outside A's bounding box
+```
+
+### Anti-Pattern: Reversed Functional Direction
+If the back geometry is placed on the companion-object side:
+- The back panel/structure **clips through** the companion
+- The object appears oriented away from its companion (visually nonsensical)
+- The user-facing side points at empty space instead of the interaction surface
+
+### AABB Clearance Validation
+After placing **any** object near another, validate no intersection using axis-aligned bounding box (AABB) overlap detection:
+
+```python
+def check_clearance(obj_a, obj_b):
+    """Return True if objects do NOT overlap (AABB test in world space)."""
+    from mathutils import Vector
+    a_corners = [obj_a.matrix_world @ Vector(c) for c in obj_a.bound_box]
+    b_corners = [obj_b.matrix_world @ Vector(c) for c in obj_b.bound_box]
+
+    a_min = Vector((min(c.x for c in a_corners), min(c.y for c in a_corners), min(c.z for c in a_corners)))
+    a_max = Vector((max(c.x for c in a_corners), max(c.y for c in a_corners), max(c.z for c in a_corners)))
+    b_min = Vector((min(c.x for c in b_corners), min(c.y for c in b_corners), min(c.z for c in b_corners)))
+    b_max = Vector((max(c.x for c in b_corners), max(c.y for c in b_corners), max(c.z for c in b_corners)))
+
+    overlap = (a_min.x < b_max.x and a_max.x > b_min.x and
+               a_min.y < b_max.y and a_max.y > b_min.y and
+               a_min.z < b_max.z and a_max.z > b_min.z)
+    return not overlap
+```
+
+This is a standard technique from real-time collision detection — use it whenever two objects must be close but not interpenetrating.
+
 ## COMMON MISTAKES TO AVOID
 
 1. ❌ **Moving to Z=2 when user said "move up by 2"** — Read current position first
@@ -283,3 +352,5 @@ Use these to validate proportions when the user doesn't provide exact sizes.
 8. ❌ **Ignoring scale when computing proximity offsets** — A sphere(r=0.2, scale_x=1.3) extends 0.26m, NOT 0.2m. Always multiply: `actual_extent = radius × scale`
 9. ❌ **Placing "beside" objects at a fixed offset from center instead of from surface** — "Beside" means surface-to-surface contact, not center-to-center distance
 10. ❌ **Objects inside each other when meant to be touching** — Always compute both surfaces: `A_surface + B_half_width + margin`, never just `A_center + arbitrary_offset`
+11. ❌ **Reversing an object's functional direction** — When placing an object "at" or "facing" a companion, the open/functional side must face the companion. Back geometry extends AWAY, never into the companion object.
+12. ❌ **Skipping clearance validation after close placement** — After positioning any object near another, run an AABB overlap check to catch interpenetration before the user sees it
