@@ -269,9 +269,9 @@ export function StepSessionDrawer({
                                 </div>
                             </div>
                         ))}
-                        {/* Agent tool call activity */}
-                        {step.status === "running" && step.agentEvents && step.agentEvents.length > 0 && (
-                            <AgentActivity events={step.agentEvents} isActive={true} />
+                        {/* Agent tool call activity — live during execution, collapsed dropdown after */}
+                        {step.agentEvents && step.agentEvents.length > 0 && (
+                            <AgentActivity events={step.agentEvents} isActive={step.status === "running"} />
                         )}
                         <div ref={messagesEndRef} />
                     </div>
@@ -348,8 +348,8 @@ export function StepSessionDrawer({
                     </div>
                 )}
 
-                {/* Command Results */}
-                {step.commandResults && step.commandResults.length > 0 && (
+                {/* Command Results — only show if no agentEvents (legacy fallback) */}
+                {step.commandResults && step.commandResults.length > 0 && (!step.agentEvents || step.agentEvents.length === 0) && (
                     <div className="space-y-1.5">
                         <span
                             className="text-xs font-semibold uppercase tracking-wider"
