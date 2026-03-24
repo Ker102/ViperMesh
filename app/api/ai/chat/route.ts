@@ -8,7 +8,7 @@ import {
   getUsageSummary,
   logUsage,
 } from "@/lib/usage"
-import { streamLlmResponse, type LlmProviderSpec } from "@/lib/llm"
+import { streamLlmResponse, generateLlmResponse, type LlmProviderSpec } from "@/lib/llm"
 import type { GeminiMessage } from "@/lib/gemini"
 import { createMcpClient } from "@/lib/mcp"
 // Legacy planner/executor removed — v2 agent handles tool selection directly
@@ -1045,36 +1045,62 @@ export async function POST(req: Request) {
               ? `You just finished building a scene in Blender for the user. Here is the context:\n- User's original request: "${message}"\n- What you did: ${humanReadableSummary}\n\nWrite a conversational 2-3 sentence summary describing what you built or changed in the scene — focus on what the user can see (objects, lighting, materials, composition), NOT on tool names. Then ask ONE specific, creative follow-up question about what the user might want to adjust or add next — reference specific visual elements you created (e.g. "Would you like me to add some warm volumetric lighting behind the awning?" or "I could add a weathered texture to the wood — want me to try that?"). Do NOT be generic or list tool names.`
               : `You attempted a Blender task but some steps failed.\n- User's request: "${message}"\n- What succeeded: ${humanReadableSummary || "nothing"}\n- What failed: ${failedList || "unknown"}\n\nExplain briefly what went wrong (1-2 sentences, in plain language). Then suggest a specific, actionable next step the user could try.`
 
+            const followUpSystemPrompt = "You are ViperMesh, a friendly and knowledgeable Blender 3D assistant. Respond conversationally in 2-4 sentences. Never use markdown headers, bullet points, or tool/function names. Describe the scene visually — what it looks like, not what tools were called. Be warm and creative with your follow-up suggestion."
+
             let followUpText = ""
             let chunkCount = 0
-            for await (const chunk of streamLlmResponse(llmProvider, {
-              history: [],
-              messages: [{ role: "user", content: summaryPromptText }],
-              maxOutputTokens: 300,
-              temperature: 0.6,
-              systemPrompt: "You are ViperMesh, a friendly and knowledgeable Blender 3D assistant. Respond conversationally in 2-4 sentences. Never use markdown headers, bullet points, or tool/function names. Describe the scene visually — what it looks like, not what tools were called. Be warm and creative with your follow-up suggestion.",
-            })) {
-              chunkCount++
-              if (chunk.textDelta) {
-                followUpText += chunk.textDelta
-                send({ type: "followup_delta", delta: chunk.textDelta })
+            try {
+              for await (const chunk of streamLlmResponse(llmProvider, {
+                history: [],
+                messages: [{ role: "user", content: summaryPromptText }],
+                maxOutputTokens: 300,
+                temperature: 0.6,
+                systemPrompt: followUpSystemPrompt,
+              })) {
+                chunkCount++
+                if (chunk.textDelta) {
+                  followUpText += chunk.textDelta
+                  send({ type: "followup_delta", delta: chunk.textDelta })
+                }
               }
+            } catch (streamErr) {
+              console.warn("[Chat] Follow-up stream error (will retry non-streaming):", streamErr instanceof Error ? streamErr.message : String(streamErr))
             }
 
-            console.log("[Chat] Follow-up generated:", followUpText.length, "chars,", chunkCount, "chunks")
+            console.log("[Chat] Follow-up stream result:", followUpText.length, "chars,", chunkCount, "chunks")
+
+            // If streaming returned empty, retry with non-streaming generateLlmResponse
+            if (!followUpText.trim()) {
+              console.warn("[Chat] Follow-up stream was empty — retrying with non-streaming call")
+              try {
+                const nonStreamResult = await generateLlmResponse(llmProvider, {
+                  history: [],
+                  messages: [{ role: "user", content: summaryPromptText }],
+                  maxOutputTokens: 300,
+                  temperature: 0.6,
+                  systemPrompt: followUpSystemPrompt,
+                })
+                if (nonStreamResult.text?.trim()) {
+                  followUpText = nonStreamResult.text.trim()
+                  send({ type: "followup_delta", delta: followUpText })
+                  console.log("[Chat] Non-streaming follow-up succeeded:", followUpText.length, "chars")
+                }
+              } catch (genErr) {
+                console.warn("[Chat] Non-streaming follow-up also failed:", genErr instanceof Error ? genErr.message : String(genErr))
+              }
+            }
 
             // Append follow-up to assistant text so BOTH the initial response
             // and the follow-up are preserved when saved to DB
             if (followUpText.trim()) {
               assistantText = (assistantText || "").trimEnd() + "\n\n" + followUpText.trim()
             } else {
-              // The LLM yielded 0 chunks — send a scene-aware fallback
-              console.warn("[Chat] Follow-up stream returned empty text, sending scene-aware fallback")
-              const sceneSummary = groupedLabels.length > 0
-                ? `I've set up your scene — ${groupedLabels.slice(0, 3).join(", ")}${groupedLabels.length > 3 ? ` and more` : ""}.`
-                : "I've set up the scene."
+              // Both streaming AND non-streaming failed — generate a scene-aware fallback
+              // from the user's prompt, NOT from tool names
+              console.warn("[Chat] Both follow-up methods failed, using scene-aware fallback from user prompt")
+              const userPromptPreview = message.length > 80 ? message.substring(0, 80) + "..." : message
               const emptyFallback = overallSuccess
-                ? `${sceneSummary} What would you like to adjust or add next?`
+                ? `Your scene is ready! I set everything up based on your request. What would you like to adjust or add next?`
                 : `Some steps didn't go as planned. Would you like me to retry with a different approach?`
               send({ type: "followup_delta", delta: emptyFallback })
               assistantText = emptyFallback
@@ -1082,10 +1108,9 @@ export async function POST(req: Request) {
           } catch (followUpError) {
             console.error("[Chat] Post-execution follow-up generation FAILED:", followUpError)
             const errMsg = followUpError instanceof Error ? followUpError.message : String(followUpError)
-            // Scene-aware error fallback
-            const toolCount = executedCommands.filter(c => c.status === "executed").length
+            // Scene-aware error fallback — no tool names
             const fallbackText = overallSuccess
-              ? `I completed ${toolCount} operation${toolCount !== 1 ? "s" : ""} on the scene. What would you like to do next?`
+              ? `Your scene is ready! What would you like to adjust or add next?`
               : `The execution ran into some issues. Would you like me to try a different approach?`
             send({ type: "followup_delta", delta: `\n\n${fallbackText}` })
             assistantText += `\n\n${fallbackText}`
