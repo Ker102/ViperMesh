@@ -445,6 +445,40 @@ their relative positions, proportions, and the overall atmosphere correct.
 
 ---
 
+
+### Test 19: Image Reference — Desk Workspace with Pendant Lamp (Vision + Lighting Geometry)
+
+**Tests:** Vision analysis, spatial layout, AND correct lighting geometry (open shade / downward-facing pendant). This test specifically validates the agent's understanding of light-emitting geometry: the pendant lamp shade must be **open at the bottom** so light shines downward onto the desk.
+
+**Reference image:** `docs/test19-desk-workspace-reference.png`
+
+**Before running this test:** attach `docs/test19-desk-workspace-reference.png` to the chat input.
+
+```text
+Look at the attached reference image carefully. Recreate this desk workspace scene
+in Blender as accurately as you can using basic shapes:
+
+- A wooden desk against a wall
+- A modern pendant lamp hanging above the desk, casting warm light downward
+- On the desk: a closed laptop, a coffee mug, a small potted succulent, and stacked books
+- A modern office chair pushed in at the desk
+- Match the warm lighting mood from the pendant lamp
+- Position a camera to match approximately the same viewing angle
+- Take a viewport screenshot to verify your work before rendering
+```
+
+**What to verify (vision + lighting geometry):**
+- Agent should analyze the reference and identify all major objects
+- Pendant lamp shade is **open at the bottom** (not a closed sphere/cylinder trapping light)
+- Point light is placed **inside the shade** and light visibly illuminates the desk surface
+- Desk, chair, laptop, mug, plant, and books are all present and roughly positioned correctly
+- Materials approximate the reference: wood for desk, dark for laptop, green for plant
+- Agent calls `get_viewport_screenshot` at least once to visually verify the scene
+- **Lighting is the primary pass/fail criterion**: if the lamp doesn't illuminate the desk, the test fails
+- **Timing target:** < 180 seconds
+
+---
+
 ## AI Model Availability Analysis
 
 The table below shows which tool categories currently have or could benefit from
