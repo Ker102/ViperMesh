@@ -210,6 +210,15 @@ export function StepSessionDrawer({
                         >
                             {step.inputs.prompt}
                         </div>
+                        {/* Reference image thumbnail */}
+                        {step.inputs.referenceImage && (
+                            <img
+                                src={step.inputs.referenceImage}
+                                alt="Reference"
+                                className="max-h-32 rounded-lg border object-contain mt-2"
+                                style={{ borderColor: "hsl(var(--forge-accent) / 0.3)" }}
+                            />
+                        )}
                     </div>
                 )}
 

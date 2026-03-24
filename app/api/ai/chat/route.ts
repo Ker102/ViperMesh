@@ -803,7 +803,9 @@ export async function POST(req: Request) {
                     { type: "text" as const, text: agentPrompt },
                     ...attachments.map(a => ({
                       type: "image_url" as const,
-                      image_url: { url: `data:${a.type};base64,${a.data}` },
+                      // a.data is already a full data URL from FileReader.readAsDataURL()
+                      // e.g. "data:image/png;base64,iVBOR..."
+                      image_url: { url: a.data },
                     })),
                   ]
                 : agentPrompt
