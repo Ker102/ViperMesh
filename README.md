@@ -16,7 +16,7 @@
   </a>
 </p>
 <p align="center">
-  <b>Next.js 15 • TypeScript • Tailwind • Supabase • LangChain • Electron • Blender</b>
+  <b>Next.js 16 • TypeScript • Tailwind • Supabase • LangChain • Electron • Blender</b>
 </p>
 
 <br>
@@ -45,7 +45,7 @@ ViperMesh is a comprehensive platform that brings next-gen AI capabilities to Bl
 
 ### 📚 Hybrid RAG Pipeline
 - **Context-Aware Generation**: Leverages professional Blender scripts for accurate code generation
-- **Semantic Search**: Uses Together.ai embeddings for high-quality retrieval
+- **Semantic Search**: Uses Gemini embeddings for high-quality retrieval
 - **CRAG Architecture**: Corrective RAG with quality grading and fallback strategies
 - **Knowledge Base**: Covers modeling, rigging, shading, geometry nodes, animation, and lighting
 
@@ -122,7 +122,7 @@ ViperMesh is the first AI agent that **auto-adapts to your installed Blender add
 <br>
 <img src="https://skillicons.dev/icons?i=nextjs,react,ts,tailwind" />
 <br><br>
-<b>Next.js 15 • React 19 • TypeScript 5.6 • Tailwind CSS</b>
+<b>Next.js 16 • React 19 • TypeScript 5.6 • Tailwind CSS</b>
 <br><br>
 </td>
 </tr>
@@ -142,7 +142,7 @@ ViperMesh is the first AI agent that **auto-adapts to your installed Blender add
 <br>
 <img src="https://skillicons.dev/icons?i=gcp,python,electron,blender" />
 <br><br>
-<b>Gemini 2.5 Pro • LangChain v1 • LangGraph • Electron • Blender Python API</b>
+<b>ViperAgent 2.0 • LangChain v1 • LangGraph • Electron • Blender Python API</b>
 <br><br>
 </td>
 </tr>
@@ -174,7 +174,7 @@ ViperMesh is the first AI agent that **auto-adapts to your installed Blender add
    ```bash
    cp .env.example .env
    ```
-   Configure `.env` with your Supabase URL/keys, Gemini API key, and Together.ai API key (for RAG).
+   Configure `.env` with your Supabase URL/keys, and Gemini API key (used for ViperAgent 2.0 and RAG).
 
 4. **Start development server**
    ```bash

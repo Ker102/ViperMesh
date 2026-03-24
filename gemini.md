@@ -1,6 +1,14 @@
 # ViperMesh — Current Progress
 
-## Last Session: 2026-03-23 (20:30–20:50 PM)
+## Last Session: 2026-03-24 (Recent Changes)
+
+### What Was Done
+1. **README Updates:**
+   - Renamed "Gemini 2.5 Pro" to "ViperAgent 2.0" to reflect the custom agent branding.
+   - Updated Next.js 15 to Next.js 16 to reflect the current Turbopack environment.
+   - Updated "Together.ai embeddings" to "Gemini embeddings" for the CRAG semantic search.
+
+## Previous Session: 2026-03-23 (20:30–20:50 PM)
 
 ### What Was Done
 1. **Streaming UI Fix** (`project-chat.tsx`, `agent-activity.tsx`):
