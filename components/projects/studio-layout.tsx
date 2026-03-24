@@ -33,8 +33,20 @@ async function fetchPersistedSteps(projectId: string): Promise<WorkflowTimelineS
 
 async function savePersistedSteps(projectId: string, steps: WorkflowTimelineStep[]) {
     try {
-        // Strip monitoring logs before saving to keep payload reasonable
-        const slim = steps.map(({ monitoringLogs, ...rest }) => rest)
+        // Strip monitoring logs and base64 image data before saving to keep payload reasonable
+        const slim = steps.map(({ monitoringLogs, ...rest }) => {
+            // Remove base64 image data from inputs (can be megabytes)
+            if (rest.inputs) {
+                const cleanInputs = { ...rest.inputs }
+                for (const key of Object.keys(cleanInputs)) {
+                    if (cleanInputs[key]?.startsWith("data:image/")) {
+                        cleanInputs[key] = "[image attached]"
+                    }
+                }
+                return { ...rest, inputs: cleanInputs }
+            }
+            return rest
+        })
         const res = await fetch("/api/projects/studio-session", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },

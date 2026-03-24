@@ -244,7 +244,18 @@ export function StepSessionDrawer({
                                             }`,
                                     }}
                                 >
-                                    {msg.content || (
+                                    {/* Render message content — detect data URLs and show as images */}
+                                    {msg.content ? (
+                                        msg.content.startsWith("data:image/") ? (
+                                            <img
+                                                src={msg.content}
+                                                alt="Attached image"
+                                                className="max-h-40 rounded-lg object-contain"
+                                            />
+                                        ) : (
+                                            msg.content
+                                        )
+                                    ) : (
                                         step.status === "running" && msg.role === "assistant" ? (
                                             <span className="flex items-center gap-2" style={{ color: "hsl(var(--forge-accent))" }}>
                                                 <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--forge-accent))" strokeWidth="2">
