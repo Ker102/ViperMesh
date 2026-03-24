@@ -1,4 +1,4 @@
-# ModelForge — Future Plans & Roadmap
+# ViperMesh — Future Plans & Roadmap
 
 > **Last Updated:** 2026-03-20
 > **Rule:** This file is the single source of truth for planned features. Do NOT merge these into gemini.md.

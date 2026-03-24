@@ -11,7 +11,7 @@ export default function DownloadPage() {
       <main className="flex-1 container py-12">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold mb-4">Download ModelForge</h1>
+            <h1 className="text-4xl font-bold mb-4">Download ViperMesh</h1>
             <p className="text-xl text-muted-foreground">
               Get the desktop app to start using AI with Blender
             </p>
@@ -70,7 +70,7 @@ export default function DownloadPage() {
                 <h3 className="font-semibold mb-2">Step 1: Install Blender MCP Server</h3>
                 <p className="text-sm text-muted-foreground">
                   First, install the Blender MCP server plugin in your Blender installation.
-                  This enables communication between ModelForge and Blender.
+                  This enables communication between ViperMesh and Blender.
                 </p>
                 <Button variant="link" className="px-0 mt-2">
                   View MCP Server Setup Guide →
@@ -79,13 +79,13 @@ export default function DownloadPage() {
               <div>
                 <h3 className="font-semibold mb-2">Step 2: Download Desktop App</h3>
                 <p className="text-sm text-muted-foreground">
-                  Download and install the ModelForge desktop application for your operating system.
+                  Download and install the ViperMesh desktop application for your operating system.
                 </p>
               </div>
               <div>
                 <h3 className="font-semibold mb-2">Step 3: Connect & Create</h3>
                 <p className="text-sm text-muted-foreground">
-                  Launch both Blender (with MCP server running) and the ModelForge app.
+                  Launch both Blender (with MCP server running) and the ViperMesh app.
                   Sign in and start creating!
                 </p>
               </div>

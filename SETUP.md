@@ -1,4 +1,4 @@
-# ModelForge - Quick Setup Guide
+# ViperMesh - Quick Setup Guide
 
 ## Prerequisites
 
@@ -69,11 +69,11 @@ Use the **Test connection** button to confirm we can reach your runtime, then cl
 
 ### 2. Database Setup (Neon Serverless)
 
-ModelForge uses [Neon](https://neon.tech) for serverless PostgreSQL and vector embeddings.
+ViperMesh uses [Neon](https://neon.tech) for serverless PostgreSQL and vector embeddings.
 
 1. **Create a Project**:
    - Sign up at [Neon Console](https://console.neon.tech).
-   - Create a new project (e.g., "modelforge").
+   - Create a new project (e.g., "vipermesh").
 
 2. **Get Connection Strings**:
    - In the Neon Dashboard, look for "Connection Details".
@@ -118,10 +118,10 @@ npm run db:migrate
 
 3. **Create Products**:
    - Go to Products → Add Product
-   - Create "ModelForge Starter"
+   - Create "ViperMesh Starter"
      - Monthly price: $12
      - Yearly price: $99
-   - Create "ModelForge Pro"
+   - Create "ViperMesh Pro"
      - Monthly price: $29
      - Yearly price: $249
    - Copy all price IDs to `.env`
@@ -165,7 +165,7 @@ The assistant can pull design inspiration from the web through Firecrawl. This i
 ## Project Structure
 
 ```
-modelforge/
+vipermesh/
 ├── app/                 # Next.js app directory
 │   ├── api/            # API routes
 │   ├── dashboard/      # Protected dashboard pages
@@ -248,11 +248,11 @@ To enable direct Blender automation you will need the community [blender-mcp](ht
 
 1. Install Blender ≥ 3.0, Python ≥ 3.10, Git, and the [`uv`](https://docs.astral.sh/uv/getting-started/installation/) package manager.
 2. Obtain the addon:
-   - Direct download: [`/downloads/modelforge-addon.py`](/downloads/modelforge-addon.py)
+   - Direct download: [`/downloads/vipermesh-addon.py`](/downloads/vipermesh-addon.py)
    - Or clone the upstream repository: `git clone https://github.com/ahujasid/blender-mcp.git`
 3. Install the addon via Blender → Preferences → Add-ons → Install.
 4. Launch the MCP server with `uvx blender-mcp` (consult the upstream README for IDE integrations). Keep the `.env` variables `BLENDER_MCP_HOST` and `BLENDER_MCP_PORT` aligned with the server.
-5. Start Blender, enable the addon, and click **Connect to Claude** (or the ModelForge desktop app once available).
+5. Start Blender, enable the addon, and click **Connect to Claude** (or the ViperMesh desktop app once available).
 
 See `blendermcpreadme.md` in this repository for a full offline copy of the official setup guide.
 
@@ -292,7 +292,7 @@ Run the seeding script to provision a Pro-tier test account:
 npm run test:user
 ```
 
-Defaults to email `test@modelforge.dev` with password `TestPass123!`. Override using `TEST_USER_EMAIL` / `TEST_USER_PASSWORD` environment variables when running the command.
+Defaults to email `test@vipermesh.dev` with password `TestPass123!`. Override using `TEST_USER_EMAIL` / `TEST_USER_PASSWORD` environment variables when running the command.
 
 ## Next Steps
 

@@ -1,12 +1,12 @@
 <div align="center">
 
-# 🔨 ModelForge
+# 🐍 ViperMesh
 
-**AI-Powered Blender Assistant**
+**AI-Powered Blender Assistant & Neural 3D Hub**
 
 <p align="center">
-  Transform your 3D workflow with AI-powered Blender automation.<br>
-  Create, modify, and enhance your Blender projects through natural conversation.
+  Transform your 3D workflow with AI-powered Blender automation and neural generation.<br>
+  Create, modify, and enhance your Blender projects through natural conversation and visual tools.
 </p>
 
 <!-- Tech Stack Header -->
@@ -16,12 +16,12 @@
   </a>
 </p>
 <p align="center">
-  <b>Next.js 15 • TypeScript • Tailwind • Supabase • LangChain • Electron • Blender</b>
+  <b>Next.js 16 • TypeScript • Tailwind • Supabase • LangChain • Electron • Blender</b>
 </p>
 
 <br>
 
-[Features](#-features) • [Agent Tools](#-agent-tools) • [Quick Start](#-quick-start) • [Addon Detection](#-dynamic-addon-detection) • [Contributing](#-contributing)
+[Features](#-features) • [Agent Tools](#-agent-tools) • [Quick Start](#-quick-start) • [Neural Pipeline](#-neural-3d-pipeline) • [Contributing](#-contributing)
 
 </div>
 
@@ -29,7 +29,7 @@
 
 ## 🚀 Features
 
-ModelForge is a comprehensive platform that brings next-gen AI capabilities to Blender through an intelligent agent, a RAG pipeline, and seamless addon integration.
+ViperMesh is a comprehensive platform that brings next-gen AI capabilities to Blender through an intelligent agent, a proprietary RAG pipeline, dynamic addon adaptation, and hybrid neural 3D generation.
 
 ### 🤖 LangChain v1 Agent
 - **ReAct Loop**: Built on LangChain 1.x `createAgent` + LangGraph with hallucinated tool-call recovery
@@ -39,21 +39,22 @@ ModelForge is a comprehensive platform that brings next-gen AI capabilities to B
 
 ### 🧠 Dynamic Addon Detection
 - **Auto-Discovery**: Agent calls `list_installed_addons` to introspect enabled Blender addons at session start
-- **Addon Registry**: 11 known addon profiles (Node Wrangler, Rigify, LoopTools, Bool Tool, etc.)
+- **Addon Registry**: Known addon profiles (Node Wrangler, Rigify, LoopTools, Bool Tool, etc.)
 - **Prompt Injection**: System prompt is dynamically extended with addon-specific operators and usage tips
 - **Zero Configuration**: Install an addon → the agent adapts automatically
 
 ### 📚 Hybrid RAG Pipeline
-- **Context-Aware Generation**: Leverages **113+ professional Blender scripts** for accurate code generation
-- **Semantic Search**: Uses Together.ai M2-BERT embeddings for high-quality retrieval
+- **Context-Aware Generation**: Leverages professional Blender scripts for accurate code generation
+- **Semantic Search**: Uses Gemini embeddings for high-quality retrieval
 - **CRAG Architecture**: Corrective RAG with quality grading and fallback strategies
 - **Knowledge Base**: Covers modeling, rigging, shading, geometry nodes, animation, and lighting
 
-### 🌐 Web Dashboard
-- **Supabase Auth**: Secure authentication with Google and GitHub OAuth
-- **Dual Modes**: Autopilot (conversational) and Studio (tool-card grid with icon sidebar)
-- **Asset Integration**: Toggleable PolyHaven, Hyper3D Rodin, and Sketchfab pipelines
-- **Curated Addons Page**: `/addons` route with AI Compatible badges and addon categories
+### 🌐 Premium Web Dashboard UI
+- **Dual Modes**: 
+  - **Autopilot**: Conversational AI assistant for procedural generation.
+  - **Studio**: Full-page, immersive workspace with an icon-sidebar and interactive tool-card grid.
+- **Teal Design System**: Professional, high-end visual aesthetics (#0d9488 focus) with interactive 3D hero sections and animated SVGs.
+- **Supabase Auth**: Secure authentication with Google and GitHub OAuth.
 
 ### 🔌 Blender MCP Bridge
 - **Socket Bridge**: Executes generated Python directly in Blender via TCP
@@ -62,9 +63,17 @@ ModelForge is a comprehensive platform that brings next-gen AI capabilities to B
 
 ---
 
+## 🎨 Neural 3D Pipeline
+ViperMesh incorporates a powerful 3-tier hybrid generation architecture for neural assets:
+1. **Hosted APIs**: Integration with Fal.ai (Hunyuan3D 2.1, TRELLIS 2) and proprietary YVO3D for premium texturing.
+2. **Serverless GPUs**: Custom model deployment via RunPod for high-demand tasks.
+3. **Scale-to-Zero**: Optimized routing for cost-effective handling of self-hosted volumetric models.
+
+---
+
 ## 🛠️ Agent Tools
 
-The ModelForge agent has **22 native tools** that it can call directly — no Python code required:
+The ViperMesh agent has **22 native tools** that it can call directly — no Python code required:
 
 | Category | Tools |
 |---|---|
@@ -78,23 +87,13 @@ The ModelForge agent has **22 native tools** that it can call directly — no Py
 | **Export** | `export_object` (GLB, GLTF, FBX, OBJ, STL) |
 | **Detection** | `list_installed_addons` |
 
-Plus **6 integration tools** when enabled: PolyHaven (3), Sketchfab (2), Hyper3D Rodin (3).
+Plus **integration tools** when enabled: PolyHaven, Sketchfab, Hyper3D Rodin.
 
 ---
 
 ## 🧩 Dynamic Addon Detection
 
-ModelForge is the first AI agent that **auto-adapts to your installed Blender addons**.
-
-```
-Session Start
-  └→ Executor calls list_installed_addons via MCP
-      └→ Blender introspects addon_utils.modules()
-          └→ Returns enabled addon metadata
-              └→ Matched against Addon Registry (11 profiles)
-                  └→ System prompt extended with addon operators
-                      └→ Agent knows how to use your addons via execute_code
-```
+ViperMesh is the first AI agent that **auto-adapts to your installed Blender addons**.
 
 **Currently recognized addons:**
 
@@ -123,7 +122,7 @@ Session Start
 <br>
 <img src="https://skillicons.dev/icons?i=nextjs,react,ts,tailwind" />
 <br><br>
-<b>Next.js 15 • React 19 • TypeScript 5.6 • Tailwind CSS</b>
+<b>Next.js 16 • React 19 • TypeScript 5.6 • Tailwind CSS</b>
 <br><br>
 </td>
 </tr>
@@ -143,7 +142,7 @@ Session Start
 <br>
 <img src="https://skillicons.dev/icons?i=gcp,python,electron,blender" />
 <br><br>
-<b>Gemini 2.5 Pro • LangChain v1 • LangGraph • Electron • Blender Python API</b>
+<b>ViperAgent 2.0 • LangChain v1 • LangGraph • Electron • Blender Python API</b>
 <br><br>
 </td>
 </tr>
@@ -175,7 +174,7 @@ Session Start
    ```bash
    cp .env.example .env
    ```
-   Configure `.env` with your Supabase URL/keys, Gemini API key, and Together.ai API key (for RAG).
+   Configure `.env` with your Supabase URL/keys, and Gemini API key (used for ViperAgent 2.0 and RAG).
 
 4. **Start development server**
    ```bash
@@ -185,7 +184,7 @@ Session Start
    Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 5. **Connect Blender**
-   - Install the ModelForge addon in Blender (`public/downloads/modelforge-addon.py`)
+   - Install the ViperMesh addon in Blender (`public/downloads/vipermesh-addon.py`)
    - Click "Start Server" in Blender's sidebar panel
    - The agent connects automatically via TCP socket
 
@@ -194,15 +193,16 @@ Session Start
 - [x] LangChain v1 agent with ReAct loop
 - [x] 22 native Blender tools
 - [x] Dynamic addon detection + registry
-- [x] Curated Addons page (`/addons`)
-- [x] Hybrid RAG Pipeline (113+ scripts)
+- [x] Hybrid RAG Pipeline
 - [x] Supabase Auth (Google + GitHub OAuth)
 - [x] Stripe subscription integration
 - [x] Viewport screenshot analysis
 - [x] Electron desktop shell
+- [x] Premium Redesign (ViperMesh Branding & Teal Interface)
+- [x] Interactive Studio Workspaces
 - [ ] Manual verification of all tool categories
 - [ ] Production desktop packaging
-- [ ] Dynamic addon operator discovery (auto-generate tools from unknown addons)
+- [ ] Dynamic addon operator discovery
 - [ ] Community addon marketplace page
 
 ## 🤝 Contributing
@@ -217,7 +217,7 @@ This project is licensed under the [LICENSE](LICENSE) file.
 
 <div align="center">
 
-Built with ❤️ by the ModelForge team
+Built with ❤️ by the ViperMesh team
 
 [Website](#) • [Documentation](README.md) • [Addons](/addons)
 

@@ -2,7 +2,7 @@
 
 > **Last Updated:** 2026-02-17
 > **Source:** BlenderHub.net (top 50, free, geometry nodes, animation, rendering pages)
-> **Purpose:** Track addons ModelForge could integrate via MCP `execute_code`
+> **Purpose:** Track addons ViperMesh could integrate via MCP `execute_code`
 
 ---
 

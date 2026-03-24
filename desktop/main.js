@@ -6,8 +6,8 @@ const { app, BrowserWindow, ipcMain, nativeTheme, dialog, shell } = require("ele
 // Configuration
 const DEFAULT_PORT = 3000
 const AUTH_CALLBACK_PORT = 45678 // Local port for OAuth callback
-const IS_DEV = process.env.MODELFORGE_DESKTOP_ENV === "development"
-const PROTOCOL = "modelforge"
+const IS_DEV = process.env.VIPERMESH_DESKTOP_ENV === "development"
+const PROTOCOL = "vipermesh"
 
 // Register deep link protocol (for OAuth callback)
 if (process.defaultApp) {
@@ -28,7 +28,7 @@ let authCallbackServer = null
  * Get the URL to load in the renderer
  */
 function getStartUrl() {
-  const customUrl = process.env.MODELFORGE_DESKTOP_START_URL?.trim()
+  const customUrl = process.env.VIPERMESH_DESKTOP_START_URL?.trim()
   if (customUrl) return customUrl
 
   const port = process.env.PORT || DEFAULT_PORT
@@ -142,7 +142,7 @@ function startAuthCallbackServer() {
           <html>
           <head>
             <meta charset="utf-8">
-            <title>Authentication Failed - ModelForge</title>
+            <title>Authentication Failed - ViperMesh</title>
           </head>
           <body style="background:linear-gradient(135deg,#0a0f1a 0%,#111827 50%,#0a1628 100%);color:#f1f5f9;font-family:'Inter',system-ui,-apple-system,sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0">
             <div style="text-align:center;background:rgba(15,23,42,0.6);border:1px solid rgba(239,68,68,0.2);border-radius:20px;padding:48px 40px;max-width:420px;width:90%;backdrop-filter:blur(20px);box-shadow:0 25px 50px rgba(0,0,0,0.3)">
@@ -174,15 +174,15 @@ function startAuthCallbackServer() {
           <html>
           <head>
             <meta charset="utf-8">
-            <title>Authentication Successful - ModelForge</title>
+            <title>Authentication Successful - ViperMesh</title>
           </head>
           <body style="background:linear-gradient(135deg,#0a0f1a 0%,#111827 50%,#0a1628 100%);color:#f1f5f9;font-family:'Inter',system-ui,-apple-system,sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0">
             <div style="text-align:center;background:rgba(15,23,42,0.6);border:1px solid rgba(13,148,136,0.2);border-radius:20px;padding:48px 40px;max-width:420px;width:90%;backdrop-filter:blur(20px);box-shadow:0 25px 50px rgba(0,0,0,0.3)">
               <div style="width:64px;height:64px;margin:0 auto 20px;background:linear-gradient(135deg,#0d9488,#14b8a6);border-radius:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(13,148,136,0.3)">
-                <span style="font-size:28px;font-weight:700;color:#fff">M</span>
+                <span style="font-size:28px;font-weight:700;color:#fff">V</span>
               </div>
               <h1 style="color:#2dd4bf;font-size:22px;font-weight:600;margin:0 0 12px">&#x2714; Authentication Successful!</h1>
-              <p style="color:#94a3b8;font-size:14px;margin:0 0 8px">You can close this window and return to ModelForge.</p>
+              <p style="color:#94a3b8;font-size:14px;margin:0 0 8px">You can close this window and return to ViperMesh.</p>
               <p style="color:#64748b;font-size:12px;margin:0">This window will close automatically...</p>
               <script>setTimeout(() => window.close(), 2000)</script>
             </div>
@@ -222,7 +222,7 @@ function createWindow() {
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    title: "ModelForge",
+    title: "ViperMesh",
     backgroundColor: nativeTheme.shouldUseDarkColors ? "#0f172a" : "#ffffff",
     icon: path.join(__dirname, "assets", "icon.png"),
     show: false, // Don't show until ready
@@ -260,7 +260,7 @@ function createWindow() {
       "Connection Error",
       IS_DEV
         ? "Could not connect to the Next.js development server.\n\nMake sure to run 'npm run dev' in the main project directory first."
-        : "Could not start the ModelForge server.\n\nPlease try restarting the application."
+        : "Could not start the ViperMesh server.\n\nPlease try restarting the application."
     )
 
     // Load offline page
@@ -427,8 +427,8 @@ ipcMain.handle("addon:get-path", () => {
   // In production, addon is in resources/assets
   // In dev, it's in desktop/assets
   const addonPath = IS_DEV
-    ? path.join(__dirname, "assets", "modelforge-addon.py")
-    : path.join(process.resourcesPath, "assets", "modelforge-addon.py")
+    ? path.join(__dirname, "assets", "vipermesh-addon.py")
+    : path.join(process.resourcesPath, "assets", "vipermesh-addon.py")
 
   return {
     path: addonPath,

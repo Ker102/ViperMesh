@@ -50,7 +50,7 @@ function getToolLabel(toolName: string): string {
 interface StepSessionDrawerProps {
     step: WorkflowTimelineStep
     onClose: () => void
-    onSendMessage: (stepId: string, message: string) => void
+    onSendMessage: (stepId: string, message: string, attachments?: Array<{ id: string; name: string; type: string; size: number; data: string }>) => void
     onStop?: (stepId: string) => void
 }
 
@@ -90,8 +90,10 @@ export function StepSessionDrawer({
 }: StepSessionDrawerProps) {
     const [followUp, setFollowUp] = useState("")
     const [isVisible, setIsVisible] = useState(false)
+    const [pendingImage, setPendingImage] = useState<string | null>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLInputElement>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
 
     // Animate in on mount
     useEffect(() => {
@@ -117,9 +119,22 @@ export function StepSessionDrawer({
 
     const handleSend = (e: React.FormEvent) => {
         e.preventDefault()
-        if (!followUp.trim() || step.status === "running") return
-        onSendMessage(step.id, followUp.trim())
+        if ((!followUp.trim() && !pendingImage) || step.status === "running") return
+
+        // Build attachments if image is pending
+        const attachments = pendingImage
+            ? [{
+                id: `img-${Date.now()}`,
+                name: "reference.png",
+                type: "image/png",
+                size: Math.round(pendingImage.length * 0.75),
+                data: pendingImage,
+            }]
+            : undefined
+
+        onSendMessage(step.id, followUp.trim() || "Please use this reference image.", attachments)
         setFollowUp("")
+        setPendingImage(null)
     }
 
     const rawMessages = step.messages ?? []
@@ -195,6 +210,15 @@ export function StepSessionDrawer({
                         >
                             {step.inputs.prompt}
                         </div>
+                        {/* Reference image thumbnail */}
+                        {step.inputs.referenceImage && (
+                            <img
+                                src={step.inputs.referenceImage}
+                                alt="Reference"
+                                className="max-h-32 rounded-lg border object-contain mt-2"
+                                style={{ borderColor: "hsl(var(--forge-accent) / 0.3)" }}
+                            />
+                        )}
                     </div>
                 )}
 
@@ -220,7 +244,18 @@ export function StepSessionDrawer({
                                             }`,
                                     }}
                                 >
-                                    {msg.content || (
+                                    {/* Render message content — detect data URLs and show as images */}
+                                    {msg.content ? (
+                                        msg.content.startsWith("data:image/") ? (
+                                            <img
+                                                src={msg.content}
+                                                alt="Attached image"
+                                                className="max-h-40 rounded-lg object-contain"
+                                            />
+                                        ) : (
+                                            msg.content
+                                        )
+                                    ) : (
                                         step.status === "running" && msg.role === "assistant" ? (
                                             <span className="flex items-center gap-2" style={{ color: "hsl(var(--forge-accent))" }}>
                                                 <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--forge-accent))" strokeWidth="2">
@@ -234,9 +269,9 @@ export function StepSessionDrawer({
                                 </div>
                             </div>
                         ))}
-                        {/* Agent tool call activity */}
-                        {step.status === "running" && step.agentEvents && step.agentEvents.length > 0 && (
-                            <AgentActivity events={step.agentEvents} isActive={true} />
+                        {/* Agent tool call activity — live during execution, collapsed dropdown after */}
+                        {step.agentEvents && step.agentEvents.length > 0 && (
+                            <AgentActivity events={step.agentEvents} isActive={step.status === "running"} />
                         )}
                         <div ref={messagesEndRef} />
                     </div>
@@ -313,8 +348,8 @@ export function StepSessionDrawer({
                     </div>
                 )}
 
-                {/* Command Results */}
-                {step.commandResults && step.commandResults.length > 0 && (
+                {/* Command Results — only show if no agentEvents (legacy fallback) */}
+                {step.commandResults && step.commandResults.length > 0 && (!step.agentEvents || step.agentEvents.length === 0) && (
                     <div className="space-y-1.5">
                         <span
                             className="text-xs font-semibold uppercase tracking-wider"
@@ -365,32 +400,82 @@ export function StepSessionDrawer({
             {(step.status === "done" || step.status === "failed") && (
                 <form
                     onSubmit={handleSend}
-                    className="px-6 py-4 border-t flex items-center gap-3 shrink-0"
+                    className="px-6 py-4 border-t flex flex-col gap-2 shrink-0"
                     style={{ borderColor: "hsl(var(--forge-border))" }}
                 >
-                    <input
-                        ref={inputRef}
-                        value={followUp}
-                        onChange={(e) => setFollowUp(e.target.value)}
-                        placeholder="Send a follow-up message..."
-                        className="flex-1 rounded-xl border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 transition"
-                        style={{
-                            borderColor: "hsl(var(--forge-border))",
-                            backgroundColor: "hsl(var(--forge-surface-dim))",
-                            color: "hsl(var(--forge-text))",
-                        }}
-                    />
-                    <button
-                        type="submit"
-                        disabled={!followUp.trim()}
-                        className="p-2.5 rounded-xl text-white transition disabled:opacity-40"
-                        style={{ backgroundColor: "hsl(var(--forge-accent))" }}
-                    >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="22" y1="2" x2="11" y2="13" />
-                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                        </svg>
-                    </button>
+                    {/* Pending image preview */}
+                    {pendingImage && (
+                        <div className="relative inline-block self-start">
+                            <img
+                                src={pendingImage}
+                                alt="Pending attachment"
+                                className="h-16 rounded-lg border object-contain"
+                                style={{ borderColor: "hsl(var(--forge-border))" }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setPendingImage(null)}
+                                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-md"
+                                style={{ backgroundColor: "hsl(0 84% 60%)" }}
+                                aria-label="Remove image"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                    )}
+                    <div className="flex items-center gap-3">
+                        {/* Image attach button */}
+                        <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="p-2.5 rounded-xl transition hover:opacity-80"
+                            style={{ color: "hsl(var(--forge-text-muted))" }}
+                            aria-label="Attach image"
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                                <circle cx="8.5" cy="8.5" r="1.5" />
+                                <polyline points="21 15 16 10 5 21" />
+                            </svg>
+                        </button>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (!file) return
+                                const reader = new FileReader()
+                                reader.onload = () => setPendingImage(reader.result as string)
+                                reader.readAsDataURL(file)
+                                e.target.value = "" // reset so same file can be re-selected
+                            }}
+                        />
+                        <input
+                            ref={inputRef}
+                            value={followUp}
+                            onChange={(e) => setFollowUp(e.target.value)}
+                            placeholder="Send a follow-up message..."
+                            className="flex-1 rounded-xl border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 transition"
+                            style={{
+                                borderColor: "hsl(var(--forge-border))",
+                                backgroundColor: "hsl(var(--forge-surface-dim))",
+                                color: "hsl(var(--forge-text))",
+                            }}
+                        />
+                        <button
+                            type="submit"
+                            disabled={!followUp.trim() && !pendingImage}
+                            className="p-2.5 rounded-xl text-white transition disabled:opacity-40"
+                            style={{ backgroundColor: "hsl(var(--forge-accent))" }}
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="22" y1="2" x2="11" y2="13" />
+                                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                            </svg>
+                        </button>
+                    </div>
                 </form>
             )}
 

@@ -183,14 +183,14 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
               <div className="rounded-lg border p-4 space-y-2">
                 <h3 className="font-semibold">Web experience</h3>
                 <p className="text-sm text-muted-foreground">
-                  Chat with ModelForge directly in the browser. Great for planning scenes,
+                  Chat with ViperMesh directly in the browser. Great for planning scenes,
                   drafting scripts, or reviewing AI suggestions on the go.
                 </p>
               </div>
               <div className="rounded-lg border p-4 space-y-2 bg-muted/40">
                 <h3 className="font-semibold">Blender integration (recommended)</h3>
                 <p className="text-sm text-muted-foreground">
-                  Install the ModelForge desktop app and Blender MCP extension for real-time viewport
+                  Install the ViperMesh desktop app and Blender MCP extension for real-time viewport
                   snapshots and one-click command execution inside Blender.
                 </p>
               </div>
@@ -208,7 +208,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           <CardContent>
             {project.conversations.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                No conversations yet. Start chatting with ModelForge to build your history.
+                No conversations yet. Start chatting with ViperMesh to build your history.
               </div>
             ) : (
               <div className="space-y-4">

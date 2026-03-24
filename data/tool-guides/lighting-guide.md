@@ -1,7 +1,7 @@
 ---
 title: "Lighting Setup & Configuration Guide"
 category: "lighting"
-tags: ["lighting", "light", "energy", "color temperature", "three-point", "studio", "sun", "spot", "area", "point", "HDRI", "add_light", "set_light_properties"]
+tags: ["lighting", "light", "energy", "color temperature", "three-point", "studio", "sun", "spot", "area", "point", "HDRI", "add_light", "set_light_properties", "lamp", "candle", "lantern", "torch", "sconce", "chandelier", "emission", "shade", "lamp shade"]
 triggered_by: ["add_light", "set_light_properties"]
 description: "Domain knowledge for light type selection, energy scaling, color temperature, shadow configuration, and professional lighting setups in Blender."
 blender_version: "4.0+"
@@ -79,6 +79,35 @@ Positioning relative to target at origin:
 | AREA `size` | Larger area = naturally softer shadows | 2.0 sharp, 5.0+ soft studio |
 | SUN `angle` | Controls sun shadow softness | 0.5° sharp, 2–5° soft |
 
+## LIGHT-EMITTING OBJECT GEOMETRY — CRITICAL
+
+When creating geometry for objects that emit light (floor lamps, table lamps, candles, lanterns, sconces, chandeliers, torches), you MUST ensure light can actually escape the geometry:
+
+### Open Geometry Rule
+- **Lamp shades** created from cones or cylinders MUST have an **open bottom** so the point light inside illuminates downward. A closed cone traps light completely — nothing reaches the scene.
+- Use `bpy.ops.mesh.primitive_cone_add()` and then **delete the bottom face** (the n-gon cap), or create the shade manually from vertices without a bottom face.
+- Alternatively, for simple shades, use a torus or ring shape that is inherently open.
+
+### Emission Material Rule
+- The shade/housing material should use **Emission Color + Emission Strength** so the shade itself appears to glow, matching the point light inside:
+  ```
+  bsdf.inputs['Emission Color'].default_value = (warm_r, warm_g, warm_b, 1.0)
+  bsdf.inputs['Emission Strength'].default_value = 2.0–5.0
+  ```
+- This is especially important for translucent materials (fabric shades, paper lanterns, frosted glass) where real light would shine through.
+
+### Point Light Placement
+- Place the POINT light **at the center of the open space**, not inside solid geometry.
+- For a floor lamp with a cone shade, place the light at the **bottom opening of the cone**, slightly inside.
+- For candles, place the light just above the flame geometry, not inside the wax body.
+
+### Checklist for Light-Emitting Objects
+1. ✅ Shade geometry has at least one opening (bottom, top, or sides)
+2. ✅ Shade material has Emission Color set to a warm tone
+3. ✅ POINT light is placed at the opening, not trapped inside solid mesh
+4. ✅ Light energy is high enough to illuminate surrounding objects (500W+ for lamps)
+5. ✅ If the shade is translucent (paper, fabric), lower Roughness and add Emission Strength 2–5
+
 ## COMMON MISTAKES TO AVOID
 
 1. ❌ Using POINT lights for all lighting — AREA is better for soft, realistic shadows
@@ -86,3 +115,5 @@ Positioning relative to target at origin:
 3. ❌ Forgetting light color — default white (1,1,1) feels flat; warm key + cool fill adds depth
 4. ❌ Only using one light — even simple scenes benefit from key + fill at minimum
 5. ❌ Not aiming lights at the target — use Track To constraint or calculate rotation toward subject
+6. ❌ Creating closed lamp shade geometry (cone/cylinder) around a point light — the light gets trapped and nothing illuminates the scene
+7. ❌ Not adding emission material to lamp shades — the shade looks dark even when a light is inside, making it appear non-functional

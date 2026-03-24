@@ -44,7 +44,7 @@ function ElectronCallbackContent() {
             if (success && accessToken) {
                 // Success! We have tokens from the API route
                 setStatus("success")
-                setMessage("Authentication successful! Returning to ModelForge...")
+                setMessage("Authentication successful! Returning to ViperMesh...")
 
                 // Redirect to Electron's local HTTP callback server
                 // This is more reliable than custom protocol handlers on Linux
@@ -89,10 +89,10 @@ function ElectronCallbackContent() {
             <div className="bg-slate-900/60 backdrop-blur-xl border border-teal-500/20 rounded-2xl p-10 max-w-md w-full mx-4 text-center shadow-2xl shadow-black/30">
                 {/* Logo */}
                 <div className="mb-8">
-                    <div className="w-16 h-16 mx-auto bg-gradient-to-br from-teal-600 to-teal-400 rounded-2xl flex items-center justify-center shadow-lg shadow-teal-500/25">
-                        <span className="text-2xl font-bold text-white">M</span>
+                    <div className="w-16 h-16 mx-auto flex items-center justify-center">
+                        <img src="/vipermesh-logo-transparent.png" alt="ViperMesh" className="w-16 h-16 object-contain" />
                     </div>
-                    <h1 className="mt-4 text-xl font-semibold text-white">ModelForge</h1>
+                    <h1 className="mt-4 text-xl font-semibold text-white">ViperMesh</h1>
                 </div>
 
                 {/* Status */}

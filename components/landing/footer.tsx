@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { motion } from "framer-motion"
+import { AnimatedLogo } from "@/components/ui/animated-logo"
 
 const footerLinks = {
   Product: [
@@ -48,19 +49,9 @@ export function Footer() {
             viewport={{ once: true, margin: "-40px" }}
             custom={0}
           >
-            <div className="flex items-center gap-2.5">
-              <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
-                <path
-                  d="M16 2L4 8v16l12 6 12-6V8L16 2z"
-                  fill="hsl(170 55% 65%)"
-                  fillOpacity="0.2"
-                  stroke="hsl(170 55% 65%)"
-                  strokeWidth="2"
-                  strokeLinejoin="round"
-                />
-                <circle cx="16" cy="14" r="3" fill="hsl(170 55% 65%)" />
-              </svg>
-              <span className="text-lg font-bold text-white">ModelForge</span>
+            <div className="flex items-center gap-4">
+              <AnimatedLogo size={64} />
+              <span className="text-3xl font-bold text-white tracking-tight">ViperMesh</span>
             </div>
             <p className="text-sm leading-relaxed" style={{ color: "hsl(215 20% 55%)" }}>
               AI-powered 3D creation for everyone. Build professional Blender
@@ -127,7 +118,7 @@ export function Footer() {
           transition={{ duration: 0.6, delay: 0.4 }}
         >
           <p className="text-xs" style={{ color: "hsl(215 20% 45%)" }}>
-            © 2026 ModelForge. All rights reserved.
+            © 2026 ViperMesh. All rights reserved.
           </p>
           <div className="flex items-center gap-4">
             <Link href="/privacy" className="text-xs hover:text-white transition-colors" style={{ color: "hsl(215 20% 45%)" }}>

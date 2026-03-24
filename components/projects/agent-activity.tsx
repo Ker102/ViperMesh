@@ -134,6 +134,12 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
     [toolEvents]
   )
 
+  // Count failed tools
+  const failedCount = useMemo(
+    () => toolEvents.filter((e) => e.status === "failed").length,
+    [toolEvents]
+  )
+
   if (!isActive && toolEvents.length === 0) return null
 
   // Show last few completed tools + active tool
@@ -141,6 +147,88 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
     .filter((e) => e.status === "completed")
     .slice(-3)
 
+  const allCompleted = toolEvents.filter((e) => e.status === "completed")
+  const allFailed = toolEvents.filter((e) => e.status === "failed")
+
+  // ── Collapsed summary when agent is done ──
+  if (!isActive && completedCount > 0) {
+    return (
+      <details
+        className="rounded-xl border px-4 py-3 mb-3 transition-all duration-300"
+        style={{
+          backgroundColor: "var(--forge-glass)",
+          borderColor: "hsl(var(--forge-border))",
+          backdropFilter: "blur(12px)",
+          boxShadow: "var(--forge-shadow)",
+        }}
+      >
+        <summary
+          className="cursor-pointer flex items-center gap-2 text-xs font-semibold uppercase tracking-wider select-none"
+          style={{ color: "hsl(var(--forge-text-subtle))" }}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="hsl(150 60% 45%)"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="shrink-0"
+          >
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          Done — {completedCount} tool{completedCount !== 1 ? "s" : ""} used{failedCount > 0 ? `, ${failedCount} failed` : ""}
+        </summary>
+        <div className="mt-2 space-y-0.5">
+          {allCompleted.map((e, i) => (
+            <div
+              key={`${e.toolName}-${e.timestamp}-${i}`}
+              className="flex items-center gap-2 py-1 px-2 rounded-lg opacity-60"
+            >
+              <ToolIcon status="completed" />
+              <span
+                className="text-xs"
+                style={{ color: "hsl(var(--forge-text-muted))" }}
+              >
+                {e.label}
+              </span>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="hsl(150 60% 45%)"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="ml-auto shrink-0"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+          ))}
+          {allFailed.map((e, i) => (
+            <div
+              key={`failed-${e.toolName}-${e.timestamp}-${i}`}
+              className="flex items-center gap-2 py-1 px-2 rounded-lg opacity-70"
+            >
+              <ToolIcon status="failed" />
+              <span
+                className="text-xs"
+                style={{ color: "hsl(0 70% 55%)" }}
+              >
+                {e.label} — failed
+              </span>
+            </div>
+          ))}
+        </div>
+      </details>
+    )
+  }
+
+  // ── Live streaming panel ──
   return (
     <div
       className="rounded-xl border px-4 py-3 mb-3 transition-all duration-300"
@@ -153,12 +241,12 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
     >
       {/* Header */}
       <div className="flex items-center gap-2 mb-2">
-        {isActive && <PulsingDot />}
+        <PulsingDot />
         <span
           className="text-xs font-semibold uppercase tracking-wider"
           style={{ color: "hsl(var(--forge-text-subtle))" }}
         >
-          {isActive ? "Agent working" : `Done — ${completedCount} tools used`}
+          Agent working
         </span>
       </div>
 

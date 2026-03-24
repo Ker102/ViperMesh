@@ -6,7 +6,7 @@ import { ElectronAuthListener } from "@/components/auth/electron-auth-listener"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "ModelForge - AI-Powered Blender Assistant",
+  title: "ViperMesh - AI-Powered Blender Assistant",
   description: "Transform your 3D workflow with AI-powered Blender automation. Create, modify, and enhance your Blender projects through natural conversation.",
   keywords: ["Blender", "AI", "3D modeling", "automation", "MCP", "machine learning"],
 }

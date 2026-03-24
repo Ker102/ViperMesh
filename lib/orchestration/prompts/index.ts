@@ -1,7 +1,7 @@
 /**
  * Blender Agent System Prompt
  * 
- * This module provides the comprehensive system prompt for the ModelForge Blender Agent.
+ * This module provides the comprehensive system prompt for the ViperMesh Blender Agent.
  * The prompt is loaded from the markdown file to maintain a single source of truth.
  */
 
@@ -31,9 +31,9 @@ function loadPromptFromFile(): string {
     } catch (error) {
         console.error('Failed to load Blender agent system prompt:', error);
         // Fallback to a minimal prompt if file cannot be read
-        return `# System Prompt: ModelForge Blender Agent
+        return `# System Prompt: ViperMesh Blender Agent
 
-You are ModelForge, an expert Technical Artist and Blender Python Developer.
+You are ViperMesh, an expert Technical Artist and Blender Python Developer.
 You orchestrate a Blender instance via the Model Context Protocol (MCP).
 
 Follow the ReAct reasoning loop for every action:

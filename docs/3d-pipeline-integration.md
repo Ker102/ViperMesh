@@ -1,4 +1,4 @@
-# ModelForge Pipeline — Integration Architecture & Provider APIs
+# ViperMesh Pipeline — Integration Architecture & Provider APIs
 
 ## The Full Production Pipeline
 
@@ -61,7 +61,7 @@ USER PROMPT
 **Sparc3D/Hitem3D** — Ultra HD mesh ($19.90/mo)
 **Spline** — Browser 3D editor with AI generation
 
-## ModelForge's Competitive Advantage
+## ViperMesh's Competitive Advantage
 
 ### What 3D-Agent Does (Our Closest Competitor)
 - Text → Blender Python → 3D model (same as us)

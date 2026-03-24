@@ -21,28 +21,28 @@ export function QuickStartCard() {
             </p>
           </li>
           <li>
-            <p className="font-semibold">Install the ModelForge addon in Blender</p>
+            <p className="font-semibold">Install the ViperMesh addon in Blender</p>
             <div className="mt-2 space-y-2 text-xs text-muted-foreground">
               <p>The addon is bundled with the desktop app. You can also download it here:</p>
               <Button asChild size="sm" className="gap-2">
-                <a href="/downloads/modelforge-addon.py" download>
+                <a href="/downloads/vipermesh-addon.py" download>
                   <Download className="h-3.5 w-3.5" />
                   Download addon
                 </a>
               </Button>
-              <p className="text-xs">In Blender: <strong>Edit → Preferences → Add-ons → Install</strong>, select the file, and enable <strong>&quot;Interface: ModelForge Blender&quot;</strong>.</p>
+              <p className="text-xs">In Blender: <strong>Edit → Preferences → Add-ons → Install</strong>, select the file, and enable <strong>&quot;Interface: ViperMesh Blender&quot;</strong>.</p>
             </div>
           </li>
           <li>
-            <p className="font-semibold">Connect to ModelForge</p>
+            <p className="font-semibold">Connect to ViperMesh</p>
             <p className="mt-2 rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
-              In Blender&apos;s 3D View, press <strong>N</strong> → <strong>ModelForge</strong> tab → <strong>&quot;Connect to ModelForge&quot;</strong>. The MCP Connection card below should show &quot;Connected&quot;.
+              In Blender&apos;s 3D View, press <strong>N</strong> → <strong>ViperMesh</strong> tab → <strong>&quot;Connect to ViperMesh&quot;</strong>. The MCP Connection card below should show &quot;Connected&quot;.
             </p>
           </li>
         </ol>
         <div className="rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
           <p className="font-medium text-foreground">No extra dependencies needed</p>
-          <p>The addon runs inside Blender&apos;s built-in Python and talks directly to ModelForge over a local socket. No separate Python, Git, or package manager install required.</p>
+          <p>The addon runs inside Blender&apos;s built-in Python and talks directly to ViperMesh over a local socket. No separate Python, Git, or package manager install required.</p>
         </div>
         <Button asChild variant="secondary" size="sm" className="gap-2">
           <Link href="/docs">

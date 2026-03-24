@@ -1,6 +1,84 @@
-# ModelForge — Current Progress
+# ViperMesh — Current Progress
 
-## Last Session: 2026-03-20 (03:00–05:15 AM)
+## Last Session: 2026-03-24 (PR #26 CodeRabbit Triage)
+
+### What Was Done
+1. **README Updates:** Renamed "Gemini 2.5 Pro" → "ViperAgent 2.0", Next.js 15 → 16, "Together.ai embeddings" → "Gemini embeddings".
+2. **PR #26 Triage — Batch 1 (Quick Wins):**
+   - Fixed `doc_url` in both addon copies (ModelForge → ViperMesh repo)
+   - Added `timeout=30/60` to all 6 `requests.get()` calls in both addons
+   - Replaced `<img>` with Next.js `Image` in `start-oauth/page.tsx`
+   - Fixed markdown lint (MD040) in `spatial-positioning-guide.md` and `test-prompts.md`
+   - Added "attach image" instruction to Test 18
+3. **PR #26 Triage — Batch 2 (Component Fixes):**
+   - Fixed nested `<button>` inside `<Link>` in `navbar.tsx` (motion.button → motion.div)
+   - Added file input reset, 10MB validation, and FileReader error handling in `studio-workspace.tsx`
+   - Added failed tool count + display in `agent-activity.tsx` collapsed summary
+4. **PR #26 Triage — Batch 3 (Logic Fixes):**
+   - Fixed RAG retry: now picks most-recent substantive prompt (reverse iter) instead of longest
+   - Fixed stale closure: added `workflowStepsRef` in `studio-layout.tsx` for `executeStep`/`handleRunAll`
+   - Fixed pre-existing lint: added `"skipped"` to `StepCommandResult.status` union in `workflow-timeline.tsx`
+
+## Previous Session: 2026-03-23 (20:30–20:50 PM)
+
+### What Was Done
+1. **Streaming UI Fix** (`project-chat.tsx`, `agent-activity.tsx`):
+   - Hid per-message `mcpCommands` (TOOL CALLS) block during active streaming — only `AgentActivity` shows live
+   - Fixed "Thinking…" indicator — now only appears when agent is reasoning, NOT during tool execution
+   - `AgentActivity` collapses into a closed-by-default `<details>` dropdown ("✓ N tools used") when agent finishes
+   - MCP execution summary is also now a `<details>` (closed by default) for past messages
+
+2. **Follow-up Quality Fix** (`route.ts`):
+   - Expanded `friendlyToolMap` from 7 to 27 entries — all common Blender tools now have human-readable labels
+   - Grouped & deduplicated tool labels (e.g. "cleaned up the scene (3×)" instead of "delete_object, delete_object, delete_object")
+   - Summary prompt now references visual outcomes, not tool names
+   - Fallback message uses grouped labels instead of raw tool names
+   - System prompt updated from "ModelForge" to "ViperMesh"
+
+3. **Documentation Rebrand (previous sub-session)** — All ~50 "ModelForge" → "ViperMesh" references updated across 13 doc files
+
+4. **New Test Prompts** (`docs/test-prompts.md`):
+   - Test 17: Multi-Object Fruit Market Stall (spatial + lighting)
+   - Test 18: Image Reference Recreation (vision + spatial)
+   - Tests 14-16 marked as future-only
+
+## Previous Session: 2026-03-23 (20:10–20:30 PM)
+
+### What Was Done
+1. **Documentation Rebrand** — Renamed all ~50 "ModelForge" → "ViperMesh" references across 13 doc files:
+   - `docs/future-plans.md`, `docs/architecture.md`, `docs/architecture-notes.md`
+   - `docs/3d-pipeline-strategy.md`, `docs/3d-pipeline-integration.md`
+   - `docs/HANDOFF.md`, `docs/research-pipeline-techniques.md`, `docs/test-prompts.md`
+   - `docs/addon-integration-roadmap.md`
+   - `SETUP.md`, `SECURITY.md`, `deploy/runpod/README.md`
+   - **Zero remaining `ModelForge` references in the entire project** (code + docs + config verified)
+
+## Previous Session: 2026-03-23 (04:00–04:20 AM)
+
+### What Was Done
+1. **Code Logic Rebrand** — Renamed `window.modelforge` → `window.vipermesh` and `modelforge-addon.py` → `vipermesh-addon.py`:
+   - Electron bridge: `preload.js` (exposeInMainWorld key), `electron.d.ts` (interface + Window prop)
+   - Frontend consumers: `login-form.tsx`, `electron-auth-listener.tsx`, `setup/page.tsx`
+   - Desktop app: `main.js` (env vars, deep link protocol, window title, HTML auth pages, addon paths)
+   - Desktop metadata: `package.json` (name, description, author, appId, productName, copyright)
+   - Addon file: renamed in both `desktop/assets/` and `public/downloads/`
+   - Addon internals: bl_info, User-Agent, sidebar panel category, class names, operator bl_idnames, UI text
+   - Download URLs: `docs/page.tsx`, `quick-start-card.tsx`
+   - **Build passed** (exit code 0). Zero remaining `window.modelforge`, `modelforge-addon`, or `modelforge` refs.
+
+## Previous Session: 2026-03-23 (03:30–04:00 AM)
+
+### What Was Done
+1. **ViperMesh UI Rebrand** — Replaced all ~80 user-facing "ModelForge" text strings with "ViperMesh" across 20 files
+   - **NOT changed**: `--forge-` CSS variable prefix (user confirmed leave as-is)
+
+### Still TODO for Full Rebrand
+- [x] `window.modelforge` → `window.vipermesh` ✅
+- [x] `modelforge-addon.py` → `vipermesh-addon.py` ✅
+- [ ] `--forge-*` CSS variable prefix → `--viper-*` (optional cosmetic, user deferred)
+- [ ] GitHub repo, Vercel project, domain
+
+## Previous Session: 2026-03-20 (03:00–05:15 AM)
 
 ### What Was Done
 1. **Chat UI Fixes** (`project-chat.tsx`):
@@ -68,3 +146,5 @@
 ### Future Implementation Plans
 > See `docs/future-plans.md` — the single source of truth for P0-P3 roadmap  
 > See `docs/architecture.md` — the canonical architecture reference (current vs legacy)
+- Added glassmorphism floating pill navbar with magnetic hover pills and spring CTA animations.
+- Added LineShadowText component (Magic UI) to '3D Models' hero text with teal shadow.

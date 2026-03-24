@@ -212,7 +212,7 @@ export function LocalLlmSettingsCard({
       <CardHeader>
         <CardTitle>Local LLM Configuration</CardTitle>
         <CardDescription>
-          Connect ModelForge to a locally hosted model (Ollama or LM Studio). Free-tier
+          Connect ViperMesh to a locally hosted model (Ollama or LM Studio). Free-tier
           accounts must configure a local provider before prompting.
         </CardDescription>
       </CardHeader>
@@ -354,7 +354,7 @@ export function LocalLlmSettingsCard({
           <ul className="list-disc space-y-1 pl-5">
             <li>Ollama: run <code>ollama serve</code> then pull a model with <code>ollama pull llama3.1</code>.</li>
             <li>LM Studio: enable the OpenAI-compatible server and copy the base URL from the UI.</li>
-            <li>Keep ModelForge and your provider on the same machine; remote URLs may reject CORS or require tunnels.</li>
+            <li>Keep ViperMesh and your provider on the same machine; remote URLs may reject CORS or require tunnels.</li>
           </ul>
         </div>
       </CardContent>

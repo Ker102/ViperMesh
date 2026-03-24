@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <style>
+    /* Snake path crawls along hexagon edges on hover */
+    .snake-body {
+      stroke-dasharray: 180;
+      stroke-dashoffset: 0;
+      transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    svg:hover .snake-body {
+      stroke-dashoffset: -360;
+    }
+
+    /* Hex wireframe subtle glow on hover */
+    .hex-wire {
+      transition: opacity 0.4s ease, filter 0.4s ease;
+    }
+    svg:hover .hex-wire {
+      filter: drop-shadow(0 0 6px rgba(13, 148, 136, 0.5));
+    }
+
+    /* Snake head rotates around on hover */
+    .snake-head {
+      transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+      transform-origin: 100px 100px;
+    }
+    svg:hover .snake-head {
+      transform: rotate(60deg);
+    }
+
+    /* Subtle scale on hover */
+    .logo-group {
+      transition: transform 0.3s ease;
+      transform-origin: 100px 100px;
+    }
+    svg:hover .logo-group {
+      transform: scale(1.03);
+    }
+  </style>
+
+  <g class="logo-group">
+    <!-- Hexagonal wireframe mesh -->
+    <g class="hex-wire">
+      <!-- Outer hexagon -->
+      <polygon 
+        points="100,25 162,62.5 162,137.5 100,175 38,137.5 38,62.5" 
+        fill="none" 
+        stroke="#0d9488" 
+        stroke-width="2.5" 
+        stroke-linejoin="round"
+        opacity="0.3"
+      />
+      <!-- Inner mesh lines (3D cube illusion) -->
+      <line x1="100" y1="25" x2="100" y2="100" stroke="#0d9488" stroke-width="1.5" opacity="0.2"/>
+      <line x1="162" y1="137.5" x2="100" y2="100" stroke="#0d9488" stroke-width="1.5" opacity="0.2"/>
+      <line x1="38" y1="137.5" x2="100" y2="100" stroke="#0d9488" stroke-width="1.5" opacity="0.2"/>
+    </g>
+
+    <!-- Snake body — traces the hexagon path -->
+    <path
+      class="snake-body"
+      d="M 100,25 
+         L 162,62.5 
+         L 162,137.5 
+         L 100,175 
+         L 38,137.5 
+         L 38,62.5 
+         Z"
+      fill="none"
+      stroke="#14b8a6"
+      stroke-width="5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+
+    <!-- Snake head — sits at top vertex -->
+    <g class="snake-head">
+      <!-- Head shape (pointed triangle) -->
+      <path d="M 93,22 L 100,12 L 107,22 L 103,25 L 97,25 Z" fill="#14b8a6"/>
+      <!-- Eyes -->
+      <circle cx="97" cy="20" r="1.2" fill="#000"/>
+      <circle cx="103" cy="20" r="1.2" fill="#000"/>
+    </g>
+
+    <!-- Tongue flick (appears on hover via CSS) -->
+    <line 
+      x1="100" y1="12" x2="100" y2="5" 
+      stroke="#14b8a6" 
+      stroke-width="0.8" 
+      opacity="0"
+      style="transition: opacity 0.3s ease 0.2s;"
+    >
+      <set attributeName="opacity" to="0"/>
+    </line>
+  </g>
+</svg>

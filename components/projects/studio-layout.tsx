@@ -33,8 +33,20 @@ async function fetchPersistedSteps(projectId: string): Promise<WorkflowTimelineS
 
 async function savePersistedSteps(projectId: string, steps: WorkflowTimelineStep[]) {
     try {
-        // Strip monitoring logs before saving to keep payload reasonable
-        const slim = steps.map(({ monitoringLogs, ...rest }) => rest)
+        // Strip monitoring logs and base64 image data before saving to keep payload reasonable
+        const slim = steps.map(({ monitoringLogs, ...rest }) => {
+            // Remove base64 image data from inputs (can be megabytes)
+            if (rest.inputs) {
+                const cleanInputs = { ...rest.inputs }
+                for (const key of Object.keys(cleanInputs)) {
+                    if (cleanInputs[key]?.startsWith("data:image/")) {
+                        cleanInputs[key] = "[image attached]"
+                    }
+                }
+                return { ...rest, inputs: cleanInputs }
+            }
+            return rest
+        })
         const res = await fetch("/api/projects/studio-session", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -60,11 +72,17 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
     const [activeCategory, setActiveCategory] = useState("shape")
     const [assistantOpen, setAssistantOpen] = useState(false)
     const [workflowSteps, setWorkflowSteps] = useState<WorkflowTimelineStep[]>([])
+    const workflowStepsRef = useRef<WorkflowTimelineStep[]>(workflowSteps)
     const [stepsLoading, setStepsLoading] = useState(true)
     const [selectedStepId, setSelectedStepId] = useState<string | null>(null)
     const abortControllerRef = useRef<AbortController | null>(null)
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const initialLoadDone = useRef(false)
+
+    // Keep ref in sync with state
+    useEffect(() => {
+        workflowStepsRef.current = workflowSteps
+    }, [workflowSteps])
 
     // ── Load steps from API on mount ─────────────────────────────
     useEffect(() => {
@@ -181,7 +199,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
     // ── Execute a step via the chat API ─────────────────────────
 
     const executeStep = useCallback(
-        async (stepId: string, message: string, conversationId?: string) => {
+        async (stepId: string, message: string, conversationId?: string, attachments?: Array<{ id: string; name: string; type: string; size: number; data: string }>) => {
             // Abort any previous request
             abortControllerRef.current?.abort()
             const abort = new AbortController()
@@ -195,18 +213,23 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
             let streamConversationId = conversationId
 
             try {
+                const payload: Record<string, unknown> = {
+                    projectId,
+                    conversationId: streamConversationId,
+                    message,
+                    // Studio step execution: skip text streaming + strategy classification
+                    // (the user already chose the tool, we just need the agent to execute it)
+                    workflowMode: "studio",
+                    studioStep: true,
+                }
+                if (attachments && attachments.length > 0) {
+                    payload.attachments = attachments
+                }
+
                 const res = await fetch("/api/ai/chat", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        projectId,
-                        conversationId: streamConversationId,
-                        message,
-                        // Studio step execution: skip text streaming + strategy classification
-                        // (the user already chose the tool, we just need the agent to execute it)
-                        workflowMode: "studio",
-                        studioStep: true,
-                    }),
+                    body: JSON.stringify(payload),
                     signal: abort.signal,
                 })
 
@@ -309,7 +332,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                                 }
 
                                 // Check if we already have live-streamed results
-                                const currentStep = workflowSteps.find((s) => s.id === stepId)
+                                const currentStep = workflowStepsRef.current.find((s) => s.id === stepId)
                                 const hasLiveResults = (currentStep?.commandResults ?? []).length > 0
 
                                 if (!hasLiveResults && commandResults.length > 0) {
@@ -382,6 +405,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                 updateStep(stepId, { status: "failed", error: errorMessage })
             }
         },
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         [projectId, updateStep, appendMessage, appendMonitoringLog, updateAssistantContent, appendCommandResult, appendAgentEvent]
     )
 
@@ -408,7 +432,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
 
     const handleRunAll = useCallback(() => {
         // Run each pending step sequentially
-        const pendingSteps = workflowSteps.filter((s) => s.status === "pending")
+        const pendingSteps = workflowStepsRef.current.filter((s) => s.status === "pending")
         if (pendingSteps.length === 0) return
 
         // Run first pending step — subsequent steps can be chained later
@@ -416,7 +440,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         const prompt = first.inputs?.prompt ?? first.title
         setSelectedStepId(first.id)
         executeStep(first.id, prompt)
-    }, [workflowSteps, executeStep])
+    }, [executeStep])
 
     const handleClearTimeline = useCallback(() => {
         abortControllerRef.current?.abort()
@@ -438,9 +462,27 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
             setWorkflowSteps((prev) => [...prev, step])
             setSelectedStepId(stepId)
 
+            // Extract image inputs as attachments
+            const attachments: Array<{ id: string; name: string; type: string; size: number; data: string }> = []
+            for (const inp of tool.inputs ?? []) {
+                if (inp.type === "image" && inputs[inp.key]) {
+                    const dataUrl = inputs[inp.key]
+                    // Extract mime type from data URL (e.g. data:image/png;base64,...)
+                    const mimeMatch = dataUrl.match(/^data:(image\/[^;]+);/)
+                    const mimeType = mimeMatch?.[1] ?? "image/png"
+                    attachments.push({
+                        id: `img-${Date.now()}`,
+                        name: `reference.${mimeType.split("/")[1] ?? "png"}`,
+                        type: mimeType,
+                        size: Math.round(dataUrl.length * 0.75), // approximate decoded size
+                        data: dataUrl,
+                    })
+                }
+            }
+
             // Execute immediately
             const prompt = inputs.prompt ?? inputs.description ?? `Run ${tool.name}`
-            executeStep(stepId, prompt)
+            executeStep(stepId, prompt, undefined, attachments.length > 0 ? attachments : undefined)
         },
         [executeStep]
     )
@@ -462,10 +504,10 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
     }, [])
 
     const handleSendMessage = useCallback(
-        (stepId: string, message: string) => {
+        (stepId: string, message: string, attachments?: Array<{ id: string; name: string; type: string; size: number; data: string }>) => {
             const step = workflowSteps.find((s) => s.id === stepId)
             if (!step) return
-            executeStep(stepId, message, step.conversationId)
+            executeStep(stepId, message, step.conversationId, attachments)
         },
         [workflowSteps, executeStep]
     )

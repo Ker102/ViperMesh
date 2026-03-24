@@ -124,6 +124,13 @@ export const TOOLS: Record<string, ToolEntry> = {
                 placeholder: "e.g. A medieval stone castle with two towers and a drawbridge",
                 helpText: "Be specific about shape, size, and details. The more you describe, the better the result.",
             },
+            {
+                key: "referenceImage",
+                label: "Reference image (optional)",
+                type: "image",
+                required: false,
+                helpText: "Upload an image for the AI to recreate or use as visual reference.",
+            },
         ],
         estimatedTime: "10–60 seconds",
     },

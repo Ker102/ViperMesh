@@ -96,7 +96,7 @@ export function StudioAdvisor({ open, onClose, projectId }: StudioAdvisorProps) 
                                 className="text-sm font-semibold"
                                 style={{ color: "hsl(var(--forge-text))" }}
                             >
-                                ModelForge Assistant
+                                ViperMesh Assistant
                             </h3>
                         </div>
                         <button

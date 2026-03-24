@@ -401,41 +401,84 @@ function ToolDetailView({
                                 )}
 
                                 {input.type === "image" && (
-                                    <div
-                                        className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer hover:border-[hsl(var(--forge-accent))] transition"
-                                        style={{
-                                            borderColor: "hsl(var(--forge-border))",
-                                            backgroundColor: "hsl(var(--forge-surface-dim))",
-                                        }}
-                                    >
-                                        <svg
-                                            width="32"
-                                            height="32"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="hsl(var(--forge-text-subtle))"
-                                            strokeWidth="1.5"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            className="mx-auto mb-2"
-                                        >
-                                            <rect
-                                                x="3"
-                                                y="3"
-                                                width="18"
-                                                height="18"
-                                                rx="2"
-                                                ry="2"
-                                            />
-                                            <circle cx="8.5" cy="8.5" r="1.5" />
-                                            <polyline points="21 15 16 10 5 21" />
-                                        </svg>
-                                        <p
-                                            className="text-sm"
-                                            style={{ color: "hsl(var(--forge-text-subtle))" }}
-                                        >
-                                            Drop image here or click to upload
-                                        </p>
+                                    <div>
+                                        {inputs[input.key] ? (
+                                            /* Image preview with remove button */
+                                            <div className="relative inline-block">
+                                                <img
+                                                    src={inputs[input.key]}
+                                                    alt="Reference"
+                                                    className="max-h-40 rounded-xl border object-contain"
+                                                    style={{ borderColor: "hsl(var(--forge-border))" }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setInputs({ ...inputs, [input.key]: "" })}
+                                                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md"
+                                                    style={{ backgroundColor: "hsl(0 84% 60%)" }}
+                                                    aria-label="Remove image"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            /* Upload area */
+                                            <label
+                                                className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer hover:border-[hsl(var(--forge-accent))] transition flex flex-col items-center gap-2"
+                                                style={{
+                                                    borderColor: "hsl(var(--forge-border))",
+                                                    backgroundColor: "hsl(var(--forge-surface-dim))",
+                                                }}
+                                            >
+                                                <svg
+                                                    width="32"
+                                                    height="32"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="hsl(var(--forge-text-subtle))"
+                                                    strokeWidth="1.5"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                >
+                                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                                                    <circle cx="8.5" cy="8.5" r="1.5" />
+                                                    <polyline points="21 15 16 10 5 21" />
+                                                </svg>
+                                                <p
+                                                    className="text-sm"
+                                                    style={{ color: "hsl(var(--forge-text-subtle))" }}
+                                                >
+                                                    Click to upload a reference image
+                                                </p>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    className="hidden"
+                                                    onClick={(e) => {
+                                                        // Reset value so re-selecting the same file triggers onChange
+                                                        (e.target as HTMLInputElement).value = ""
+                                                    }}
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0]
+                                                        if (!file) return
+                                                        // Validate file size (10 MB max)
+                                                        const MAX_SIZE = 10 * 1024 * 1024
+                                                        if (file.size > MAX_SIZE) {
+                                                            alert("Image must be under 10 MB")
+                                                            return
+                                                        }
+                                                        const reader = new FileReader()
+                                                        reader.onload = () => {
+                                                            setInputs({ ...inputs, [input.key]: reader.result as string })
+                                                        }
+                                                        reader.onerror = () => {
+                                                            console.error("Failed to read image file")
+                                                        }
+                                                        reader.readAsDataURL(file)
+                                                    }}
+                                                />
+                                            </label>
+                                        )}
                                     </div>
                                 )}
 

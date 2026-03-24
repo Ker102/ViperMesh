@@ -1,4 +1,4 @@
-# ModelForge — Session Handoff: 3D Pipeline Implementation
+# ViperMesh — Session Handoff: 3D Pipeline Implementation
 
 > **Date:** 2026-02-18
 > **Previous Session:** Deep research + strategy planning for multi-strategy 3D pipeline
@@ -8,7 +8,7 @@
 
 ## What Was Accomplished
 
-We completed a full research sprint on how to evolve ModelForge from a Blender-only procedural code-gen tool into a **multi-strategy 3D production platform**. Three generation strategies were identified and a 6-phase implementation plan was created.
+We completed a full research sprint on how to evolve ViperMesh from a Blender-only procedural code-gen tool into a **multi-strategy 3D production platform**. Three generation strategies were identified and a 6-phase implementation plan was created.
 
 ### The Three Strategies
 1. **Procedural** (existing) — LLM generates Blender Python → MCP executes → clean, editable output
@@ -33,7 +33,7 @@ We completed a full research sprint on how to evolve ModelForge from a Blender-o
 | Notebook | ID | Sources | Contents |
 |----------|----|---------|----------|
 | Mastering Blender Automation | `27a1b7ba-0b61-40ca-84e3-f8cce152a724` | 90 | Blender Python API docs, best practices, API pitfalls |
-| ModelForge 3D Pipeline Research | `c1ed9929-97af-4c67-944e-ec2932afa0a4` | 28 | Rigify deep research (61 web sources found, 28 imported) |
+| ViperMesh 3D Pipeline Research | `c1ed9929-97af-4c67-944e-ec2932afa0a4` | 28 | Rigify deep research (61 web sources found, 28 imported) |
 
 ### Key Research Findings (from `docs/research-pipeline-techniques.md`)
 - **Retopology**: `bpy.ops.object.voxel_remesh()` + `bpy.ops.object.quadriflow_remesh(target_faces=N)` — single-line APIs

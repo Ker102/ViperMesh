@@ -3,11 +3,16 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Sparkles } from "lucide-react"
+import { useState } from "react"
 import { motion } from "framer-motion"
+import { LineShadowText } from "@/components/ui/line-shadow-text"
 
 // ── Simplified Studio workspace preview (pure CSS/HTML) ────────
 
 function StudioPreview() {
+  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
+  const [activeTool, setActiveTool] = useState("Geometry")
+
   const sidebarIcons = [
     "M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z",
     "M3 6h18M3 12h18M3 18h18",
@@ -18,23 +23,108 @@ function StudioPreview() {
   ]
 
   const tools = [
-    { name: "Cube", active: true },
-    { name: "Sphere" },
-    { name: "Cylinder" },
-    { name: "Plane" },
-    { name: "Torus" },
-    { name: "Cone" },
+    {
+      name: "Geometry",
+      desc: "Create and edit 3D meshes, primitives, and complex geometry",
+      icon: (color: string) => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2L2 7l10 5 10-5-10-5z" />
+          <path d="M2 17l10 5 10-5" />
+          <path d="M2 12l10 5 10-5" />
+        </svg>
+      ),
+    },
+    {
+      name: "",
+      desc: "",
+      icon: () => <div className="w-4 h-4" />,
+    },
+    {
+      name: "Texture",
+      desc: "Apply and manage UV maps, textures, and surface patterns",
+      icon: (color: string) => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <path d="M3 9h18" />
+          <path d="M9 3v18" />
+          <path d="M15 3v18" />
+          <path d="M3 15h18" />
+        </svg>
+      ),
+    },
+    {
+      name: "Materials",
+      desc: "Design shaders, materials, and surface properties",
+      icon: (color: string) => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 3a9 9 0 0 1 0 18" fill={color} fillOpacity="0.15" />
+          <ellipse cx="9" cy="10" rx="2.5" ry="3.5" fill={color} fillOpacity="0.08" />
+        </svg>
+      ),
+    },
+    {
+      name: "Lighting",
+      desc: "Set up lights, shadows, and scene illumination",
+      icon: (color: string) => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2" />
+          <path d="M12 20v2" />
+          <path d="M4.93 4.93l1.41 1.41" />
+          <path d="M17.66 17.66l1.41 1.41" />
+          <path d="M2 12h2" />
+          <path d="M20 12h2" />
+          <path d="M6.34 17.66l-1.41 1.41" />
+          <path d="M19.07 4.93l-1.41 1.41" />
+        </svg>
+      ),
+    },
+    {
+      name: "Animate",
+      desc: "Keyframe animations, timelines, and motion paths",
+      icon: (color: string) => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 12h4l3-8 4 16 3-8h6" />
+        </svg>
+      ),
+    },
   ]
+
+  const handleMouseMove = (e: React.MouseEvent, desc: string) => {
+    if (!desc) return
+    const rect = e.currentTarget.closest('[data-studio-panel]')?.getBoundingClientRect()
+    if (rect) {
+      setTooltip({ text: desc, x: e.clientX - rect.left, y: e.clientY - rect.top - 32 })
+    }
+  }
 
   return (
     <div
-      className="w-full rounded-[2rem] overflow-hidden border-4"
+      data-studio-panel
+      className="w-full rounded-[2rem] overflow-hidden border-4 relative"
       style={{
         backgroundColor: "white",
         borderColor: "rgba(255, 255, 255, 0.4)",
         boxShadow: "0 0 0 1px hsl(var(--forge-border)), 0 30px 60px rgba(13, 148, 136, 0.15), 0 8px 32px rgba(0,0,0,0.08)",
       }}
     >
+      {/* Cursor-following tooltip */}
+      {tooltip && (
+        <div
+          className="absolute pointer-events-none z-50 px-2.5 py-1.5 rounded-lg text-[9px] font-medium whitespace-nowrap"
+          style={{
+            left: tooltip.x,
+            top: tooltip.y,
+            transform: "translateX(-50%)",
+            backgroundColor: "hsl(var(--forge-text))",
+            color: "white",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          }}
+        >
+          {tooltip.text}
+        </div>
+      )}
       {/* Title bar */}
       <div
         className="flex items-center justify-between px-4 py-2.5 border-b"
@@ -45,7 +135,7 @@ function StudioPreview() {
             <path d="M16 2L4 8v16l12 6 12-6V8L16 2z" />
           </svg>
           <span className="text-xs font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
-            ModelForge Studio
+            ViperMesh Studio
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -92,22 +182,28 @@ function StudioPreview() {
           </div>
 
           <div className="grid grid-cols-6 gap-1.5 mb-4">
-            {tools.map((tool) => (
-              <div key={tool.name}
-                className="aspect-square rounded-lg border flex flex-col items-center justify-center gap-1"
+            {tools.map((tool, idx) => {
+              const isActive = tool.name === activeTool
+              return (
+              <div key={tool.name || `empty-${idx}`}
+                className={`aspect-square rounded-lg border flex flex-col items-center justify-center gap-1 ${tool.desc ? 'cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-md' : ''}`}
                 style={{
-                  borderColor: tool.active ? "hsl(var(--forge-accent))" : "hsl(var(--forge-border))",
-                  backgroundColor: tool.active ? "hsl(var(--forge-accent-subtle))" : "hsl(var(--forge-surface-dim))",
-                }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                  stroke={tool.active ? "hsl(var(--forge-accent))" : "hsl(var(--forge-text-subtle))"} strokeWidth="1.5">
-                  <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" />
-                </svg>
-                <span className="text-[8px]" style={{
-                  color: tool.active ? "hsl(var(--forge-accent))" : "hsl(var(--forge-text-subtle))",
-                }}>{tool.name}</span>
+                  borderColor: isActive ? "hsl(var(--forge-accent))" : "hsl(var(--forge-border))",
+                  backgroundColor: isActive ? "hsl(var(--forge-accent-subtle))" : "hsl(var(--forge-surface-dim))",
+                }}
+                onClick={() => tool.name && setActiveTool(tool.name)}
+                onMouseMove={(e) => handleMouseMove(e, tool.desc)}
+                onMouseLeave={() => setTooltip(null)}
+              >
+                {tool.icon(isActive ? "hsl(var(--forge-accent))" : "hsl(var(--forge-text-subtle))")}
+                {tool.name && (
+                  <span className="text-[8px]" style={{
+                    color: isActive ? "hsl(var(--forge-accent))" : "hsl(var(--forge-text-subtle))",
+                  }}>{tool.name}</span>
+                )}
               </div>
-            ))}
+              )
+            })}
           </div>
 
           <div className="flex items-center justify-between mb-2">
@@ -217,9 +313,19 @@ export function Hero() {
             className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.1]"
             style={{ color: "hsl(var(--forge-text))" }}
           >
-            Build 3D Models with
+            Build <LineShadowText shadowColor="hsl(var(--forge-accent))">3D Models</LineShadowText> with
             <br />
-            <span style={{ color: "hsl(var(--forge-accent))" }}>Natural Language</span>
+            <span 
+              style={{ 
+                backgroundImage: "linear-gradient(to top, rgba(0,0,0,0.6) 0%, hsl(var(--forge-accent)) 40%, hsl(var(--forge-accent)) 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                color: "transparent"
+              }}
+            >
+              Natural Language
+            </span>
           </motion.h1>
 
           {/* Subtitle */}
@@ -231,7 +337,7 @@ export function Hero() {
             className="text-lg md:text-xl max-w-2xl mx-auto leading-relaxed"
             style={{ color: "hsl(var(--forge-text-muted))" }}
           >
-            ModelForge brings AI-powered automation to Blender. Create, modify,
+            ViperMesh brings AI-powered automation to Blender. Create, modify,
             and enhance your 3D projects through simple conversation.
           </motion.p>
 
@@ -278,21 +384,58 @@ export function Hero() {
 
         {/* Tilted Preview */}
         <motion.div
-          className="mt-20 mx-auto max-w-5xl relative"
+          className="mt-28 mx-auto max-w-5xl relative"
           style={{ perspective: "2000px" }}
           variants={scaleIn}
           initial="hidden"
           animate="visible"
         >
+          {/* Viper illustration wrapping behind the preview panel */}
+          <motion.img
+            src="/images/c815e7cf-ee13-48ff-a8a9-2189ac48a424.png"
+            alt=""
+            aria-hidden="true"
+            className="absolute pointer-events-none select-none"
+            style={{
+              width: "185%",
+              maxWidth: "none",
+              bottom: "-95%",
+              left: "50%",
+              marginLeft: "-90%",
+              zIndex: 2,
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1.2, delay: 0.6, ease: "easeOut" }}
+          />
           <div
             className="relative z-10 transition-transform duration-1000 ease-out hover:scale-[1.02]"
             style={{
-              transform: "translateY(10px) rotateX(12deg) rotateY(8deg) rotateZ(-3deg) scale(0.95)",
+              transform: "translateY(100px) rotateX(12deg) rotateY(8deg) rotateZ(-3deg) scale(0.95)",
               transformOrigin: "center center",
             }}
           >
             <StudioPreview />
           </div>
+          {/* Viper OVERLAY — body crossing ABOVE the panel */}
+          <motion.img
+            src="/images/c815e7cf-ee13-48ff-a8a9-2189ac48a424.png"
+            alt=""
+            aria-hidden="true"
+            className="absolute pointer-events-none select-none"
+            style={{
+              width: "185%",
+              maxWidth: "none",
+              bottom: "-95%",
+              left: "50%",
+              marginLeft: "-90%",
+              zIndex: 20,
+              clipPath: "polygon(0% 0%, 50% 0%, 50% 100%, 0% 100%)",
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1.2, delay: 0.6, ease: "easeOut" }}
+          />
           {/* Intense teal glow immediately behind the card */}
           <div
             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[110%] h-[110%] pointer-events-none"

@@ -11,13 +11,13 @@ We release patches for security vulnerabilities. The following versions are curr
 
 ## Reporting a Vulnerability
 
-The ModelForge team takes security bugs seriously. We appreciate your efforts to responsibly disclose your findings, and will make every effort to acknowledge your contributions.
+The ViperMesh team takes security bugs seriously. We appreciate your efforts to responsibly disclose your findings, and will make every effort to acknowledge your contributions.
 
 ### Please DO NOT report security vulnerabilities through public GitHub issues.
 
 Instead, please report security vulnerabilities by using GitHub's Security Advisory feature:
 
-1. Go to the [Security Advisories page](https://github.com/Ker102/ModelForge/security/advisories)
+1. Go to the [Security Advisories page](https://github.com/Ker102/ViperMesh/security/advisories)
 2. Click "Report a vulnerability"
 3. Fill in the details of the vulnerability
 
@@ -55,7 +55,7 @@ We prefer all communications to be in English.
 
 ## Security Best Practices for Users
 
-When using ModelForge, please follow these security best practices:
+When using ViperMesh, please follow these security best practices:
 
 * **Never commit secrets**: Do not commit API keys, passwords, or other sensitive data to your repository
 * **Use environment variables**: Store all sensitive configuration in environment variables
@@ -67,7 +67,7 @@ When using ModelForge, please follow these security best practices:
 
 ## Security Features
 
-ModelForge implements several security measures:
+ViperMesh implements several security measures:
 
 * Password hashing using bcryptjs with appropriate salt rounds
 * CSRF protection via NextAuth.js
@@ -101,4 +101,4 @@ We believe in recognizing security researchers who help keep our project secure.
 * List you in our SECURITY.md acknowledgments section
 * Include you in release notes for the fix
 
-Thank you for helping keep ModelForge and our users safe!
+Thank you for helping keep ViperMesh and our users safe!

@@ -1,13 +1,13 @@
 {
-  "name": "modelforge-desktop",
+  "name": "vipermesh-desktop",
   "version": "0.1.0",
-  "description": "ModelForge - AI-Powered Blender Assistant",
-  "author": "ModelForge Team",
+  "description": "ViperMesh - AI-Powered Blender Assistant",
+  "author": "ViperMesh Team",
   "private": true,
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dev": "cross-env MODELFORGE_DESKTOP_ENV=development electron .",
+    "dev": "cross-env VIPERMESH_DESKTOP_ENV=development electron .",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
@@ -24,9 +24,9 @@
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "com.modelforge.desktop",
-    "productName": "ModelForge",
-    "copyright": "Copyright © 2026 ModelForge",
+    "appId": "com.vipermesh.desktop",
+    "productName": "ViperMesh",
+    "copyright": "Copyright © 2026 ViperMesh",
     "artifactName": "${productName}-${version}-${platform}-${arch}.${ext}",
     "directories": {
       "output": "dist",

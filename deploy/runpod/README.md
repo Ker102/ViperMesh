@@ -1,12 +1,12 @@
 # RunPod Serverless Deployment Guide
 
 Deploy Hunyuan3D Paint (PBR texturing) and Hunyuan3D Part (mesh segmentation)
-as RunPod Serverless endpoints for ModelForge's neural 3D pipeline.
+as RunPod Serverless endpoints for ViperMesh's neural 3D pipeline.
 
 ## Architecture
 
 ```
-ModelForge App → runpod-client.ts → RunPod API v2 → Docker Worker → GPU
+ViperMesh App → runpod-client.ts → RunPod API v2 → Docker Worker → GPU
                                                          ↓
                                                    Model Output (GLB)
                                                          ↓
@@ -30,17 +30,17 @@ local Docker or Docker Hub needed.
 1. Go to [console.runpod.io/serverless](https://www.runpod.io/console/serverless)
 2. Click **"New Endpoint"**
 3. Under **Import GitHub Repository**, click **"Connect GitHub"**
-4. Authorize RunPod to access your ModelForge repo
+4. Authorize RunPod to access your ViperMesh repo
 
 ### Step 2: Deploy Hunyuan Paint Endpoint
 
-1. After connecting, select your **ModelForge** repo
+1. After connecting, select your **ViperMesh** repo
 2. Set the **Dockerfile path** to: `deploy/runpod/hunyuan-paint/Dockerfile`
 3. Configure the endpoint:
 
 | Setting | Value |
 |---------|-------|
-| **Name** | `modelforge-hunyuan-paint` |
+| **Name** | `vipermesh-hunyuan-paint` |
 | **GPU Type** | A5000 (24GB) or A6000 (48GB) |
 | **Min Workers** | `0` (scale to zero) |
 | **Max Workers** | `1` (increase for prod) |
@@ -58,7 +58,7 @@ Repeat Step 2 with:
 
 | Setting | Value |
 |---------|-------|
-| **Name** | `modelforge-hunyuan-part` |
+| **Name** | `vipermesh-hunyuan-part` |
 | **Dockerfile path** | `deploy/runpod/hunyuan-part/Dockerfile` |
 | **GPU Type** | A4000 (16GB) or A5000 (24GB) |
 | **Min Workers** | `0` |
@@ -76,7 +76,7 @@ After each deploy, grab the **Endpoint ID** from the endpoint URL:
 
 ---
 
-## Configure ModelForge
+## Configure ViperMesh
 
 Add the endpoint IDs and API key to your `.env`:
 

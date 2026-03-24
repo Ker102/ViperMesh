@@ -1093,11 +1093,42 @@ function createRAGMiddleware() {
       if (lastUserMsg) {
         const msg = lastUserMsg as unknown as Record<string, unknown>
         const rawUserContent = msg.content
-        const content = typeof rawUserContent === "string"
+        const lastContent = typeof rawUserContent === "string"
           ? rawUserContent
           : Array.isArray(rawUserContent)
             ? (rawUserContent as Array<{ text?: string }>).map((c) => c.text ?? "").join("")
             : ""
+
+        // Detect short "retry" / follow-up messages that are too vague for RAG.
+        // If the last message is very short or matches retry patterns, fall back to
+        // the longest previous human message for a more meaningful search query.
+        const RETRY_PATTERNS = /^(try\s*again|redo|retry|again|re-?run|go\s*again|one\s*more|repeat|do\s*it\s*again)/i
+        const isShortFollowUp = lastContent.length < 30 || RETRY_PATTERNS.test(lastContent.trim())
+
+        let content = lastContent
+        if (isShortFollowUp) {
+          // Find the most recent previous human message that is substantive (not a short follow-up).
+          // Iterating in reverse ensures we pick the closest relevant prompt, not an old unrelated one.
+          const allHumanMessages = messages.filter((m) => isHumanMessage(m))
+          let bestQuery = ""
+          for (let i = allHumanMessages.length - 1; i >= 0; i--) {
+            const hmRec = allHumanMessages[i] as unknown as Record<string, unknown>
+            const hmContent = typeof hmRec.content === "string"
+              ? hmRec.content
+              : Array.isArray(hmRec.content)
+                ? (hmRec.content as Array<{ text?: string }>).map((c) => c.text ?? "").join("")
+                : ""
+            // Pick the most recent human message that isn't itself a short follow-up
+            if (hmContent.length > 30 && hmContent !== lastContent) {
+              bestQuery = hmContent
+              break
+            }
+          }
+          if (bestQuery) {
+            console.log(`[RAG] Follow-up detected ("${lastContent.slice(0, 40)}") — using original prompt for search (${bestQuery.length} chars)`)
+            content = bestQuery
+          }
+        }
 
         if (content) {
           try {

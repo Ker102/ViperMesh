@@ -4,7 +4,8 @@ import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Hammer, LogOut, Settings, FolderOpen } from "lucide-react"
+import { LogOut, Settings, FolderOpen } from "lucide-react"
+import { AnimatedLogo } from "@/components/ui/animated-logo"
 import { createClient } from "@/lib/supabase/client"
 
 interface DashboardNavProps {
@@ -33,9 +34,9 @@ export function DashboardNav({ user }: DashboardNavProps) {
     <nav className="border-b bg-background">
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-2">
-            <Hammer className="h-6 w-6 text-primary" />
-            <span className="text-xl font-bold">ModelForge</span>
+          <Link href="/dashboard" className="flex items-center gap-3">
+            <AnimatedLogo size={32} />
+            <span className="text-2xl font-bold">ViperMesh</span>
           </Link>
           <div className="flex items-center gap-4">
             <Link href="/dashboard">

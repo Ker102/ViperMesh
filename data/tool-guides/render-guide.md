@@ -65,9 +65,23 @@ blender_version: "4.0+"
 
 **Default recommendation:** PNG for most renders. Use JPEG only when file size matters and you don't need transparency.
 
-## TRANSPARENT BACKGROUND
+## TRANSPARENT BACKGROUND (`film_transparent`)
 
-Set `film_transparent: true` to render with a transparent background. The output must be saved as PNG (or EXR) to preserve the alpha channel. JPEG does NOT support transparency.
+**Default: `film_transparent: false`** — most scenes should NOT use transparency.
+
+### When to USE `film_transparent: true`
+- **Product/object shots** where the object will be composited onto a different background
+- **Asset renders** for catalogs, UI thumbnails, or web overlays
+- **Compositing workflows** where the 3D render is layered over a photo/video
+
+### When NOT to use `film_transparent: true`
+- **Interior scenes** (rooms, kitchens, hallways) — walls and floors ARE the background
+- **Exterior scenes** (landscapes, cityscapes) — the sky/environment IS the background
+- **Any scene with environment geometry** (ground planes, backdrops, skyboxes)
+
+> **Rule:** If the scene has walls, floors, or any environmental geometry, `film_transparent` should be `false`. Enabling it will make the background geometry partially invisible or remove it entirely, producing broken-looking renders.
+
+The output must be saved as PNG (or EXR) to preserve the alpha channel. JPEG does NOT support transparency.
 
 ## BLENDER 5.x EEVEE-NEXT CHANGES
 
