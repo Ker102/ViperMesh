@@ -1,7 +1,7 @@
 ---
 title: "Scene Composition & Interior Design Principles"
 category: "scene-design"
-tags: ["composition", "interior", "camera", "framing", "layout", "furniture", "placement", "spatial", "depth"]
+tags: ["composition", "interior", "camera", "framing", "layout", "furniture", "placement", "spatial", "depth", "lamp", "lighting", "pendant", "shade", "light fixture"]
 description: "General 3D engineering principles for composing visually balanced interior and exterior scenes. Covers furniture placement, camera framing, visual hierarchy, and spatial organization."
 blender_version: "5.0+"
 ---
@@ -104,6 +104,46 @@ When using multiple lights in EEVEE:
 
 **Rule:** In warm scenes (cafés, homes), ALL lights should lean warm. Don't mix pure white lights with warm-colored lights — it creates an unnatural feel.
 
+## LIGHT PLACEMENT IN FIXTURES — CRITICAL
+
+When creating lamp, pendant, chandelier, or any light-emitting object:
+
+### The Cardinal Rule: Light Must Be BELOW or OUTSIDE the Shade
+
+A light source placed INSIDE a closed shade (cylinder, sphere, cone) is **trapped** and casts no useful illumination. The Blender light object must be positioned so rays can actually reach the scene.
+
+```python
+# CORRECT: Light below the open bottom of a pendant/lamp shade
+shade_bottom_z = lamp_z  # Bottom of shade geometry
+light_z = shade_bottom_z - 0.05  # 5cm below opening
+
+# WRONG: Light at center of shade (rays blocked by shade mesh)
+light_z = shade_bottom_z + shade_height / 2  # Trapped inside!
+```
+
+### Fixture Light Placement Rules
+| Fixture Type | Light Position | Light Type |
+|---|---|---|
+| **Pendant lamp** | 5–10cm BELOW shade opening | SPOT (cone down) or POINT |
+| **Floor lamp** | At shade opening, facing upward or downward | SPOT or POINT |
+| **Table lamp** | At the OPEN END of the shade, not the closed top | POINT |
+| **Chandelier** | Below the fixture body, never inside arms/structure | POINT or AREA |
+| **Wall sconce** | In front of the sconce plate, facing outward | POINT or SPOT |
+
+### Open Geometry for Shades
+If you create a cylindrical or conical shade, **delete the bottom face** so it's open:
+```python
+# After creating cylinder for shade:
+bpy.ops.object.mode_set(mode='EDIT')
+bpy.ops.mesh.select_all(action='DESELECT')
+bpy.ops.object.mode_set(mode='OBJECT')
+shade.data.polygons[0].select = True  # Bottom face
+bpy.ops.object.mode_set(mode='EDIT')
+bpy.ops.mesh.delete(type='FACE')
+bpy.ops.object.mode_set(mode='OBJECT')
+# Then place light BELOW this opening, not inside the now-hollow cylinder
+```
+
 ## OBJECT NAMING CONVENTIONS
 
 Use descriptive, hierarchical names that make the scene tree readable:
@@ -136,3 +176,4 @@ Camera_Main
 5. ❌ Mixing warm and cool lights randomly — stick to a consistent temperature palette
 6. ❌ Forgetting to include fill light — single-light scenes have harsh, unrealistic shadows
 7. ❌ Camera at ceiling height — use eye-level (1.4–1.7m) for natural perspective
+8. ❌ **Placing light INSIDE a shade/fixture** — light must be BELOW/OUTSIDE the shade opening, not trapped inside closed geometry. This is the #1 cause of dark, non-functional lamps in scenes.
