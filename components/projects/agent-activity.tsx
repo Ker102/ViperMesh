@@ -142,10 +142,32 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
 
   if (!isActive && toolEvents.length === 0) return null
 
-  // Show last few completed tools + active tool
-  const recentCompleted = toolEvents
-    .filter((e) => e.status === "completed")
-    .slice(-3)
+  // Group consecutive completed tools with the same name
+  const groupedCompleted = useMemo(() => {
+    const completed = toolEvents.filter((e) => e.status === "completed")
+    const groups: Array<{
+      toolName: string
+      label: string
+      count: number
+      timestamp: string
+    }> = []
+
+    for (const e of completed) {
+      const last = groups[groups.length - 1]
+      if (last && last.toolName === e.toolName) {
+        last.count++
+        last.timestamp = e.timestamp // keep latest timestamp
+      } else {
+        groups.push({
+          toolName: e.toolName,
+          label: e.label,
+          count: 1,
+          timestamp: e.timestamp,
+        })
+      }
+    }
+    return groups
+  }, [toolEvents])
 
   const allCompleted = toolEvents.filter((e) => e.status === "completed")
   const allFailed = toolEvents.filter((e) => e.status === "failed")
@@ -280,12 +302,12 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
         </div>
       )}
 
-      {/* Recent completed tools */}
-      {recentCompleted.length > 0 && (
+      {/* All completed tools (grouped by consecutive identical names) */}
+      {groupedCompleted.length > 0 && (
         <div className="space-y-0.5">
-          {recentCompleted.map((e, i) => (
+          {groupedCompleted.map((g, i) => (
             <div
-              key={`${e.toolName}-${e.timestamp}-${i}`}
+              key={`${g.toolName}-${g.timestamp}-${i}`}
               className="flex items-center gap-2 py-1 px-2 rounded-lg opacity-60"
             >
               <ToolIcon status="completed" />
@@ -293,7 +315,7 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
                 className="text-xs"
                 style={{ color: "hsl(var(--forge-text-muted))" }}
               >
-                {e.label}
+                {g.label}{g.count > 1 ? ` ×${g.count}` : ""}
               </span>
               <svg
                 width="12"
@@ -310,16 +332,6 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
               </svg>
             </div>
           ))}
-        </div>
-      )}
-
-      {/* Total count when many tools used */}
-      {completedCount > 3 && (
-        <div
-          className="text-xs mt-1 px-2"
-          style={{ color: "hsl(var(--forge-text-subtle))" }}
-        >
-          +{completedCount - 3} more completed
         </div>
       )}
     </div>
