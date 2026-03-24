@@ -454,12 +454,25 @@ function ToolDetailView({
                                                     type="file"
                                                     accept="image/*"
                                                     className="hidden"
+                                                    onClick={(e) => {
+                                                        // Reset value so re-selecting the same file triggers onChange
+                                                        (e.target as HTMLInputElement).value = ""
+                                                    }}
                                                     onChange={(e) => {
                                                         const file = e.target.files?.[0]
                                                         if (!file) return
+                                                        // Validate file size (10 MB max)
+                                                        const MAX_SIZE = 10 * 1024 * 1024
+                                                        if (file.size > MAX_SIZE) {
+                                                            alert("Image must be under 10 MB")
+                                                            return
+                                                        }
                                                         const reader = new FileReader()
                                                         reader.onload = () => {
                                                             setInputs({ ...inputs, [input.key]: reader.result as string })
+                                                        }
+                                                        reader.onerror = () => {
+                                                            console.error("Failed to read image file")
                                                         }
                                                         reader.readAsDataURL(file)
                                                     }}

@@ -1,12 +1,23 @@
 # ViperMesh — Current Progress
 
-## Last Session: 2026-03-24 (Recent Changes)
+## Last Session: 2026-03-24 (PR #26 CodeRabbit Triage)
 
 ### What Was Done
-1. **README Updates:**
-   - Renamed "Gemini 2.5 Pro" to "ViperAgent 2.0" to reflect the custom agent branding.
-   - Updated Next.js 15 to Next.js 16 to reflect the current Turbopack environment.
-   - Updated "Together.ai embeddings" to "Gemini embeddings" for the CRAG semantic search.
+1. **README Updates:** Renamed "Gemini 2.5 Pro" → "ViperAgent 2.0", Next.js 15 → 16, "Together.ai embeddings" → "Gemini embeddings".
+2. **PR #26 Triage — Batch 1 (Quick Wins):**
+   - Fixed `doc_url` in both addon copies (ModelForge → ViperMesh repo)
+   - Added `timeout=30/60` to all 6 `requests.get()` calls in both addons
+   - Replaced `<img>` with Next.js `Image` in `start-oauth/page.tsx`
+   - Fixed markdown lint (MD040) in `spatial-positioning-guide.md` and `test-prompts.md`
+   - Added "attach image" instruction to Test 18
+3. **PR #26 Triage — Batch 2 (Component Fixes):**
+   - Fixed nested `<button>` inside `<Link>` in `navbar.tsx` (motion.button → motion.div)
+   - Added file input reset, 10MB validation, and FileReader error handling in `studio-workspace.tsx`
+   - Added failed tool count + display in `agent-activity.tsx` collapsed summary
+4. **PR #26 Triage — Batch 3 (Logic Fixes):**
+   - Fixed RAG retry: now picks most-recent substantive prompt (reverse iter) instead of longest
+   - Fixed stale closure: added `workflowStepsRef` in `studio-layout.tsx` for `executeStep`/`handleRunAll`
+   - Fixed pre-existing lint: added `"skipped"` to `StepCommandResult.status` union in `workflow-timeline.tsx`
 
 ## Previous Session: 2026-03-23 (20:30–20:50 PM)
 

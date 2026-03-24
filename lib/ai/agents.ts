@@ -1107,19 +1107,21 @@ function createRAGMiddleware() {
 
         let content = lastContent
         if (isShortFollowUp) {
-          // Find the longest previous human message as a better RAG query
+          // Find the most recent previous human message that is substantive (not a short follow-up).
+          // Iterating in reverse ensures we pick the closest relevant prompt, not an old unrelated one.
           const allHumanMessages = messages.filter((m) => isHumanMessage(m))
           let bestQuery = ""
-          for (const hm of allHumanMessages) {
-            const hmRec = hm as unknown as Record<string, unknown>
+          for (let i = allHumanMessages.length - 1; i >= 0; i--) {
+            const hmRec = allHumanMessages[i] as unknown as Record<string, unknown>
             const hmContent = typeof hmRec.content === "string"
               ? hmRec.content
               : Array.isArray(hmRec.content)
                 ? (hmRec.content as Array<{ text?: string }>).map((c) => c.text ?? "").join("")
                 : ""
-            // Pick the longest human message that isn't itself a short follow-up
-            if (hmContent.length > bestQuery.length && hmContent.length > 30) {
+            // Pick the most recent human message that isn't itself a short follow-up
+            if (hmContent.length > 30 && hmContent !== lastContent) {
               bestQuery = hmContent
+              break
             }
           }
           if (bestQuery) {

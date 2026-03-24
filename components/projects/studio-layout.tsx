@@ -72,11 +72,17 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
     const [activeCategory, setActiveCategory] = useState("shape")
     const [assistantOpen, setAssistantOpen] = useState(false)
     const [workflowSteps, setWorkflowSteps] = useState<WorkflowTimelineStep[]>([])
+    const workflowStepsRef = useRef<WorkflowTimelineStep[]>(workflowSteps)
     const [stepsLoading, setStepsLoading] = useState(true)
     const [selectedStepId, setSelectedStepId] = useState<string | null>(null)
     const abortControllerRef = useRef<AbortController | null>(null)
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const initialLoadDone = useRef(false)
+
+    // Keep ref in sync with state
+    useEffect(() => {
+        workflowStepsRef.current = workflowSteps
+    }, [workflowSteps])
 
     // ── Load steps from API on mount ─────────────────────────────
     useEffect(() => {
@@ -326,7 +332,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                                 }
 
                                 // Check if we already have live-streamed results
-                                const currentStep = workflowSteps.find((s) => s.id === stepId)
+                                const currentStep = workflowStepsRef.current.find((s) => s.id === stepId)
                                 const hasLiveResults = (currentStep?.commandResults ?? []).length > 0
 
                                 if (!hasLiveResults && commandResults.length > 0) {
@@ -426,7 +432,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
 
     const handleRunAll = useCallback(() => {
         // Run each pending step sequentially
-        const pendingSteps = workflowSteps.filter((s) => s.status === "pending")
+        const pendingSteps = workflowStepsRef.current.filter((s) => s.status === "pending")
         if (pendingSteps.length === 0) return
 
         // Run first pending step — subsequent steps can be chained later
@@ -434,7 +440,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         const prompt = first.inputs?.prompt ?? first.title
         setSelectedStepId(first.id)
         executeStep(first.id, prompt)
-    }, [workflowSteps, executeStep])
+    }, [executeStep])
 
     const handleClearTimeline = useCallback(() => {
         abortControllerRef.current?.abort()

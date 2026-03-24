@@ -134,6 +134,12 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
     [toolEvents]
   )
 
+  // Count failed tools
+  const failedCount = useMemo(
+    () => toolEvents.filter((e) => e.status === "failed").length,
+    [toolEvents]
+  )
+
   if (!isActive && toolEvents.length === 0) return null
 
   // Show last few completed tools + active tool
@@ -142,6 +148,7 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
     .slice(-3)
 
   const allCompleted = toolEvents.filter((e) => e.status === "completed")
+  const allFailed = toolEvents.filter((e) => e.status === "failed")
 
   // ── Collapsed summary when agent is done ──
   if (!isActive && completedCount > 0) {
@@ -172,7 +179,7 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
           >
             <polyline points="20 6 9 17 4 12" />
           </svg>
-          Done — {completedCount} tool{completedCount !== 1 ? "s" : ""} used
+          Done — {completedCount} tool{completedCount !== 1 ? "s" : ""} used{failedCount > 0 ? `, ${failedCount} failed` : ""}
         </summary>
         <div className="mt-2 space-y-0.5">
           {allCompleted.map((e, i) => (
@@ -200,6 +207,20 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
               >
                 <polyline points="20 6 9 17 4 12" />
               </svg>
+            </div>
+          ))}
+          {allFailed.map((e, i) => (
+            <div
+              key={`failed-${e.toolName}-${e.timestamp}-${i}`}
+              className="flex items-center gap-2 py-1 px-2 rounded-lg opacity-70"
+            >
+              <ToolIcon status="failed" />
+              <span
+                className="text-xs"
+                style={{ color: "hsl(0 70% 55%)" }}
+              >
+                {e.label} — failed
+              </span>
             </div>
           ))}
         </div>

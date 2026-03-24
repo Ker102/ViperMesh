@@ -64,19 +64,23 @@ export function Navbar() {
         {/* CTA Buttons */}
         <div className="flex items-center gap-2 pr-2">
           <Link href="/login">
-            <motion.button
+            <motion.div
+              role="button"
+              tabIndex={0}
               whileHover={{ scale: 1.05, backgroundColor: "rgba(0,0,0,0.05)" }}
               whileTap={{ scale: 0.95 }}
-              className="text-sm font-medium rounded-full px-5 py-2.5 text-muted-foreground hover:text-foreground transition-colors"
+              className="text-sm font-medium rounded-full px-5 py-2.5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
               Log in
-            </motion.button>
+            </motion.div>
           </Link>
           <Link href="/signup">
-            <motion.button
+            <motion.div
+              role="button"
+              tabIndex={0}
               whileHover={{ scale: 1.05, filter: "brightness(1.1)" }}
               whileTap={{ scale: 0.95 }}
-              className="text-sm font-semibold rounded-full px-6 py-2.5 relative overflow-hidden group"
+              className="text-sm font-semibold rounded-full px-6 py-2.5 relative overflow-hidden group cursor-pointer"
               style={{
                 backgroundColor: "hsl(var(--forge-accent))",
                 color: "white",
@@ -90,7 +94,7 @@ export function Navbar() {
                 transition={{ duration: 0.6, ease: "easeInOut" }}
               />
               <span className="relative z-10">Get Started</span>
-            </motion.button>
+            </motion.div>
           </Link>
         </div>
       </motion.nav>

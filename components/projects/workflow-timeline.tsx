@@ -35,7 +35,7 @@ export interface StepMonitoringSummary {
 export interface StepCommandResult {
     id: string
     tool: string
-    status: "pending" | "ready" | "executed" | "failed"
+    status: "pending" | "ready" | "executed" | "failed" | "skipped"
     confidence?: number
     description?: string
     error?: string

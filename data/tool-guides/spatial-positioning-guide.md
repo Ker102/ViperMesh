@@ -143,19 +143,21 @@ for i, offset in enumerate([-1.5, 0, 1.5]):
 These patterns handle natural language like "leaning against", "beside", "resting on", "inside a container". The core principle: **always compute the actual surface boundary of BOTH objects before positioning.**
 
 ### CRITICAL: Scaled Dimensions
-A sphere with `radius=R` and `scale=(sx, sy, sz)` has actual extents:
-```
+
+```python
 actual_extent_x = R × sx    (NOT just R)
 actual_extent_y = R × sy
 actual_extent_z = R × sz
 ```
 
-A cube with `size=S` and `scale=(sx, sy, sz)` has half-extents:
-```
+
+
+```python
 half_x = (S / 2) × sx
 half_y = (S / 2) × sy  
 half_z = (S / 2) × sz
 ```
+
 
 **ALWAYS multiply dimensions by scale factors before computing offsets.**
 

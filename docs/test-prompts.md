@@ -367,9 +367,12 @@ of the animation.
 
 ---
 
+
 ### Test 17: Multi-Object Scene with Complex Spatial Relationships & Lighting
+
 **Tests:** Spatial reasoning across multiple grounded objects, relative positioning, height reasoning, lighting direction/color/shadow quality, material variety — all from a descriptive prompt with minimal exact values
-```
+
+```text
 Build an outdoor fruit market stall scene:
 
 1. Create a wooden market table (roughly 2m wide, 0.9m tall) in the center.
@@ -391,6 +394,7 @@ Build an outdoor fruit market stall scene:
 8. Set up a camera from a front-right angle (like a shopper approaching)
    at eye level, and render the scene.
 ```
+
 **What to verify (spatial + lighting + materials):**
 - Table is at realistic height (~0.9m), all fruits sitting ON the table (not floating)
 - Watermelon is noticeably larger than oranges/apples
@@ -405,13 +409,17 @@ Build an outdoor fruit market stall scene:
 
 ---
 
+
 ### Test 18: Image Reference Recreation (Vision + Spatial)
+
 **Tests:** Vision analysis of a reference image, translating visual understanding into Blender objects with correct spatial layout, proportions, and materials
 
 **Reference image:** `docs/test18-reading-nook-reference.png`
 
-```
-Look at this reference image carefully. Recreate this scene in Blender as
+**Before running this test:** attach `docs/test18-reading-nook-reference.png` to the chat input.
+
+```text
+Look at the attached reference image carefully. Recreate this scene in Blender as
 accurately as you can using basic shapes:
 
 - Match the overall layout and spatial arrangement of objects
@@ -423,6 +431,7 @@ accurately as you can using basic shapes:
 Don't worry about perfect detail — focus on getting the right objects,
 their relative positions, proportions, and the overall atmosphere correct.
 ```
+
 **What to verify (vision → spatial fidelity):**
 - Agent should call `get_viewport_screenshot` or describe what it sees in the reference
 - Scene should contain the major objects from the reference image (armchair, lamp, side table, mug, book, rug)
