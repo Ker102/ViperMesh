@@ -27,6 +27,10 @@
    - Added Test 20 in `docs/test-prompts.md` for an entryway console scene with round-mirror alignment, on-surface placement, and under-table spacing checks
    - Included both a reference-image generation prompt and the matching Studio Blender agent prompt
 
+6. **Studio streaming indicator cleanup:**
+   - Removed the redundant standalone `Thinking…` bubble from the Studio session drawer
+   - Moved reasoning-state display into the `AgentActivity` panel so it appears inline between tool-call phases while the step is still running
+
 ### Notes
 - `components/generation/ModelViewer.tsx` is already imported by `components/generation/GenerationPanel.tsx`, so it is part of the checked surface even if broader viewer work is still future-facing
 - Remaining non-failing console notice during lint: `baseline-browser-mapping` package age warning

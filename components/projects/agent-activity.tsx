@@ -177,6 +177,7 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
     () => toolEvents.filter((e) => e.status === "failed"),
     [toolEvents]
   )
+  const isReasoning = isActive && !activeTool
 
   if (!isActive && toolEvents.length === 0) return null
 
@@ -306,6 +307,31 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
               className="w-1 h-1 rounded-full animate-bounce"
               style={{ backgroundColor: "hsl(var(--forge-accent))", animationDelay: "300ms" }}
             />
+          </span>
+        </div>
+      )}
+
+      {/* Reasoning state between tool calls */}
+      {isReasoning && (
+        <div
+          className="flex items-center gap-2 py-1.5 px-2 rounded-lg mb-1"
+          style={{ backgroundColor: "hsl(var(--forge-surface-dim))" }}
+        >
+          <svg
+            className="w-4 h-4 animate-spin shrink-0"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="hsl(var(--forge-accent))"
+            strokeWidth="2"
+          >
+            <circle cx="12" cy="12" r="10" opacity="0.25" />
+            <path d="M12 2a10 10 0 0 1 10 10" />
+          </svg>
+          <span
+            className="text-sm font-medium"
+            style={{ color: "hsl(var(--forge-accent))" }}
+          >
+            Thinking…
           </span>
         </div>
       )}
