@@ -1,5 +1,23 @@
 # ViperMesh — Current Progress
 
+## Last Session: 2026-03-28 (Validated Leftover OAuth + Addon Cleanup Changes)
+
+### What Was Done
+1. **Validated the remaining uncommitted user edits:**
+   - `app/auth/start-oauth/page.tsx` switches the logo from raw `<img>` to `next/image`
+   - `desktop/assets/vipermesh-addon.py` and `public/downloads/vipermesh-addon.py` both:
+     - update `doc_url` from the old ModelForge repo to `https://github.com/Ker102/ViperMesh`
+     - add explicit request timeouts to PolyHaven HTTP calls
+
+2. **Verification:**
+   - `npm run lint` passes
+   - `python -m py_compile` passes for both addon copies
+   - Confirmed the GitHub repository URL is live
+
+### Notes
+- The two addon copies are byte-identical after the change.
+- These edits appear to be valid leftover local changes from an earlier session rather than new experimental work.
+
 ## Last Session: 2026-03-28 (Reference Reconstruction RAG Expansion)
 
 ### What Was Done
