@@ -19,6 +19,10 @@
    - Converted static public asset usage to `next/image` in the auth callback and landing UI
    - Kept user-supplied data URL previews on raw `<img>` in Studio/session surfaces via small helper wrappers with explicit rationale
 
+4. **Studio test-analysis workflow saved:**
+   - Added `docs/studio-script-gap-analysis.md` to capture the reusable comparison process for failed agent scripts vs expert scripts
+   - This is intended for manual Studio-mode test review, not Autopilot validation
+
 ### Notes
 - `components/generation/ModelViewer.tsx` is already imported by `components/generation/GenerationPanel.tsx`, so it is part of the checked surface even if broader viewer work is still future-facing
 - Remaining non-failing console notice during lint: `baseline-browser-mapping` package age warning
