@@ -13,6 +13,7 @@ import type { GeminiMessage } from "@/lib/gemini"
 import { createMcpClient } from "@/lib/mcp"
 // Legacy planner/executor removed — v2 agent handles tool selection directly
 import type {
+  AgentStreamEvent,
   ExecutionPlan,
   ExecutionLogEntry,
   PlanStep,
@@ -50,12 +51,95 @@ interface ExecutedCommand extends CommandStub {
   error?: string
 }
 
+type ToolTraceStatus = "started" | "completed" | "failed" | "skipped"
+
+interface ToolTraceEntry {
+  id: string
+  tool: string
+  status: ToolTraceStatus
+  timestamp: string
+  args: Record<string, unknown>
+  error?: string
+  duplicate?: boolean
+}
+
 function createStubId() {
   try {
     return randomUUID()
   } catch {
     return `stub-${Date.now()}`
   }
+}
+
+function summarizeToolArgsForMonitor(args: Record<string, unknown>): Record<string, unknown> {
+  const summarizeValue = (value: unknown, depth = 0): unknown => {
+    if (typeof value === "string") {
+      return value.length > 160 ? `${value.slice(0, 160)}… (${value.length} chars)` : value
+    }
+    if (Array.isArray(value)) {
+      const preview = value.slice(0, 8).map((item) => summarizeValue(item, depth + 1))
+      return value.length > 8 ? [...preview, `… (+${value.length - 8} more)`] : preview
+    }
+    if (value && typeof value === "object") {
+      if (depth >= 1) return "[object]"
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>).map(([key, nested]) => [key, summarizeValue(nested, depth + 1)])
+      )
+    }
+    return value
+  }
+
+  return Object.fromEntries(
+    Object.entries(args).map(([key, value]) => [key, summarizeValue(value)])
+  )
+}
+
+function buildExecutedCommandsFromToolTrace(
+  trace: ToolTraceEntry[],
+  interruptedError?: string
+): ExecutedCommand[] {
+  const commands: ExecutedCommand[] = []
+
+  for (const entry of trace) {
+    if (entry.status === "completed") {
+      commands.push({
+        id: createStubId(),
+        tool: entry.tool,
+        description: `Agent called ${entry.tool}`,
+        status: "executed" as const,
+        confidence: entry.duplicate ? 0.4 : 0.8,
+        arguments: entry.args,
+      })
+      continue
+    }
+
+    if (entry.status === "failed") {
+      commands.push({
+        id: createStubId(),
+        tool: entry.tool,
+        description: `Agent called ${entry.tool}`,
+        status: "failed" as const,
+        confidence: 0.3,
+        arguments: entry.args,
+        error: entry.error ?? interruptedError,
+      })
+      continue
+    }
+
+    if (entry.status === "started" && interruptedError) {
+      commands.push({
+        id: createStubId(),
+        tool: entry.tool,
+        description: `Agent started ${entry.tool} before interruption`,
+        status: "failed" as const,
+        confidence: 0.2,
+        arguments: entry.args,
+        error: interruptedError,
+      })
+    }
+  }
+
+  return commands
 }
 
 const WEB_RESEARCH_PATTERN = /(reference|research|inspiration|latest|trend|real[-\s]?world|accurate details|current|examples|ideas|design ideas|styles? from)/i
@@ -588,8 +672,53 @@ export async function POST(req: Request) {
 
           let executedCommands: ExecutedCommand[] = []
           let planningMetadata: PlanningMetadata | null = null
-          let executionLogs: ExecutionLogEntry[] | undefined = undefined
+          let executionLogs: ExecutionLogEntry[] = []
           let ragDocCount = 0
+          const toolTraceById = new Map<string, ToolTraceEntry>()
+          const toolTraceOrder: string[] = []
+
+          const getToolTrace = () =>
+            toolTraceOrder
+              .map((id) => toolTraceById.get(id))
+              .filter((entry): entry is ToolTraceEntry => Boolean(entry))
+
+          const recordToolEvent = (
+            event: Extract<AgentStreamEvent, { type: "agent:tool_call" }>
+          ) => {
+            const toolCallId = event.toolCallId ?? `${event.toolName}-${toolTraceOrder.length + 1}`
+            const existing = toolTraceById.get(toolCallId)
+            if (!existing) {
+              toolTraceOrder.push(toolCallId)
+            }
+
+            const nextEntry: ToolTraceEntry = {
+              id: toolCallId,
+              tool: event.toolName,
+              status: event.status,
+              timestamp: event.timestamp,
+              args: event.args ?? existing?.args ?? {},
+              error: event.error ?? existing?.error,
+              duplicate: event.duplicate ?? existing?.duplicate ?? false,
+            }
+
+            toolTraceById.set(toolCallId, nextEntry)
+            executionLogs.push({
+              timestamp: event.timestamp,
+              tool: event.toolName,
+              parameters: nextEntry.args,
+              error: event.status === "failed" ? nextEntry.error : undefined,
+              logType: event.status === "skipped" ? "system" : "execute",
+              detail:
+                event.status === "skipped"
+                  ? `Skipped duplicate tool call: ${event.toolName}`
+                  : `Tool ${event.status}: ${event.toolName}`,
+            })
+            monitor.debug("agent", `Tool ${event.status}: ${event.toolName}`, {
+              toolCallId,
+              duplicate: nextEntry.duplicate ?? false,
+              args: summarizeToolArgsForMonitor(nextEntry.args),
+            })
+          }
 
           // ── Neural/Hybrid or Studio mode → Guided Workflow (human-in-the-loop) ──
           // Note: studioStep uses the procedural path directly (bypasses workflow proposal)
@@ -763,12 +892,18 @@ export async function POST(req: Request) {
               // - Updated system prompt with all direct MCP tools
               // - ReAct loop for autonomous tool selection
               const { createBlenderAgentV2 } = await import("@/lib/ai/agents")
+              const handleAgentStreamEvent = (event: AgentStreamEvent) => {
+                if (event.type === "agent:tool_call") {
+                  recordToolEvent(event)
+                }
+                send(event)
+              }
               const agent = createBlenderAgentV2({
                 allowPolyHaven: assetConfig.allowPolyHaven,
                 allowSketchfab: assetConfig.allowSketchfab,
                 allowHyper3d: assetConfig.allowHyper3d,
                 useRAG: false, // RAG already done above
-                onStreamEvent: (event) => send(event),
+                onStreamEvent: handleAgentStreamEvent,
               })
 
               // ── Pre-inject scene state so agent is always scene-aware ──
@@ -837,62 +972,50 @@ export async function POST(req: Request) {
               )
 
               monitor.endTimer("agent_execution")
+              const toolTrace = getToolTrace()
 
               // Extract messages from agent result
               const agentMessages = agentResult.messages ?? []
-              const toolCallMessages = agentMessages.filter(
-                (m: unknown) => {
-                  if (!m || typeof m !== "object") return false
-                  const msg = m as { _getType?: () => string; tool_calls?: unknown[] }
-                  // Call _getType bound to the message (DO NOT extract the method reference)
-                  const msgType = typeof msg._getType === "function" ? msg._getType.call(msg) : undefined
-                  return msgType === "ai" &&
-                    Array.isArray(msg.tool_calls) &&
-                    (msg.tool_calls?.length ?? 0) > 0
-                }
-              )
-
-              // Build executed commands from agent tool calls
-              // First, collect tool_call_ids that were skipped by dedup middleware
-              const skippedToolCallIds = new Set<string>()
-              for (const m of agentMessages) {
-                if (!m || typeof m !== "object") continue
-                const msg = m as { _getType?: () => string; tool_call_id?: string; content?: string }
-                const msgType = typeof msg._getType === "function" ? msg._getType.call(msg) : undefined
-                if (msgType === "tool" && msg.content && typeof msg.content === "string") {
-                  try {
-                    if (msg.content.includes("_skipped_duplicate")) {
-                      if (msg.tool_call_id) skippedToolCallIds.add(msg.tool_call_id)
-                    }
-                  } catch { /* ignore parse errors */ }
-                }
-              }
-
-              for (const msg of toolCallMessages) {
-                const aiMsg = msg as { tool_calls?: Array<{ id?: string; name: string; args: Record<string, unknown> }> }
-                for (const tc of aiMsg.tool_calls ?? []) {
-                  // Skip tool calls that the dedup middleware already caught
-                  if (tc.id && skippedToolCallIds.has(tc.id)) {
-                    console.log(`[Agent] Skipped duplicate: ${tc.name} (dedup middleware caught this)`)
-                    continue
+              if (toolTrace.length > 0) {
+                executedCommands = buildExecutedCommandsFromToolTrace(toolTrace)
+              } else {
+                const toolCallMessages = agentMessages.filter(
+                  (m: unknown) => {
+                    if (!m || typeof m !== "object") return false
+                    const msg = m as { _getType?: () => string; tool_calls?: unknown[] }
+                    const msgType = typeof msg._getType === "function" ? msg._getType.call(msg) : undefined
+                    return msgType === "ai" &&
+                      Array.isArray(msg.tool_calls) &&
+                      (msg.tool_calls?.length ?? 0) > 0
                   }
-                  const args = tc.args ?? {}
-                  console.log(`[Agent] Tool: ${tc.name} | Args: ${JSON.stringify(args)}`)
-                  executedCommands.push({
-                    id: createStubId(),
-                    tool: tc.name,
-                    description: `Agent called ${tc.name}`,
-                    status: "executed",
-                    confidence: 0.8,
-                    arguments: args,
-                  })
+                )
+
+                for (const msg of toolCallMessages) {
+                  const aiMsg = msg as { tool_calls?: Array<{ name: string; args: Record<string, unknown> }> }
+                  for (const tc of aiMsg.tool_calls ?? []) {
+                    const args = tc.args ?? {}
+                    console.log(`[Agent] Tool: ${tc.name} | Args: ${JSON.stringify(args)}`)
+                    executedCommands.push({
+                      id: createStubId(),
+                      tool: tc.name,
+                      description: `Agent called ${tc.name}`,
+                      status: "executed",
+                      confidence: 0.8,
+                      arguments: args,
+                    })
+                  }
                 }
               }
 
-              const agentSuccess = toolCallMessages.length > 0
+              const agentSuccess = executedCommands.some((command) => command.status === "executed")
               monitor.info("agent", `Agent complete: ${executedCommands.length} tool calls`, {
-                tools: executedCommands.map(c => ({ name: c.tool, args: c.arguments })),
+                tools: (toolTrace.length > 0 ? toolTrace : executedCommands).map((entry) => ({
+                  name: entry.tool,
+                  status: "status" in entry ? entry.status : "completed",
+                  args: summarizeToolArgsForMonitor("args" in entry ? entry.args : entry.arguments),
+                })),
                 success: agentSuccess,
+                skippedDuplicates: toolTrace.filter((entry) => entry.status === "skipped").length,
               })
 
               planningMetadata = {
@@ -904,9 +1027,10 @@ export async function POST(req: Request) {
                   rationale: c.description,
                   expectedOutcome: `Tool ${c.tool} executed`,
                 })),
-                rawPlan: JSON.stringify(executedCommands, null, 2),
+                rawPlan: JSON.stringify(toolTrace.length > 0 ? toolTrace : executedCommands, null, 2),
                 retries: 0,
                 executionSuccess: agentSuccess,
+                executionLog: executionLogs.length > 0 ? executionLogs : undefined,
                 sceneSnapshot: sceneSnapshotResult.summary,
                 researchSummary: researchContext?.promptContext,
                 researchSources: researchContext?.sources,
@@ -938,20 +1062,42 @@ export async function POST(req: Request) {
               } catch { /* ignore write errors */ }
               const messageText =
                 error instanceof Error ? error.message : "Unknown agent error"
+              const toolTrace = getToolTrace()
+              if (toolTrace.length > 0) {
+                executedCommands = buildExecutedCommandsFromToolTrace(toolTrace, messageText)
+                monitor.info("agent", `Agent interrupted after ${toolTrace.length} tool calls`, {
+                  tools: toolTrace.map((entry) => ({
+                    name: entry.tool,
+                    status: entry.status,
+                    args: summarizeToolArgsForMonitor(entry.args),
+                  })),
+                  completed: toolTrace.filter((entry) => entry.status === "completed").length,
+                  failed: toolTrace.filter((entry) => entry.status === "failed").length,
+                  skipped: toolTrace.filter((entry) => entry.status === "skipped").length,
+                })
+              }
               planningMetadata = planningMetadata ?? {
-                planSummary: "Agent error",
-                planSteps: [],
-                rawPlan: "",
+                planSummary: toolTrace.length > 0 ? `Agent error after ${toolTrace.length} tool calls` : "Agent error",
+                planSteps: executedCommands.map((c, i) => ({
+                  stepNumber: i + 1,
+                  action: c.tool,
+                  parameters: c.arguments,
+                  rationale: c.description,
+                  expectedOutcome: c.status === "executed" ? `Tool ${c.tool} executed` : `Tool ${c.tool} failed`,
+                })),
+                rawPlan: toolTrace.length > 0 ? JSON.stringify(toolTrace, null, 2) : "",
                 retries: 0,
                 executionSuccess: false,
                 errors: [messageText],
                 fallbackUsed: false,
-                executionLog: executionLogs,
+                executionLog: executionLogs.length > 0 ? executionLogs : undefined,
                 sceneSnapshot: sceneSnapshotResult.summary,
                 researchSummary: researchContext?.promptContext,
                 researchSources: researchContext?.sources,
               }
-              executedCommands = []
+              if (toolTrace.length === 0) {
+                executedCommands = []
+              }
             }
           } // ← closing brace for procedural block
 

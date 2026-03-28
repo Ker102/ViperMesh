@@ -110,7 +110,15 @@ interface AgentWorkflowStepUpdate extends AgentEventBase { type: "agent:workflow
 interface AgentMonitoringLog extends AgentEventBase { type: "agent:monitoring_log"; entry: LogEntry }
 interface AgentMonitoringSummary extends AgentEventBase { type: "agent:monitoring_summary"; summary: SessionSummary }
 interface AgentStepScreenshot extends AgentEventBase { type: "agent:step_screenshot"; stepIndex: number; description: string }
-interface AgentToolCall extends AgentEventBase { type: "agent:tool_call"; toolName: string; status: "started" | "completed" | "failed" }
+interface AgentToolCall extends AgentEventBase {
+  type: "agent:tool_call"
+  toolName: string
+  status: "started" | "completed" | "failed" | "skipped"
+  toolCallId?: string
+  args?: Record<string, unknown>
+  error?: string
+  duplicate?: boolean
+}
 interface AgentToolResult extends AgentEventBase { type: "agent:tool_result"; toolName: string; success: boolean; summary?: string }
 interface AgentReasoning extends AgentEventBase { type: "agent:reasoning"; content: string }
 

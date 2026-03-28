@@ -1,5 +1,30 @@
 # ViperMesh — Current Progress
 
+## Last Session: 2026-03-28 (Recursion-Limit Telemetry Hardening)
+
+### What Was Done
+1. **Recursion-limit failure diagnosis:**
+   - Reviewed the failing Studio-mode session `d85b06a0`
+   - Confirmed the agent ran for about 3 minutes after CRAG injection, then died with `GraphRecursionError: Recursion limit of 50 reached`
+   - Confirmed the current persisted monitoring did **not** preserve the in-flight tool-call sequence for this failure mode, so the logs could not prove whether the agent was making real progress or looping wastefully
+
+2. **Partial tool-trace persistence added for direct agent runs:**
+   - Enriched `agent:tool_call` events with `toolCallId`, `args`, duplicate markers, and failure details
+   - Dedup middleware now emits explicit `skipped` events when an identical tool call is suppressed
+   - `app/api/ai/chat/route.ts` now records streamed tool events incrementally into `executionLog` during the run instead of reconstructing everything only after `agent.invoke()` returns
+   - On agent crashes, partial tool history is now preserved in `planningMetadata.rawPlan`, `planningMetadata.executionLog`, and the orchestration log record
+
+3. **Failure summaries improved:**
+   - Recursion/interruption failures no longer collapse to “no tools were used” if tools actually ran before the crash
+   - Partial completed/failed tool calls are now surfaced from the streamed trace so the next failure can be diagnosed from stored logs
+
+4. **UI typing aligned with richer tool events:**
+   - Added `skipped` support to the Agent Activity event typing so duplicate-suppression events remain type-safe
+
+### Notes
+- This patch does **not** raise the recursion limit yet
+- The current conclusion is: we need one rerun with the new telemetry to determine whether the Blender agent is genuinely hitting a complexity ceiling or wasting steps on redundant action patterns
+
 ## Last Session: 2026-03-28 (Baseline Repair + Lint Stabilization)
 
 ### What Was Done

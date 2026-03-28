@@ -882,7 +882,7 @@ for (const t of ALL_TOOLS) {
  *
  * If the previous/in-flight call failed, retries are allowed.
  */
-function createDedupMiddleware() {
+function createDedupMiddleware(onStreamEvent?: (event: AgentStreamEvent) => void) {
   // Stable hash: deep-sort keys so {a:1,b:2} and {b:2,a:1} produce the same string,
   // including nested objects (e.g. {properties:{width:0.01}} vs {properties:{width:0.2}})
   function stableHash(args: Record<string, unknown>): string {
@@ -918,6 +918,15 @@ function createDedupMiddleware() {
       const lastCall = lastCalls.get(flightKey)
       if (lastCall && !lastCall.failed) {
         console.log(`[Dedup] Skipping duplicate: ${toolName} (identical args, previous call succeeded)`)
+        onStreamEvent?.({
+          type: "agent:tool_call",
+          toolName,
+          status: "skipped",
+          timestamp: new Date().toISOString(),
+          toolCallId: request.toolCall.id ?? "unknown",
+          args: (request.toolCall.args as Record<string, unknown>) ?? {},
+          duplicate: true,
+        })
         const { ToolMessage: TM } = await import("@langchain/core/messages")
         return new TM({
           content: JSON.stringify({
@@ -931,6 +940,15 @@ function createDedupMiddleware() {
       // Check 2: Parallel duplicate — same call already in-flight
       if (inFlight.has(flightKey)) {
         console.log(`[Dedup] Coalescing parallel call: ${toolName} (waiting for in-flight result)`)
+        onStreamEvent?.({
+          type: "agent:tool_call",
+          toolName,
+          status: "skipped",
+          timestamp: new Date().toISOString(),
+          toolCallId: request.toolCall.id ?? "unknown",
+          args: (request.toolCall.args as Record<string, unknown>) ?? {},
+          duplicate: true,
+        })
         const existingResult = await inFlight.get(flightKey)
         const { ToolMessage: TM } = await import("@langchain/core/messages")
         return new TM({
@@ -980,6 +998,8 @@ function createStreamingMiddleware(onStreamEvent?: (event: AgentStreamEvent) => 
         toolName,
         status: "started",
         timestamp: new Date().toISOString(),
+        toolCallId: request.toolCall.id ?? "unknown",
+        args: (request.toolCall.args as Record<string, unknown>) ?? {},
       })
 
       let result: Awaited<ReturnType<typeof handler>>
@@ -999,6 +1019,7 @@ function createStreamingMiddleware(onStreamEvent?: (event: AgentStreamEvent) => 
           toolName,
           status: "completed",
           timestamp: new Date().toISOString(),
+          toolCallId: request.toolCall.id ?? "unknown",
         })
       } catch (error) {
         // Emit tool_call failed
@@ -1007,6 +1028,8 @@ function createStreamingMiddleware(onStreamEvent?: (event: AgentStreamEvent) => 
           toolName,
           status: "failed",
           timestamp: new Date().toISOString(),
+          toolCallId: request.toolCall.id ?? "unknown",
+          error: error instanceof Error ? error.message : String(error),
         })
         throw error
       }
@@ -1254,7 +1277,7 @@ export function createBlenderAgentV2(options: BlenderAgentV2Options = {}) {
 
   // Build middleware stack (dedup runs first to catch duplicates before side effects)
   const middleware = [
-    createDedupMiddleware(),
+    createDedupMiddleware(onStreamEvent),
     createStreamingMiddleware(onStreamEvent),
     createViewportMiddleware(onStreamEvent),
   ]

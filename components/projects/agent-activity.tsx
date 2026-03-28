@@ -45,13 +45,15 @@ function getToolLabel(toolName: string): string {
 }
 
 // Hammer/wrench icon SVG
-function ToolIcon({ status }: { status: "started" | "completed" | "failed" }) {
+function ToolIcon({ status }: { status: "started" | "completed" | "failed" | "skipped" }) {
   const color =
     status === "started"
       ? "hsl(var(--forge-accent))"
       : status === "completed"
         ? "hsl(150 60% 45%)"
-        : "hsl(0 70% 55%)"
+        : status === "failed"
+          ? "hsl(0 70% 55%)"
+          : "hsl(var(--forge-text-muted))"
 
   return (
     <svg
@@ -89,7 +91,7 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
     const calls: Array<{
       toolName: string
       label: string
-      status: "started" | "completed" | "failed"
+      status: "started" | "completed" | "failed" | "skipped"
       timestamp: string
     }> = []
 
@@ -97,7 +99,7 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
       if (event.type === "agent:tool_call") {
         const e = event as unknown as {
           toolName: string
-          status: "started" | "completed" | "failed"
+          status: "started" | "completed" | "failed" | "skipped"
           timestamp: string
         }
         calls.push({
