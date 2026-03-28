@@ -2,7 +2,7 @@
 title: "Spatial Positioning & Rotation-Aware Placement Guide"
 category: "spatial-positioning"
 tags: ["position", "rotation", "transform", "offset", "grounding", "alignment", "bounding box", "origin", "mathutils", "matrix", "execute_code", "set_object_transform", "get_object_info"]
-triggered_by: ["execute_code", "set_object_transform", "get_object_info"]
+triggered_by: ["set_object_transform", "get_object_info"]
 description: "Domain knowledge for accurate object positioning in 3D space, including rotation-aware placement, relative offsets, grounding, alignment, and bounding-box math. Prevents floating objects, misaligned parts, and incorrect spatial relationships."
 blender_version: "4.0+"
 ---

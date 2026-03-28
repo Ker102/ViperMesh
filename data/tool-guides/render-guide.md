@@ -41,6 +41,16 @@ blender_version: "4.0+"
 
 **Rule:** Always enable denoising for Cycles renders under 512 samples — it dramatically reduces noise.
 
+## INTERACTIVE PREVIEW RULE
+
+When the render is only for agent-side validation or user preview during an active build:
+- Prefer **EEVEE** for fast preview renders
+- If Cycles is required, keep it at **32-64 samples** with denoising
+- Prefer lower preview resolution or `resolution_percentage < 100` unless the user explicitly asked for a final-quality frame
+- Use higher sample counts only after the scene has already passed composition and silhouette review
+
+**Rule:** Do not spend interactive tool budget on near-final Cycles settings unless the user explicitly asks for final render quality.
+
 ## RESOLUTION PRESETS
 
 | Name | Width × Height | Aspect | Use Case |
@@ -109,3 +119,4 @@ The output must be saved as PNG (or EXR) to preserve the alpha channel. JPEG doe
 3. ❌ Setting Cycles samples to 2048+ without denoising — wastes render time
 4. ❌ Saving transparent renders as JPEG — alpha channel is lost, use PNG
 5. ❌ Forgetting to set the engine — always explicitly set EEVEE or CYCLES
+6. ❌ Using near-final Cycles settings for an iterative preview render — use EEVEE or 32–64 sample Cycles first

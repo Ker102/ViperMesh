@@ -2,7 +2,7 @@
 title: "Material Realism & Surface Differentiation Guide"
 category: "materials"
 tags: ["material", "realism", "PBR", "glass", "transparent", "IOR", "surface", "differentiation", "floor", "wall", "furniture", "category"]
-triggered_by: ["create_material", "execute_code"]
+triggered_by: ["create_material"]
 description: "Higher-level material engineering principles for creating visually distinct and physically plausible materials across different functional surfaces. Covers material differentiation strategy, transparency setup, and surface category guidelines."
 blender_version: "5.0+"
 ---

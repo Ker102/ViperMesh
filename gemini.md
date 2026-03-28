@@ -1,5 +1,42 @@
 # ViperMesh — Current Progress
 
+## Last Session: 2026-03-28 (Execute-Code Guidance Repair + Staged Reference Strategy)
+
+### What Was Done
+1. **Fixed live `execute_code` guide wiring:**
+   - Audited the tool-guide binding path in `lib/ai/agents.ts`
+   - Confirmed `TOOL_GUIDE_MAP` keeps only one guide per tool name, and `execute_code` was accidentally resolving to `weight-painting-guide.md`
+   - Added a new curated guide `data/tool-guides/execute-code-guide.md` so `execute_code` now receives general scene-building guidance instead of an unrelated specialist document
+
+2. **Aligned guide triggers with the one-guide-per-tool architecture:**
+   - Removed `execute_code` from `material-realism-guide.md`, `object-assembly-guide.md`, and `spatial-positioning-guide.md` trigger lists so they continue to serve their direct tools without hijacking generic scene generation
+   - Cleared `weight-painting-guide.md` triggers so it no longer overrides the global `execute_code` guide
+
+3. **Added generalized expert-strategy guidance for reference scenes:**
+   - New `execute-code-guide.md` teaches staged reference reconstruction:
+     - block out scene anchors first
+     - verify with screenshot
+     - refine only the camera-visible props that still fail silhouette/proportion
+     - avoid monolithic “build everything at once” Python passes
+   - Encoded the generalized missing-link rule from the entryway test:
+     prominent props need a minimum-part decomposition that preserves recognizable silhouette, even when the overall scene blockout is already correct
+
+4. **Updated the live Blender agent system prompt:**
+   - `lib/orchestration/prompts/blender-agent-system.md` now explicitly tells the Studio Blender agent to:
+     - stage image-reference reconstructions
+     - use screenshot checkpoints to decide targeted refinement
+     - reserve giant first-pass scripts for major layout only
+     - use direct tools for camera/light/render work once geometry stabilizes
+
+5. **Strengthened preview-render guidance:**
+   - `data/tool-guides/render-guide.md` now explicitly distinguishes interactive validation renders from final renders
+   - New rule: prefer EEVEE or low-sample Cycles for iterative previews, and avoid near-final Cycles settings until composition is already approved
+
+### Notes
+- This was driven by the successful 8-tool Studio entryway run: layout was decent, but prop fidelity on camera-visible details lagged because the agent over-compressed the scene into one coarse geometry pass
+- The design intent is generalized guidance only — no scene-specific heuristics were added
+- Blender target remains 5.x+
+
 ## Last Session: 2026-03-28 (Recursion-Limit Telemetry Hardening)
 
 ### What Was Done
