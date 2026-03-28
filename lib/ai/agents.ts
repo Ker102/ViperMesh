@@ -969,8 +969,7 @@ function createDedupMiddleware(onStreamEvent?: (event: AgentStreamEvent) => void
       let failed = false
       try {
         result = await handler(request)
-        const content = typeof result === "object" && "content" in result ? String(result.content) : ""
-        failed = content.includes('"error"')
+        failed = getToolResultError(result) !== null
       } catch (error) {
         failed = true
         throw error
@@ -984,6 +983,30 @@ function createDedupMiddleware(onStreamEvent?: (event: AgentStreamEvent) => void
       return result
     },
   })
+}
+
+function getToolResultContent(result: unknown): string {
+  return typeof result === "object" && result !== null && "content" in result
+    ? String(result.content)
+    : ""
+}
+
+function getToolResultError(result: unknown): string | null {
+  const content = getToolResultContent(result)
+  if (!content || content.includes("_skipped_duplicate")) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(content) as { error?: unknown }
+    if (typeof parsed?.error === "string" && parsed.error.trim()) {
+      return parsed.error
+    }
+  } catch {
+    // Fall back to string detection when the tool returns non-JSON content.
+  }
+
+  return content.includes('"error"') ? content : null
 }
 
 function createStreamingMiddleware(onStreamEvent?: (event: AgentStreamEvent) => void) {
@@ -1007,9 +1030,22 @@ function createStreamingMiddleware(onStreamEvent?: (event: AgentStreamEvent) => 
         result = await handler(request)
 
         // Check if the result indicates a skipped duplicate
-        const content = typeof result === "object" && "content" in result ? String(result.content) : ""
+        const content = getToolResultContent(result)
         if (content.includes("_skipped_duplicate")) {
           // Don't emit completed for skipped duplicates
+          return result
+        }
+
+        const embeddedError = getToolResultError(result)
+        if (embeddedError) {
+          onStreamEvent?.({
+            type: "agent:tool_call",
+            toolName,
+            status: "failed",
+            timestamp: new Date().toISOString(),
+            toolCallId: request.toolCall.id ?? "unknown",
+            error: embeddedError,
+          })
           return result
         }
 

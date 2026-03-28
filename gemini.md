@@ -1,5 +1,24 @@
 # ViperMesh — Current Progress
 
+## Last Session: 2026-03-28 (Tool Failure Surfacing + MCP Timeout Fix)
+
+### What Was Done
+1. **Fixed false-success tool streaming:**
+   - Updated `lib/ai/agents.ts` so tool results that return an embedded JSON error payload (for example `{"error":"..."}` inside `ToolMessage.content`) are treated as failures
+   - Both the dedup cache and the streaming middleware now use the same parsing path, so failed MCP responses no longer get cached as successful executions and no longer show green checks in the Studio activity panel
+
+2. **Raised default Blender MCP timeout:**
+   - Increased `lib/mcp/config.ts` default timeout from 30s to 120s
+   - The existing `BLENDER_MCP_TIMEOUT_MS` env override still works, but the default now better matches real Studio preview renders and other long-running Blender operations
+
+3. **Verification:**
+   - `npx tsc --noEmit` passes
+   - `npm run lint` passes
+
+### Notes
+- This change was driven by the entryway Studio trace where `delete_object(Camera)` and `render_image` returned embedded MCP errors even though the local monitor showed them as completed
+- The goal is trustworthy telemetry first; recursion limits and agent strategy decisions should not be made from false-positive success states
+
 ## Last Session: 2026-03-28 (Execute-Code Guidance Repair + Staged Reference Strategy)
 
 ### What Was Done
