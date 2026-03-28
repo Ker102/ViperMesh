@@ -23,6 +23,10 @@
    - Added `docs/studio-script-gap-analysis.md` to capture the reusable comparison process for failed agent scripts vs expert scripts
    - This is intended for manual Studio-mode test review, not Autopilot validation
 
+5. **New Studio-only image-context test added:**
+   - Added Test 20 in `docs/test-prompts.md` for an entryway console scene with round-mirror alignment, on-surface placement, and under-table spacing checks
+   - Included both a reference-image generation prompt and the matching Studio Blender agent prompt
+
 ### Notes
 - `components/generation/ModelViewer.tsx` is already imported by `components/generation/GenerationPanel.tsx`, so it is part of the checked surface even if broader viewer work is still future-facing
 - Remaining non-failing console notice during lint: `baseline-browser-mapping` package age warning
