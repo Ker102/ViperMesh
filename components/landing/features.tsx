@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { motion } from "framer-motion"
 
 // ── Features Section — Image-based illustrations (11 features) ──
@@ -123,13 +124,15 @@ function FeatureCard({
     >
       {/* Image illustration */}
       <div
-        className="w-full h-44 overflow-hidden"
+        className="relative w-full h-44 overflow-hidden"
         style={{ backgroundColor: "hsl(var(--forge-surface-dim))" }}
       >
-        <img
+        <Image
           src={image}
           alt={title}
-          className="w-full h-full object-cover group-hover:scale-[1.05] transition-transform duration-700 ease-out"
+          fill
+          sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+          className="object-cover group-hover:scale-[1.05] transition-transform duration-700 ease-out"
         />
       </div>
 

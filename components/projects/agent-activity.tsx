@@ -140,11 +140,8 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
     [toolEvents]
   )
 
-  if (!isActive && toolEvents.length === 0) return null
-
   // Group consecutive completed tools with the same name
   const groupedCompleted = useMemo(() => {
-    const completed = toolEvents.filter((e) => e.status === "completed")
     const groups: Array<{
       toolName: string
       label: string
@@ -152,7 +149,9 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
       timestamp: string
     }> = []
 
-    for (const e of completed) {
+    for (const e of toolEvents) {
+      if (e.status !== "completed") continue
+
       const last = groups[groups.length - 1]
       if (last && last.toolName === e.toolName) {
         last.count++
@@ -169,8 +168,17 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
     return groups
   }, [toolEvents])
 
-  const allCompleted = toolEvents.filter((e) => e.status === "completed")
-  const allFailed = toolEvents.filter((e) => e.status === "failed")
+  const allCompleted = useMemo(
+    () => toolEvents.filter((e) => e.status === "completed"),
+    [toolEvents]
+  )
+
+  const allFailed = useMemo(
+    () => toolEvents.filter((e) => e.status === "failed"),
+    [toolEvents]
+  )
+
+  if (!isActive && toolEvents.length === 0) return null
 
   // ── Collapsed summary when agent is done ──
   if (!isActive && completedCount > 0) {

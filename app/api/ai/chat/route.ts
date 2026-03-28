@@ -15,11 +15,11 @@ import { createMcpClient } from "@/lib/mcp"
 import type {
   ExecutionPlan,
   ExecutionLogEntry,
-  PlanGenerationResult,
   PlanStep,
   PlanningMetadata,
   ResearchSource,
 } from "@/lib/orchestration/types"
+import type { ExecutionResult } from "@/lib/orchestration/executor"
 import { recordExecutionLog } from "@/lib/orchestration/monitor"
 import { buildSystemPrompt } from "@/lib/orchestration/prompts"
 import { searchFirecrawl, type FirecrawlSearchResult } from "@/lib/firecrawl"
@@ -589,7 +589,6 @@ export async function POST(req: Request) {
           let executedCommands: ExecutedCommand[] = []
           let planningMetadata: PlanningMetadata | null = null
           let executionLogs: ExecutionLogEntry[] | undefined = undefined
-          let planResult: PlanGenerationResult | null = null
           let ragDocCount = 0
 
           // ── Neural/Hybrid or Studio mode → Guided Workflow (human-in-the-loop) ──
@@ -968,7 +967,6 @@ export async function POST(req: Request) {
               fallbackUsed: false,
               executionLog: executionLogs,
               sceneSnapshot: sceneSnapshotResult.summary,
-              analysis: planResult?.analysis,
               researchSummary: researchContext?.promptContext,
               researchSources: researchContext?.sources,
             }

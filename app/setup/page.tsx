@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState, useSyncExternalStore } from "react"
 
 interface SetupStep {
     step: number
@@ -38,26 +38,38 @@ const SETUP_STEPS: SetupStep[] = [
     },
 ]
 
+function subscribeToDesktopBridge() {
+    return () => {}
+}
+
 export default function SetupPage() {
     const [addonPath, setAddonPath] = useState<string>("")
     const [platform, setPlatform] = useState<string>("unknown")
-    const [isDesktop, setIsDesktop] = useState(false)
     const [folderOpened, setFolderOpened] = useState(false)
+    const isDesktop = useSyncExternalStore(
+        subscribeToDesktopBridge,
+        () => Boolean(window.vipermesh),
+        () => false,
+    )
 
     useEffect(() => {
-        // Check if running in Electron (desktop app)
-        if (typeof window !== "undefined" && window.vipermesh) {
-            setIsDesktop(true)
+        if (!isDesktop || !window.vipermesh) return
 
-            window.vipermesh.getAddonPath().then((result) => {
-                setAddonPath(result.path)
-            })
+        let cancelled = false
 
-            window.vipermesh.getAppInfo().then((info) => {
-                setPlatform(info.platform)
-            })
+        void Promise.all([
+            window.vipermesh.getAddonPath(),
+            window.vipermesh.getAppInfo(),
+        ]).then(([addonResult, info]) => {
+            if (cancelled) return
+            setAddonPath(addonResult.path)
+            setPlatform(info.platform)
+        })
+
+        return () => {
+            cancelled = true
         }
-    }, [])
+    }, [isDesktop])
 
     const handleOpenFolder = async () => {
         if (window.vipermesh) {
@@ -109,7 +121,7 @@ export default function SetupPage() {
                 {!isDesktop && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-8">
                         <p className="text-yellow-800">
-                            ⚠️ You're viewing this in a browser. For the best experience, open this page in the ViperMesh desktop app.
+                            ⚠️ You&apos;re viewing this in a browser. For the best experience, open this page in the ViperMesh desktop app.
                         </p>
                     </div>
                 )}
@@ -151,7 +163,7 @@ export default function SetupPage() {
 
                 {/* Success message */}
                 <div className="mt-8 bg-green-50 border border-green-200 rounded-lg p-6">
-                    <h3 className="font-semibold text-green-800 mb-2">🎉 You're all set!</h3>
+                    <h3 className="font-semibold text-green-800 mb-2">🎉 You&apos;re all set!</h3>
                     <p className="text-green-700">
                         Once connected, ViperMesh can communicate with Blender to help you create, modify, and enhance your 3D projects.
                     </p>

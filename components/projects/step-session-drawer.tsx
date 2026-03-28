@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, useMemo } from "react"
+import { useState, useRef, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { MonitoringPanel } from "./monitoring-panel"
 import { AgentActivity } from "./agent-activity"
@@ -52,6 +52,14 @@ interface StepSessionDrawerProps {
     onClose: () => void
     onSendMessage: (stepId: string, message: string, attachments?: Array<{ id: string; name: string; type: string; size: number; data: string }>) => void
     onStop?: (stepId: string) => void
+}
+
+function PreviewImage(props: React.ImgHTMLAttributes<HTMLImageElement> & { alt: string }) {
+    const { alt, ...imgProps } = props
+
+    // User-supplied previews are in-memory data URLs, so Next image optimization does not apply.
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img alt={alt} {...imgProps} />
 }
 
 // ============================================================================
@@ -137,19 +145,18 @@ export function StepSessionDrawer({
         setPendingImage(null)
     }
 
-    const rawMessages = step.messages ?? []
     const logs = step.monitoringLogs ?? []
     const summary = step.monitoringSummary ?? null
+    const rawMessages = step.messages ?? []
 
     // Filter out the first user message when it duplicates the "YOUR PROMPT" header
-    const messages = useMemo(() => {
-        if (!step.inputs?.prompt || rawMessages.length === 0) return rawMessages
-        const first = rawMessages[0]
-        if (first?.role === "user" && first.content?.trim() === step.inputs.prompt.trim()) {
-            return rawMessages.slice(1)
-        }
-        return rawMessages
-    }, [rawMessages, step.inputs?.prompt])
+    const messages =
+        step.inputs?.prompt &&
+        rawMessages.length > 0 &&
+        rawMessages[0]?.role === "user" &&
+        rawMessages[0].content?.trim() === step.inputs.prompt.trim()
+            ? rawMessages.slice(1)
+            : rawMessages
 
     return (
         <div
@@ -212,7 +219,7 @@ export function StepSessionDrawer({
                         </div>
                         {/* Reference image thumbnail */}
                         {step.inputs.referenceImage && (
-                            <img
+                            <PreviewImage
                                 src={step.inputs.referenceImage}
                                 alt="Reference"
                                 className="max-h-32 rounded-lg border object-contain mt-2"
@@ -247,7 +254,7 @@ export function StepSessionDrawer({
                                     {/* Render message content — detect data URLs and show as images */}
                                     {msg.content ? (
                                         msg.content.startsWith("data:image/") ? (
-                                            <img
+                                            <PreviewImage
                                                 src={msg.content}
                                                 alt="Attached image"
                                                 className="max-h-40 rounded-lg object-contain"
@@ -406,7 +413,7 @@ export function StepSessionDrawer({
                     {/* Pending image preview */}
                     {pendingImage && (
                         <div className="relative inline-block self-start">
-                            <img
+                            <PreviewImage
                                 src={pendingImage}
                                 alt="Pending attachment"
                                 className="h-16 rounded-lg border object-contain"

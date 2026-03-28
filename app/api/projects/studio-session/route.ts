@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import type { Prisma } from "@prisma/client"
 import { z } from "zod"
 
 // ── GET — Load studio session steps ──────────────────────────────
@@ -74,10 +75,12 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 })
   }
 
+  const serializedSteps = steps as Prisma.InputJsonValue
+
   const studioSession = await prisma.studioSession.upsert({
     where: { projectId },
-    create: { projectId, steps: steps as unknown as Record<string, unknown>[] },
-    update: { steps: steps as unknown as Record<string, unknown>[] },
+    create: { projectId, steps: serializedSteps },
+    update: { steps: serializedSteps },
     select: { id: true, updatedAt: true },
   })
 

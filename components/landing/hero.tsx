@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Sparkles } from "lucide-react"
@@ -217,9 +218,15 @@ function StudioPreview() {
               { name: "Robot Buddy", img: "/images/hero/robot.png", time: "28 mins ago" },
               { name: "Treehouse", img: "/images/hero/treehouse.png", time: "1 hour ago" },
             ].map((asset) => (
-              <div key={asset.name} className="rounded-lg overflow-hidden border" style={{ borderColor: "hsl(var(--forge-border))" }}>
-                <div className="aspect-square overflow-hidden">
-                  <img src={asset.img} alt={asset.name} className="w-full h-full object-cover" />
+                <div key={asset.name} className="rounded-lg overflow-hidden border" style={{ borderColor: "hsl(var(--forge-border))" }}>
+                <div className="relative aspect-square overflow-hidden">
+                  <Image
+                    src={asset.img}
+                    alt={asset.name}
+                    fill
+                    sizes="(min-width: 1024px) 12vw, 25vw"
+                    className="object-cover"
+                  />
                 </div>
                 <div className="px-1.5 py-1">
                   <span className="text-[7px] font-medium block truncate" style={{ color: "hsl(var(--forge-text))" }}>{asset.name}</span>
@@ -391,13 +398,11 @@ export function Hero() {
           animate="visible"
         >
           {/* Viper illustration wrapping behind the preview panel */}
-          <motion.img
-            src="/images/c815e7cf-ee13-48ff-a8a9-2189ac48a424.png"
-            alt=""
-            aria-hidden="true"
+          <motion.div
             className="absolute pointer-events-none select-none"
             style={{
               width: "185%",
+              aspectRatio: "4232 / 2362",
               maxWidth: "none",
               bottom: "-95%",
               left: "50%",
@@ -407,7 +412,16 @@ export function Hero() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 1.2, delay: 0.6, ease: "easeOut" }}
-          />
+          >
+            <Image
+              src="/images/c815e7cf-ee13-48ff-a8a9-2189ac48a424.png"
+              alt=""
+              aria-hidden="true"
+              fill
+              sizes="185vw"
+              className="object-contain"
+            />
+          </motion.div>
           <div
             className="relative z-10 transition-transform duration-1000 ease-out hover:scale-[1.02]"
             style={{
@@ -418,13 +432,11 @@ export function Hero() {
             <StudioPreview />
           </div>
           {/* Viper OVERLAY — body crossing ABOVE the panel */}
-          <motion.img
-            src="/images/c815e7cf-ee13-48ff-a8a9-2189ac48a424.png"
-            alt=""
-            aria-hidden="true"
+          <motion.div
             className="absolute pointer-events-none select-none"
             style={{
               width: "185%",
+              aspectRatio: "4232 / 2362",
               maxWidth: "none",
               bottom: "-95%",
               left: "50%",
@@ -435,7 +447,16 @@ export function Hero() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 1.2, delay: 0.6, ease: "easeOut" }}
-          />
+          >
+            <Image
+              src="/images/c815e7cf-ee13-48ff-a8a9-2189ac48a424.png"
+              alt=""
+              aria-hidden="true"
+              fill
+              sizes="185vw"
+              className="object-contain"
+            />
+          </motion.div>
           {/* Intense teal glow immediately behind the card */}
           <div
             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[110%] h-[110%] pointer-events-none"

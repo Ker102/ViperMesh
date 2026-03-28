@@ -16,6 +16,14 @@ interface StudioWorkspaceProps {
     onToolRunNow: (tool: ToolEntry, inputs: Record<string, string>) => void
 }
 
+function PreviewImage(props: React.ImgHTMLAttributes<HTMLImageElement> & { alt: string }) {
+    const { alt, ...imgProps } = props
+
+    // Uploaded reference previews use in-memory data URLs, so Next image optimization does not apply.
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img alt={alt} {...imgProps} />
+}
+
 // ── Difficulty Badge ────────────────────────────────────────────
 
 function DifficultyBadge({ level }: { level: string }) {
@@ -405,7 +413,7 @@ function ToolDetailView({
                                         {inputs[input.key] ? (
                                             /* Image preview with remove button */
                                             <div className="relative inline-block">
-                                                <img
+                                                <PreviewImage
                                                     src={inputs[input.key]}
                                                     alt="Reference"
                                                     className="max-h-40 rounded-xl border object-contain"

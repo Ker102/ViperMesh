@@ -7,7 +7,7 @@
     "build": "next build",
     "build:standalone": "next build && node -e \"console.log('Standalone build ready')\"",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",

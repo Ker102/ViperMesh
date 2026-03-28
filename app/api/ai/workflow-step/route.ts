@@ -13,7 +13,8 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { createBlenderAgentV2 } from "@/lib/ai/agents"
-import type { WorkflowStepAction, WorkflowStepResult, WorkflowStep } from "@/lib/orchestration/workflow-types"
+import { createMcpClient } from "@/lib/mcp"
+import type { WorkflowStepResult } from "@/lib/orchestration/workflow-types"
 import { z } from "zod"
 
 // ---------------------------------------------------------------------------
@@ -142,10 +143,12 @@ async function executeBlenderAgentStep(
         // Check if the agent produced any tool calls / responses
         const messages = result.messages ?? []
         const hasToolCalls = messages.some(
-            (m: Record<string, unknown>) =>
-                (m as { _getType?: () => string })._getType?.() === "ai" &&
-                Array.isArray((m as { tool_calls?: unknown[] }).tool_calls) &&
-                ((m as { tool_calls?: unknown[] }).tool_calls?.length ?? 0) > 0
+            (message) => {
+                const msg = message as { _getType?: () => string; tool_calls?: unknown[] }
+                return msg._getType?.() === "ai" &&
+                    Array.isArray(msg.tool_calls) &&
+                    (msg.tool_calls.length ?? 0) > 0
+            }
         )
 
         console.log(`[WorkflowStep] Agent completed: ${messages.length} messages, tool calls: ${hasToolCalls}`)

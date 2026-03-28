@@ -1,6 +1,29 @@
 # ViperMesh — Current Progress
 
-## Last Session: 2026-03-24 (PR #26 CodeRabbit Triage)
+## Last Session: 2026-03-28 (Baseline Repair + Lint Stabilization)
+
+### What Was Done
+1. **TypeScript baseline repair:**
+   - Fixed live typecheck failures in `app/api/ai/chat/route.ts`, `app/api/ai/workflow-step/route.ts`, and `app/api/projects/studio-session/route.ts`
+   - Aligned workflow event typing across `workflow-timeline.tsx`, `studio-layout.tsx`, and `step-session-drawer.tsx`
+   - Excluded non-runtime `scripts/` and `tmp/` paths from repo-wide typecheck noise in `tsconfig.json`
+   - Verified: `npx tsc --noEmit` passes
+
+2. **Lint/tooling modernization for Next 16:**
+   - Replaced deprecated `next lint` script with direct ESLint invocation in `package.json`
+   - Removed legacy `.eslintrc.json` and added flat config via `eslint.config.mjs`
+   - Fixed error-level React/JSX lint issues in setup, generation, and project activity/session UI files
+   - Verified: `npm run lint` passes
+
+3. **Image warning cleanup:**
+   - Converted static public asset usage to `next/image` in the auth callback and landing UI
+   - Kept user-supplied data URL previews on raw `<img>` in Studio/session surfaces via small helper wrappers with explicit rationale
+
+### Notes
+- `components/generation/ModelViewer.tsx` is already imported by `components/generation/GenerationPanel.tsx`, so it is part of the checked surface even if broader viewer work is still future-facing
+- Remaining non-failing console notice during lint: `baseline-browser-mapping` package age warning
+
+## Previous Session: 2026-03-24 (PR #26 CodeRabbit Triage)
 
 ### What Was Done
 1. **README Updates:** Renamed "Gemini 2.5 Pro" → "ViperAgent 2.0", Next.js 15 → 16, "Together.ai embeddings" → "Gemini embeddings".
