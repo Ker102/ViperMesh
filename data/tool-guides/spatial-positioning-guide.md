@@ -111,6 +111,24 @@ obj.matrix_world = loc @ rot
 # Applied right-to-left: scale first, rotate second, translate last
 ```
 
+### Local-to-World Attachment Points
+When a piece attaches to a rotated object, compute the connection point in world space first.
+
+```python
+from mathutils import Vector
+
+def local_point_to_world(obj, local_point):
+    return obj.matrix_world @ Vector(local_point)
+
+# Example pattern:
+parent_tip_world = local_point_to_world(parent_obj, (0.0, 0.5, 0.0))
+child_socket_world = local_point_to_world(child_obj, (0.0, -0.25, 0.0))
+delta = parent_tip_world - child_socket_world
+child_obj.matrix_world.translation += delta
+```
+
+**Rule:** If two rotated parts must meet cleanly, align named local attachment points in world space instead of guessing offsets from object origins.
+
 ## ALIGNMENT PATTERNS
 
 ### Center-to-Center (Stack Vertically)
@@ -130,6 +148,26 @@ B.location.x = A.location.x + (A_width/2) + (B_width/2)
 ```
 B.location.z = surface_top_z + (B_height/2) + gap
 ```
+
+### Support Placement via World-Space Bounding Boxes
+For rotated or non-uniformly scaled objects, derive the true contact surfaces from the world-space bounding box:
+
+```python
+from mathutils import Vector
+
+def world_bbox(obj):
+    corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+    min_corner = Vector((min(c.x for c in corners), min(c.y for c in corners), min(c.z for c in corners)))
+    max_corner = Vector((max(c.x for c in corners), max(c.y for c in corners), max(c.z for c in corners)))
+    return min_corner, max_corner
+
+obj_min, obj_max = world_bbox(obj)
+support_min, support_max = world_bbox(support_obj)
+delta_z = (support_max.z + 0.002) - obj_min.z
+obj.matrix_world.translation += Vector((0, 0, delta_z))
+```
+
+**Rule:** For "resting on" placement, move the object's actual world-space bottom to the support's actual world-space top. Do not approximate with `location.z + height/2` when rotation is involved.
 
 ### Symmetric Placement
 Place objects symmetrically around a center point:
@@ -221,6 +259,25 @@ for existing in placed_objects:
     if dist < min_separation:
         # push new_loc outward
 ```
+
+### Raycast Drop Placement for Irregular Surfaces
+Axis-aligned stacking is not enough for sloped or uneven supports. Use `scene.ray_cast` in world space:
+
+```python
+from mathutils import Vector
+
+depsgraph = bpy.context.evaluated_depsgraph_get()
+origin = Vector((obj.location.x, obj.location.y, obj.location.z + 100.0))
+direction = Vector((0, 0, -1))
+hit, location, normal, face_index, hit_obj, matrix = bpy.context.scene.ray_cast(
+    depsgraph,
+    origin,
+    direction,
+    distance=200.0,
+)
+```
+
+If the ray hits, translate the object so its world-space bottom sits at `location.z + margin`.
 
 ### Safety Margin Reference
 | Relationship | Minimum margin |
@@ -354,3 +411,5 @@ This is a standard technique from real-time collision detection — use it whene
 10. ❌ **Objects inside each other when meant to be touching** — Always compute both surfaces: `A_surface + B_half_width + margin`, never just `A_center + arbitrary_offset`
 11. ❌ **Reversing an object's functional direction** — When placing an object "at" or "facing" a companion, the open/functional side must face the companion. Back geometry extends AWAY, never into the companion object.
 12. ❌ **Skipping clearance validation after close placement** — After positioning any object near another, run an AABB overlap check to catch interpenetration before the user sees it
+13. ❌ **Using local attachment coordinates as if they were already world-space** — always convert with `matrix_world @ Vector(...)`
+14. ❌ **Using axis-aligned formulas on rotated or sloped supports** — derive contact from world-space bounding boxes or ray casts

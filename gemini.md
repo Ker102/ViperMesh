@@ -1,5 +1,34 @@
 # ViperMesh — Current Progress
 
+## Last Session: 2026-03-28 (Reference Reconstruction RAG Expansion)
+
+### What Was Done
+1. **Added generalized expert-pattern Blender scripts:**
+   - Added `data/blender-scripts/reference_reconstruction_workflow.py`
+   - Added `data/blender-scripts/support_surface_alignment.py`
+   - These scripts encode the missing generalized patterns from the Studio image-reference analysis:
+     - anchor-first blockout
+     - camera-prominence-based refinement ordering
+     - local-to-world attachment-point alignment
+     - world-space bounding-box support placement
+     - raycast-assisted drop placement for irregular surfaces
+
+2. **Strengthened existing RAG guides with the same non-scene-specific rules:**
+   - Extended `data/tool-guides/spatial-positioning-guide.md` with:
+     - local-to-world attachment point alignment
+     - world-space support-surface placement
+     - raycast placement for sloped/irregular supports
+   - Extended `data/tool-guides/scene-composition-guide.md` with a reference-reconstruction priorities section:
+     - blockout anchors first
+     - screenshot checkpoint before detail
+     - refine by camera prominence
+     - preserve recognizable silhouettes
+     - use focused follow-up passes instead of full-scene rebuilds
+
+### Notes
+- This checkpoint is intentionally generalized. No scene-specific recipes or hardcoded placement heuristics were added.
+- The goal is to narrow the gap between coarse first-pass agent scripts and expert reconstruction strategy without overfitting the corpus to the entryway test.
+
 ## Last Session: 2026-03-28 (Blender 5.x EEVEE Audit + RAG Factual Corrections)
 
 ### What Was Done

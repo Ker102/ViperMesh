@@ -81,6 +81,16 @@ After placing the camera, verify that important objects are within the camera fr
 - No important objects clipped by the frame edges
 - Consider rotating camera slightly to include off-center elements
 
+## REFERENCE RECONSTRUCTION PRIORITIES
+
+When matching an image reference, do not treat all objects as equally important.
+
+1. **Block out scene anchors first** — floor, walls, major furniture, large framing elements
+2. **Check composition before chasing detail** — use a viewport screenshot to confirm layout, scale, and camera angle
+3. **Refine by camera prominence** — objects near the center, foreground, or strong light boundaries should get refinement before background accents
+4. **Preserve recognizable silhouettes** — a visible prop needs enough sub-parts to read correctly from the active camera, even if the scene is otherwise simple
+5. **Use focused follow-up passes** — if one visible prop reads poorly, refine that prop rather than rebuilding the entire scene
+
 ## LIGHTING BALANCE PRINCIPLES
 
 ### Interior Lighting Hierarchy
