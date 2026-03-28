@@ -1,5 +1,31 @@
 # ViperMesh — Current Progress
 
+## Last Session: 2026-03-28 (Blender 5.x EEVEE Audit + RAG Factual Corrections)
+
+### What Was Done
+1. **Re-verified Blender 5.x EEVEE API against official docs:**
+   - Confirmed from current Blender API docs that `scene.eevee.taa_render_samples` is still valid in Blender 5.x for final renders
+   - Confirmed `scene.eevee.taa_samples` is the viewport sample property
+   - Confirmed current AO distance lives on `view_layer.eevee.ambient_occlusion_distance`
+   - Confirmed the current render engine enum is `BLENDER_EEVEE`
+
+2. **Corrected inaccurate EEVEE guidance in the RAG corpus:**
+   - Fixed `data/tool-guides/render-guide.md` so it no longer falsely claims `taa_render_samples` was removed
+   - Rewrote the Blender 5.x EEVEE compatibility notes in:
+     - `data/blender-scripts/api_version_compatibility.py`
+     - `data/blender-scripts/tasks/rendering/eevee_setup.py`
+     - `data/blender-scripts/render_settings.py`
+     - `data/blender-scripts/tasks/rendering/render_configuration.py`
+   - Updated the affected scripts to use Blender 5.x-compatible sampling, compositor bloom guidance, and view-layer AO handling
+
+3. **Hardened compositor compatibility guidance:**
+   - Replaced the hard claim that `scene.node_tree` is simply “removed” with a version-safe access pattern:
+     prefer `scene.compositing_node_group` in Blender 5.x and fall back to `scene.node_tree` for older versions
+
+### Notes
+- This audit was triggered by the Studio entryway test review and a factual contradiction in the render guide
+- The goal of this checkpoint is corpus correctness first; the next checkpoint will add new generalized expert-pattern scripts/guides for staged reference reconstruction and prop refinement
+
 ## Last Session: 2026-03-28 (Tool Failure Surfacing + MCP Timeout Fix)
 
 ### What Was Done

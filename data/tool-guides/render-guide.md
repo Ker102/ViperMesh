@@ -29,7 +29,7 @@ blender_version: "4.0+"
 | Standard | 64 | Good quality, fast render |
 | High | 128–256 | Final renders, smooth gradients |
 
-> **Blender 5.x change:** Use `scene.eevee.taa_samples` — the old `scene.eevee.taa_render_samples` is REMOVED in 5.x.
+> **Blender 5.x sampling split:** `scene.eevee.taa_samples` controls viewport samples, while `scene.eevee.taa_render_samples` controls final render samples.
 
 ### Cycles
 | Quality Level | Samples | Use Case |
@@ -95,15 +95,22 @@ The output must be saved as PNG (or EXR) to preserve the alpha channel. JPEG doe
 
 ## BLENDER 5.x EEVEE-NEXT CHANGES
 
-> **CRITICAL — these properties are REMOVED in Blender 5.x:**
+> **CRITICAL — legacy top-level EEVEE toggles changed in Blender 5.x:**
 
-| Removed Property | Replacement |
+| Legacy Property | 5.x Guidance |
 |---|---|
-| `scene.eevee.use_ssr` | Removed (reflections handled differently) |
-| `scene.eevee.use_gtao` | Removed (AO handled differently) |
-| `scene.eevee.use_bloom` | Use **Compositor Glare node** (FOG_GLOW type) |
-| `scene.eevee.taa_render_samples` | Use `scene.eevee.taa_samples` |
-| `scene.eevee.shadow_cascade_size` | Removed |
+| `scene.eevee.use_ssr`, `scene.eevee.use_ssr_refraction`, `scene.eevee.use_screen_space_reflections` | Use current EEVEE ray-tracing / probe workflow instead of legacy SSR toggles |
+| `scene.eevee.use_gtao`, `scene.eevee.gtao_distance`, `scene.eevee.gtao_quality` | Use current view-layer AO controls such as `view_layer.eevee.ambient_occlusion_distance` |
+| `scene.eevee.use_bloom` | Use a compositor bloom/glare workflow |
+| `scene.eevee.shadow_cascade_size` | Use current shadow controls such as `scene.eevee.shadow_resolution_scale`, `shadow_ray_count`, and `shadow_step_count` |
+
+### Valid Sampling Properties in Blender 5.x
+
+| Property | Purpose |
+|---|---|
+| `scene.eevee.taa_samples` | Viewport sampling |
+| `scene.eevee.taa_render_samples` | Final render sampling |
+| `view_layer.eevee.ambient_occlusion_distance` | Ambient occlusion distance control |
 
 ## OUTPUT PATH HANDLING
 
@@ -114,9 +121,10 @@ The output must be saved as PNG (or EXR) to preserve the alpha channel. JPEG doe
 
 ## COMMON MISTAKES TO AVOID
 
-1. ❌ Using `scene.eevee.taa_render_samples` in Blender 5.x — use `taa_samples` instead
-2. ❌ Using `use_bloom`, `use_ssr`, `use_gtao` — all removed in 5.x
-3. ❌ Setting Cycles samples to 2048+ without denoising — wastes render time
-4. ❌ Saving transparent renders as JPEG — alpha channel is lost, use PNG
-5. ❌ Forgetting to set the engine — always explicitly set EEVEE or CYCLES
-6. ❌ Using near-final Cycles settings for an iterative preview render — use EEVEE or 32–64 sample Cycles first
+1. ❌ Confusing `scene.eevee.taa_samples` (viewport) with `scene.eevee.taa_render_samples` (final render)
+2. ❌ Using legacy `use_bloom`, `use_ssr`, or `use_gtao` properties in Blender 5.x
+3. ❌ Using `BLENDER_EEVEE_NEXT` instead of `BLENDER_EEVEE` in Blender 5.x
+4. ❌ Setting Cycles samples to 2048+ without denoising — wastes render time
+5. ❌ Saving transparent renders as JPEG — alpha channel is lost, use PNG
+6. ❌ Forgetting to set the engine — always explicitly set EEVEE or CYCLES
+7. ❌ Using near-final Cycles settings for an iterative preview render — use EEVEE or 32–64 sample Cycles first

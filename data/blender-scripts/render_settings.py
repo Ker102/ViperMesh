@@ -13,8 +13,10 @@ Configuration recipes for Cycles and EEVEE, including:
 
 BLENDER 5.0 BREAKING CHANGES:
 - EEVEE engine: 'BLENDER_EEVEE_NEXT' → 'BLENDER_EEVEE'
-- scene.eevee.gtao_distance → view_layer.eevee.ambient_occlusion_distance
-- scene.eevee.use_gtao → REMOVED
+- scene.eevee.taa_render_samples remains valid for final renders
+- scene.eevee.taa_samples controls viewport sampling
+- scene.eevee.gtao_distance / scene.eevee.use_gtao → view_layer.eevee.ambient_occlusion_distance
+- scene.eevee.use_bloom → compositor bloom/glare workflow
 - SceneEEVEE.gtao_quality → REMOVED
 - Render passes renamed: DiffCol→Diffuse Color, IndexMA→Material Index, Z→Depth
 - render.render() now accepts frame_start and frame_end
@@ -70,17 +72,19 @@ def setup_cycles_fast(samples=64, preview_samples=16):
 # - 5.0+:    'BLENDER_EEVEE'
 
 def setup_eevee_production():
-    """Production EEVEE settings for Blender 5.0."""
+    """Production EEVEE settings for Blender 5.x."""
     scene = bpy.context.scene
+    view_layer = bpy.context.view_layer
 
     # Engine — use 'BLENDER_EEVEE' (renamed in 5.0)
     scene.render.engine = 'BLENDER_EEVEE'
 
-    # EEVEE settings — NOTE: some properties moved in 5.0
-    # scene.eevee.use_gtao = True  # REMOVED in 5.0
-    # scene.eevee.gtao_distance → view_layer.eevee.ambient_occlusion_distance
-    scene.eevee.use_bloom = True
+    # EEVEE settings — use current 5.x sampling and shadow controls.
+    scene.eevee.taa_render_samples = 128
+    scene.eevee.taa_samples = 32
+    scene.eevee.shadow_resolution_scale = 1.0
     scene.eevee.use_volumetric_shadows = True
+    view_layer.eevee.ambient_occlusion_distance = 1.0
 
     # Color Management
     scene.view_settings.view_transform = 'AgX'
