@@ -1,5 +1,43 @@
 # ViperMesh — Current Progress
 
+## Last Session: 2026-03-29 (Seed Local Asset Library Scaffold + A23D Guidance)
+
+### What Was Done
+1. **Added a seed local-library scaffold script:**
+   - Added `scripts/maintenance/init-local-asset-library.ts`
+   - Added npm script `assets:init`
+   - The script creates the first recommended folder structure for:
+     - footwear
+     - plants
+     - baskets
+     - lamps
+     - books
+     - decor
+     - console tables / chairs / stools
+     - materials
+     - HDRIs
+   - It also creates:
+     - `README.md`
+     - `catalog/taxonomy.json`
+
+2. **Extended the local asset library doc with sourcing guidance:**
+   - Updated `docs/local-asset-library.md` with:
+     - A23D guidance
+     - the Poly Haven on-demand vs local-cache distinction
+     - the new two-step bootstrap flow:
+       1. `npm run assets:init`
+       2. `npm run assets:catalog`
+
+3. **Validation:**
+   - `npx tsc --noEmit` passes
+   - `npm run lint` passes
+   - `npm run assets:init -- --root tmp/local-assets-seed` succeeds
+   - `npm run assets:catalog -- --root tmp/local-assets-seed --out tmp/local-assets-seed/catalog/assets.json` succeeds and produces an empty starter manifest before assets are added
+
+### Notes
+- A23D looks useful as a selective paid source for local ingestion, but not as something to mirror wholesale into ViperMesh. Their public legal terms explicitly restrict circumvention/scraping and treat assets as licensed, not sold.
+- Poly Haven should remain mostly on-demand through the existing integration. Only frequently reused assets need local caching.
+
 ## Last Session: 2026-03-29 (Local Asset Library MVP)
 
 ### What Was Done

@@ -24,6 +24,8 @@ Start with sources that are legally clean and operationally stable:
 
 - Poly Haven for CC0-safe HDRIs, textures, and some models. Asset usage is free, but commercial API use has a separate permission path.  
   Sources: [License](https://polyhaven.com/license), [API](https://polyhaven.com/our-api)
+- A23D as a curated paid source for local-only ingestion, not as a library to mirror wholesale. Their public legal terms explicitly restrict circumvention/scraping and treat the assets as licensed, not sold. Public docs show Blender plugin/import workflows, but I did not find a public developer API spec strong enough to build against yet.  
+  Sources: [Docs](https://www.a23d.co/docs), [Legal](https://www.a23d.co/legal)
 - Your own expert-made assets for props that matter repeatedly in tests and demos.
 - User-supplied private assets, which fit the local-library model especially well.
 - Internal photogrammetry / scans or commissioned assets that you fully control.
@@ -43,6 +45,32 @@ Do not try to build a huge library immediately. Start with the props that repeat
 - chairs and stools
 
 The first useful library is small and opinionated, not large and messy.
+
+## A23D Guidance
+
+If you use A23D, treat it as a selective source for the local catalog:
+
+- download only the assets you actually want the agent to reuse
+- ingest them into your own curated local library one by one
+- keep source/license metadata in the manifest
+- do not try to bulk-mirror the service into ViperMesh
+
+That keeps you aligned with their legal posture and avoids building runtime coupling to a provider whose public API surface is not yet clear enough for production integration.
+
+## Do Poly Haven Assets Need To Be Local?
+
+Not initially.
+
+For Poly Haven:
+
+- the agent can keep pulling many HDRIs, textures, and models on demand through the existing integration
+- you do not need to pre-populate your local library with every Poly Haven asset
+- you should only cache locally the assets you use repeatedly and want to keep instantly available or reproducible
+
+So the practical split is:
+
+- **Poly Haven**: mostly on-demand, optionally cached later
+- **A23D / private / paid / user assets**: local curated library first
 
 ## Manifest Rules
 
@@ -69,6 +97,15 @@ That avoids ambiguous imports.
 ## Bootstrapping
 
 Use the bootstrap script to scan a library folder and generate a starter manifest:
+
+```bash
+npm run assets:init -- --root "D:\\ViperMeshAssets"
+npm run assets:catalog -- --root "D:\\ViperMeshAssets"
+```
+
+The first command creates the seed folder structure. The second scans it and generates the starter manifest.
+
+You can still run the catalog script directly:
 
 ```bash
 npx tsx scripts/maintenance/build-local-asset-catalog.ts --root "D:\\ViperMeshAssets"
