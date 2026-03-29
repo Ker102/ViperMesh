@@ -360,96 +360,98 @@ def create_profile_prism(name, profile_points, width, location):
 
 def create_boot(name, location, yaw_degrees, material, cuff_material):
     local = Vector(location)
+    meta_data = bpy.data.metaballs.new(f"{name}Meta")
+    meta_data.resolution = 0.045
+    meta_data.render_resolution = 0.03
+    meta_data.threshold = 0.18
+    meta_obj = bpy.data.objects.new(f"{name}_Meta", meta_data)
+    bpy.context.collection.objects.link(meta_obj)
+    meta_obj.location = local
 
-    outsole_profile = [
-        (0.125, 0.00),
-        (0.105, 0.03),
-        (-0.045, 0.03),
-        (-0.125, 0.025),
-        (-0.162, 0.014),
-        (-0.168, 0.00),
-    ]
-    upper_profile = [
-        (0.108, 0.02),
-        (0.105, 0.11),
-        (0.083, 0.22),
-        (0.040, 0.27),
-        (-0.025, 0.24),
-        (-0.085, 0.19),
-        (-0.132, 0.12),
-        (-0.160, 0.06),
-        (-0.170, 0.02),
-    ]
+    def add_blob(co, size_x, size_y, size_z, radius=1.0):
+        elem = meta_data.elements.new(type="ELLIPSOID")
+        elem.co = co
+        elem.radius = radius
+        elem.size_x = size_x
+        elem.size_y = size_y
+        elem.size_z = size_z
+        elem.use_scale_stiffness = True
+        elem.stiffness = 2.0
+        return elem
 
-    outsole = create_profile_prism(
-        f"{name}_Outsole",
-        outsole_profile,
-        width=0.110,
-        location=local + Vector((0.0, -0.005, 0.000)),
-    )
-    upper = create_profile_prism(
-        f"{name}_Upper",
-        upper_profile,
-        width=0.100,
-        location=local + Vector((0.0, 0.000, 0.000)),
-    )
+    add_blob((0.0, -0.020, 0.020), 0.060, 0.180, 0.020)
+    add_blob((0.0, -0.110, 0.034), 0.055, 0.100, 0.024)
+    add_blob((0.0, -0.138, 0.058), 0.050, 0.070, 0.034)
+    add_blob((0.0, -0.070, 0.060), 0.054, 0.110, 0.038)
+    add_blob((0.0, -0.010, 0.102), 0.050, 0.072, 0.046)
+    add_blob((0.0, 0.034, 0.145), 0.048, 0.064, 0.065)
+    add_blob((0.0, 0.062, 0.206), 0.044, 0.054, 0.070)
+    add_blob((0.0, 0.112, 0.036), 0.032, 0.034, 0.042)
 
-    bpy.ops.mesh.primitive_cube_add(location=local + Vector((0.0, 0.112, 0.040)))
-    heel = bpy.context.active_object
-    heel.name = f"{name}_Heel"
-    heel.scale = (0.032, 0.028, 0.045)
-    add_bevel(heel, width=0.003, segments=2)
-    shade_smooth(heel)
-
-    bpy.ops.mesh.primitive_cube_add(location=local + Vector((0.0, 0.118, 0.238)))
-    pull_tab = bpy.context.active_object
-    pull_tab.name = f"{name}_PullTab"
-    pull_tab.scale = (0.009, 0.004, 0.028)
-    add_bevel(pull_tab, width=0.002, segments=2)
-    shade_smooth(pull_tab)
+    deselect_all()
+    set_active(meta_obj)
+    bpy.ops.object.convert(target="MESH")
+    boot_body = bpy.context.active_object
+    boot_body.name = name
+    add_bevel(boot_body, width=0.0025, segments=2)
+    add_subsurf(boot_body, levels=1)
+    assign_material(boot_body, material)
+    shade_smooth(boot_body)
 
     bpy.ops.mesh.primitive_cylinder_add(
-        vertices=28,
-        radius=0.030,
-        depth=0.095,
-        location=local + Vector((0.0, 0.056, 0.194)),
+        vertices=32,
+        radius=0.036,
+        depth=0.055,
+        location=local + Vector((0.0, 0.070, 0.220)),
     )
     cuff_outer = bpy.context.active_object
     cuff_outer.name = f"{name}_CuffOuter"
-    cuff_outer.scale.x = 0.88
-    cuff_outer.scale.y = 1.12
+    cuff_outer.scale.x = 0.86
+    cuff_outer.scale.y = 1.04
     add_bevel(cuff_outer, width=0.0025, segments=2)
+    assign_material(cuff_outer, cuff_material)
     shade_smooth(cuff_outer)
 
     bpy.ops.mesh.primitive_cylinder_add(
-        vertices=28,
-        radius=0.024,
-        depth=0.082,
-        location=local + Vector((0.0, 0.056, 0.194)),
+        vertices=32,
+        radius=0.028,
+        depth=0.046,
+        location=local + Vector((0.0, 0.070, 0.218)),
     )
     cuff_inner = bpy.context.active_object
     cuff_inner.name = f"{name}_CuffInner"
-    cuff_inner.scale.x = 0.84
-    cuff_inner.scale.y = 1.06
+    cuff_inner.scale.x = 0.82
+    cuff_inner.scale.y = 1.00
     add_bevel(cuff_inner, width=0.002, segments=2)
-    shade_smooth(cuff_inner)
-
-    boot_parts = [outsole, upper, heel, pull_tab]
-    for obj in boot_parts:
-        assign_material(obj, material)
-        shade_smooth(obj)
-
-    assign_material(cuff_outer, cuff_material)
     assign_material(cuff_inner, cuff_material)
-    shade_smooth(cuff_outer)
     shade_smooth(cuff_inner)
 
-    pivot = Matrix.Translation(local)
-    unpivot = Matrix.Translation(-local)
-    rotation = Matrix.Rotation(math.radians(yaw_degrees), 4, "Z")
-    for obj in [*boot_parts, cuff_outer, cuff_inner]:
-        obj.matrix_world = pivot @ rotation @ unpivot @ obj.matrix_world
-    return boot_parts, cuff_outer, cuff_inner
+    pull_tab = create_rounded_part(
+        f"{name}_PullTab",
+        local + Vector((0.0, 0.115, 0.248)),
+        Vector((0.008, 0.004, 0.024)),
+    )
+    assign_material(pull_tab, cuff_material)
+
+    gusset_left = create_rounded_part(
+        f"{name}_GussetLeft",
+        local + Vector((-0.041, 0.026, 0.145)),
+        Vector((0.003, 0.030, 0.042)),
+    )
+    assign_material(gusset_left, cuff_material)
+
+    gusset_right = create_rounded_part(
+        f"{name}_GussetRight",
+        local + Vector((0.041, 0.026, 0.145)),
+        Vector((0.003, 0.030, 0.042)),
+    )
+    assign_material(gusset_right, cuff_material)
+
+    boot_parts = [boot_body, cuff_outer, cuff_inner, pull_tab, gusset_left, gusset_right]
+    for obj in boot_parts:
+        obj.rotation_euler.z = math.radians(yaw_degrees)
+
+    return boot_parts
 
 
 clear_scene()
@@ -478,8 +480,8 @@ mat_book_a = make_principled_material("BookA", (0.73, 0.77, 0.75, 1.0), roughnes
 mat_book_b = make_principled_material("BookB", (0.62, 0.69, 0.63, 1.0), roughness=0.74)
 mat_vase = make_principled_material("Vase", (0.63, 0.58, 0.54, 1.0), roughness=0.36)
 mat_basket = make_principled_material("Basket", (0.69, 0.54, 0.35, 1.0), roughness=0.92)
-mat_boot = make_principled_material("Boot", (0.22, 0.18, 0.14, 1.0), roughness=0.74)
-mat_boot_cuff = make_principled_material("BootCuff", (0.15, 0.13, 0.11, 1.0), roughness=0.88)
+mat_boot = make_principled_material("Boot", (0.11, 0.095, 0.080, 1.0), roughness=0.68)
+mat_boot_cuff = make_principled_material("BootCuff", (0.07, 0.060, 0.055, 1.0), roughness=0.84)
 mat_branch = make_principled_material("OliveBranch", (0.43, 0.34, 0.23, 1.0), roughness=0.82)
 mat_leaf = make_principled_material("OliveLeaf", (0.43, 0.49, 0.34, 1.0), roughness=0.72)
 mat_mirror_frame = make_principled_material("MirrorFrame", (0.76, 0.61, 0.40, 1.0), roughness=0.42)
@@ -714,8 +716,8 @@ shade_smooth(basket_handle_right)
 mark("basket created")
 
 # Boots
-create_boot("BootLeft", (-0.28, 1.55, 0.00), yaw_degrees=-8.0, material=mat_boot, cuff_material=mat_boot_cuff)
-create_boot("BootRight", (-0.11, 1.58, 0.00), yaw_degrees=7.0, material=mat_boot, cuff_material=mat_boot_cuff)
+create_boot("BootLeft", (-0.255, 1.555, 0.00), yaw_degrees=-42.0, material=mat_boot, cuff_material=mat_boot_cuff)
+create_boot("BootRight", (-0.125, 1.585, 0.00), yaw_degrees=-24.0, material=mat_boot, cuff_material=mat_boot_cuff)
 mark("boots created")
 
 # Lighting

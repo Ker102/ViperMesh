@@ -280,7 +280,8 @@
 ### Current Status
 - Expert scene script exists and builds successfully
 - Plant silhouette is noticeably stronger than the agent output
-- Boot silhouette is improved versus the agent output, but may still need one more refinement pass after user review
+- Boot silhouette has been refined again using a safer blended-body construction path and darker materials
+- Current expert preview is materially closer to the reference than the earlier blocky boot pass
 
 ### What Was Done
 1. **ViperMesh UI Rebrand** — Replaced all ~80 user-facing "ModelForge" text strings with "ViperMesh" across 20 files
