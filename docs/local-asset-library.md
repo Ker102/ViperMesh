@@ -5,7 +5,12 @@ This project should treat the Blender Asset Library as the storage layer and Vip
 ## Recommended Library Shape
 
 ```text
-D:\ViperMeshAssets\
+C:\Users\krist\Documents\ViperMeshAssets\
+  incoming\
+    blenderkit\
+    polyhaven\
+    private\
+    marketplace\
   props\
     footwear\
     plants\
@@ -49,6 +54,23 @@ Do not try to build a huge library immediately. Start with the props that repeat
 - chairs and stools
 
 The first useful library is small and opinionated, not large and messy.
+
+## Intake Versus Curated Assets
+
+Keep a hard separation between staging and reusable catalog entries:
+
+- `incoming\...` is raw vendor intake only
+- `props\...`, `furniture\...`, `materials\...`, and `hdris\...` are curated assets the agent may actually import
+- the generated manifest should index only the curated side of the library
+
+That means the workflow is:
+
+1. Download or copy the source package into `incoming\...`
+2. Inspect and clean the asset in Blender
+3. Save the final reusable version into the curated folders as a stable `.blend`
+4. Rebuild the catalog so it points at the curated file, not the raw vendor package
+
+The catalog builder now skips `incoming\...` automatically and preserves existing enrichment such as tags, preview paths, quality scores, and exact `.blend` import names when you rebuild.
 
 ## A23D Guidance
 
@@ -155,8 +177,8 @@ That avoids ambiguous imports.
 Use the bootstrap script to scan a library folder and generate a starter manifest:
 
 ```bash
-npm run assets:init -- --root "D:\\ViperMeshAssets"
-npm run assets:catalog -- --root "D:\\ViperMeshAssets"
+npm run assets:init -- --root "C:\\Users\\krist\\Documents\\ViperMeshAssets"
+npm run assets:catalog -- --root "C:\\Users\\krist\\Documents\\ViperMeshAssets"
 ```
 
 The first command creates the seed folder structure. The second scans it and generates the starter manifest.
@@ -164,17 +186,22 @@ The first command creates the seed folder structure. The second scans it and gen
 You can still run the catalog script directly:
 
 ```bash
-npx tsx scripts/maintenance/build-local-asset-catalog.ts --root "D:\\ViperMeshAssets"
+npx tsx scripts/maintenance/build-local-asset-catalog.ts --root "C:\\Users\\krist\\Documents\\ViperMeshAssets"
 ```
 
 Then manually refine the generated `catalog/assets.json`:
 
 - clean names
-- fix categories
 - add tags
 - add quality scores
 - add exact `.blend` `asset_names`
 - add preview images
+
+Rebuilding the catalog should be safe during curation:
+
+- entries under `incoming\...` are ignored
+- existing enriched metadata is preserved where the curated file path stays the same
+- moved or renamed curated files will appear as new entries, which is usually the right behavior
 
 ## Runtime Model
 

@@ -1,5 +1,42 @@
 # ViperMesh — Current Progress
 
+## Last Session: 2026-03-29 (Local Asset Catalog Builder Hardened)
+
+### What Was Done
+1. **Hardened the local asset catalog builder for real curation workflows:**
+   - Updated `scripts/maintenance/build-local-asset-catalog.ts`
+   - The generator now skips raw staging folders under `incoming\...`
+   - Rebuilds now preserve manual enrichment where the curated file path stays the same:
+     - `name`
+     - `tags`
+     - `style`
+     - `description`
+     - `license`
+     - `source`
+     - `source_url`
+     - `preview_path`
+     - `quality_score`
+     - `validated_blender_version`
+     - `dimensions_m`
+     - `.blend` import settings such as `append_type` and `asset_names`
+
+2. **Improved generated manifest quality:**
+   - Derived `category` is now more useful for curated `props\...` assets, e.g. `footwear` instead of the deepest folder slug
+   - Rebuilds now filter noisy one-character auto-tags
+
+3. **Updated docs to match the live local library workflow:**
+   - `docs/local-asset-library.md`
+   - `docs/first-20-local-assets.md`
+   - Clarified that `incoming\...` is staging only and that the catalog should point at curated assets only
+
+### Validation
+- `npx tsc --noEmit` ✅
+- `npm run lint` ✅
+- Fixture rebuild test confirmed:
+  - raw `incoming\...` assets are skipped
+  - curated metadata survives rebuilds
+  - exact `.blend` import names are preserved
+
 ## Last Session: 2026-03-29 (First BlenderKit Asset Moved Into Intake Library)
 
 ### What Was Done

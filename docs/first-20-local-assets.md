@@ -6,7 +6,7 @@ This is the first intake shortlist for the ViperMesh local asset library.
 
 - **Download staging**: keep raw vendor downloads in `C:\Users\krist\Documents\ViperMeshAssets\incoming\...`
 - **Final curated format**: prefer `.blend` for reusable local assets
-- **Preview image**: save a `.png` preview in `D:\ViperMeshAssets\previews\...`
+- **Preview image**: save a `.png` preview in `C:\Users\krist\Documents\ViperMeshAssets\previews\...`
 - **Manifest entry**: point the catalog to the final curated `.blend`, not the raw vendor package
 
 Why `.blend` as the final format:
@@ -20,7 +20,7 @@ Why `.blend` as the final format:
 2. Import/clean it in Blender.
 3. Save the curated asset as a single named collection in the final `.blend`.
 4. Save one preview `.png`.
-5. Add or refresh the manifest entry.
+5. Add or refresh the manifest entry. The catalog builder should see only the curated `.blend`, not the raw source under `incoming\...`.
 
 ## First 20
 
