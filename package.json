@@ -18,6 +18,7 @@
     "test:rag": "tsx scripts/test-rag.ts",
     "assets:init": "tsx scripts/maintenance/init-local-asset-library.ts",
     "assets:catalog": "tsx scripts/maintenance/build-local-asset-catalog.ts",
+    "assets:promote": "tsx scripts/maintenance/promote-local-asset-batch.ts",
     "analyze:orchestration": "node scripts/analyze-orchestration.mjs",
     "ingest:blender": "tsx scripts/ingest-blender-docs.ts",
     "mock:neural": "tsx scripts/mock-neural-server.ts",

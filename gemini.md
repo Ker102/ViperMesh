@@ -1,5 +1,46 @@
 # ViperMesh — Current Progress
 
+## Last Session: 2026-03-29 (Initial Curated BlenderKit Batch Promoted)
+
+### What Was Done
+1. **Promoted the current BlenderKit intake batch into the final local asset library:**
+   - External asset root:
+     - `C:\Users\krist\Documents\ViperMeshAssets`
+   - Promoted curated `.blend` assets into final `props\...` folders for:
+     - footwear
+     - plants
+     - baskets
+     - lamps
+     - books
+
+2. **Added reproducible promotion tooling and metadata:**
+   - Added `scripts/maintenance/promote-local-asset-batch.ts`
+   - Added `data/local-assets/initial-blenderkit-batch.json`
+   - This promotion plan now captures the curated target paths, category/tags/style metadata, quality scores, and exact `.blend` collection names for import
+
+3. **Extracted exact import collection names from the staged `.blend` files using Blender 5.0:**
+   - The catalog now points at real `import_spec.asset_names` instead of empty placeholders
+   - Examples:
+     - `Army  Shoes`
+     - `Olive Branches in Ceramic Vase`
+     - `White Ceramic Table Lamp`
+     - `Stack of magazines Blue Grey`
+
+4. **Built the live external catalog:**
+   - `C:\Users\krist\Documents\ViperMeshAssets\catalog\assets.json`
+   - Current catalog count: `29` curated assets
+   - The normal `assets:catalog` rebuild now preserves this metadata and still skips raw `incoming\...` assets
+
+### Validation
+- `npm run assets:promote -- --root "C:\Users\krist\Documents\ViperMeshAssets"` ✅
+- `npm run assets:catalog -- --root "C:\Users\krist\Documents\ViperMeshAssets"` ✅
+- `npx tsc --noEmit` ✅
+- `npm run lint` ✅
+
+### Notes
+- Preview images have not been generated yet; `preview_path` is still empty for this batch.
+- A few basket and book subtype placements remain provisional semantic matches, but the assets are fully usable as curated local imports now.
+
 ## Last Session: 2026-03-29 (BlenderKit Intake Batch Imported Into ViperMesh Staging)
 
 ### What Was Done

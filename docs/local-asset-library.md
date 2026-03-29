@@ -178,10 +178,15 @@ Use the bootstrap script to scan a library folder and generate a starter manifes
 
 ```bash
 npm run assets:init -- --root "C:\\Users\\krist\\Documents\\ViperMeshAssets"
+npm run assets:promote -- --root "C:\\Users\\krist\\Documents\\ViperMeshAssets"
 npm run assets:catalog -- --root "C:\\Users\\krist\\Documents\\ViperMeshAssets"
 ```
 
-The first command creates the seed folder structure. The second scans it and generates the starter manifest.
+The first command creates the seed folder structure. The second promotes a curated batch from a repo-side plan into the external asset root and writes catalog entries. The third rescans the curated library and preserves metadata while refreshing the manifest.
+
+The initial promotion plan for the current BlenderKit batch lives at:
+
+- [initial-blenderkit-batch.json](C:/Users/krist/Desktop/Cursor-Projects/Projects/modelforge/ModelForge/data/local-assets/initial-blenderkit-batch.json)
 
 You can still run the catalog script directly:
 
