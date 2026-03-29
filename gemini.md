@@ -1,5 +1,34 @@
 # ViperMesh — Current Progress
 
+## Last Session: 2026-03-29 (BlenderKit Intake Path Alignment)
+
+### What Was Done
+1. **Aligned the seed scaffold with the actual raw intake source:**
+   - Updated `scripts/maintenance/init-local-asset-library.ts`
+   - Added `incoming/blenderkit` to the generated library structure
+
+2. **Aligned the first 20 intake document with the real working paths:**
+   - Updated `docs/first-20-local-assets.md`
+   - Switched the raw staging examples from old `a23d` paths to the current `blenderkit` paths under:
+     - `C:\\Users\\krist\\Documents\\ViperMeshAssets\\incoming\\blenderkit\\...`
+
+3. **Created the real BlenderKit raw intake folders on disk for the current shortlist:**
+   - footwear
+   - plants
+   - baskets
+   - lamps
+   - books
+   - including the specific target folders for the full 20-asset shortlist
+
+4. **Validation:**
+   - `npx tsc --noEmit` passes
+   - `npm run lint` passes
+
+### Notes
+- This was a path-alignment checkpoint only. No changes to the live agent/runtime behavior.
+- The working raw intake root for the current curation pass is:
+  `C:\\Users\\krist\\Documents\\ViperMeshAssets\\incoming\\blenderkit`
+
 ## Last Session: 2026-03-29 (BlenderKit + Adobe Asset Source Guidance)
 
 ### What Was Done

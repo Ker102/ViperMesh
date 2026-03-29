@@ -4,7 +4,7 @@ This is the first intake shortlist for the ViperMesh local asset library.
 
 ## Format Rules
 
-- **Download staging**: keep raw vendor downloads in `D:\ViperMeshAssets\incoming\...`
+- **Download staging**: keep raw vendor downloads in `C:\Users\krist\Documents\ViperMeshAssets\incoming\...`
 - **Final curated format**: prefer `.blend` for reusable local assets
 - **Preview image**: save a `.png` preview in `D:\ViperMeshAssets\previews\...`
 - **Manifest entry**: point the catalog to the final curated `.blend`, not the raw vendor package
@@ -26,30 +26,30 @@ Why `.blend` as the final format:
 
 | # | Target Asset | Preferred Source | Download To (Raw) | Curate To (Final) | Final Format |
 |---|---|---|---|---|---|
-| 1 | Dark leather ankle boots | Private / marketplace / A23D if license approved | `D:\ViperMeshAssets\incoming\a23d\footwear\ankle-boots-dark\` | `D:\ViperMeshAssets\props\footwear\ankle-boots\ankle_boots_dark_a.blend` | `.blend` |
-| 2 | Brown suede ankle boots | Private / marketplace / A23D if license approved | `D:\ViperMeshAssets\incoming\a23d\footwear\ankle-boots-suede\` | `D:\ViperMeshAssets\props\footwear\ankle-boots\ankle_boots_suede_brown_a.blend` | `.blend` |
-| 3 | White minimalist sneakers | Private / marketplace / A23D if license approved | `D:\ViperMeshAssets\incoming\a23d\footwear\sneakers-white\` | `D:\ViperMeshAssets\props\footwear\sneakers\sneakers_white_minimal_a.blend` | `.blend` |
-| 4 | Black leather loafers | Private / marketplace / A23D if license approved | `D:\ViperMeshAssets\incoming\a23d\footwear\loafers-black\` | `D:\ViperMeshAssets\props\footwear\loafers_black_a.blend` | `.blend` |
-| 5 | Olive branch vase arrangement | Private / marketplace / A23D if license approved | `D:\ViperMeshAssets\incoming\a23d\plants\olive-vase\` | `D:\ViperMeshAssets\props\plants\olive-branches\olive_branch_vase_a.blend` | `.blend` |
-| 6 | Small potted olive tree | Private / marketplace / A23D if license approved | `D:\ViperMeshAssets\incoming\a23d\plants\olive-tree-small\` | `D:\ViperMeshAssets\props\plants\indoor-potted\olive_tree_small_a.blend` | `.blend` |
-| 7 | Eucalyptus vase arrangement | Private / marketplace / A23D if license approved | `D:\ViperMeshAssets\incoming\a23d\plants\eucalyptus-vase\` | `D:\ViperMeshAssets\props\plants\eucalyptus_vase_a.blend` | `.blend` |
-| 8 | Monstera in pot | Private / marketplace / A23D if license approved | `D:\ViperMeshAssets\incoming\a23d\plants\monstera-pot\` | `D:\ViperMeshAssets\props\plants\indoor-potted\monstera_pot_a.blend` | `.blend` |
-| 9 | Round woven basket with handles | Private / marketplace / A23D if license approved | `D:\ViperMeshAssets\incoming\a23d\baskets\round-handled\` | `D:\ViperMeshAssets\props\baskets\woven\basket_round_handles_a.blend` | `.blend` |
-| 10 | Tall woven hamper basket | Private / marketplace / A23D if license approved | `D:\ViperMeshAssets\incoming\a23d\baskets\tall-hamper\` | `D:\ViperMeshAssets\props\baskets\woven\basket_tall_hamper_a.blend` | `.blend` |
-| 11 | Small tray basket | Private / marketplace / A23D if license approved | `D:\ViperMeshAssets\incoming\a23d\baskets\tray-small\` | `D:\ViperMeshAssets\props\baskets\woven\basket_tray_small_a.blend` | `.blend` |
-| 12 | Lidded storage basket | Private / marketplace / A23D if license approved | `D:\ViperMeshAssets\incoming\a23d\baskets\lidded-storage\` | `D:\ViperMeshAssets\props\baskets\woven\basket_lidded_storage_a.blend` | `.blend` |
-| 13 | Ceramic table lamp with linen shade | Private / marketplace / A23D if license approved | `D:\ViperMeshAssets\incoming\a23d\lamps\ceramic-linen\` | `D:\ViperMeshAssets\props\lamps\table-lamps\lamp_ceramic_linen_a.blend` | `.blend` |
-| 14 | Stone table lamp | Private / marketplace / A23D if license approved | `D:\ViperMeshAssets\incoming\a23d\lamps\stone-table\` | `D:\ViperMeshAssets\props\lamps\table-lamps\lamp_stone_table_a.blend` | `.blend` |
-| 15 | Brass desk lamp | Private / marketplace / A23D if license approved | `D:\ViperMeshAssets\incoming\a23d\lamps\brass-desk\` | `D:\ViperMeshAssets\props\lamps\table-lamps\lamp_brass_desk_a.blend` | `.blend` |
-| 16 | Mushroom table lamp | Private / marketplace / A23D if license approved | `D:\ViperMeshAssets\incoming\a23d\lamps\mushroom\` | `D:\ViperMeshAssets\props\lamps\table-lamps\lamp_mushroom_a.blend` | `.blend` |
-| 17 | Neutral hardcover book stack | Private / marketplace / A23D if license approved | `D:\ViperMeshAssets\incoming\a23d\books\stack-neutral\` | `D:\ViperMeshAssets\props\books\stacks\books_stack_neutral_a.blend` | `.blend` |
-| 18 | Blue-gray art book stack | Private / marketplace / A23D if license approved | `D:\ViperMeshAssets\incoming\a23d\books\stack-blue-gray\` | `D:\ViperMeshAssets\props\books\stacks\books_stack_blue_gray_a.blend` | `.blend` |
-| 19 | Single coffee-table book | Private / marketplace / A23D if license approved | `D:\ViperMeshAssets\incoming\a23d\books\coffee-table-single\` | `D:\ViperMeshAssets\props\books\stacks\book_coffee_table_single_a.blend` | `.blend` |
-| 20 | Muted novel stack | Private / marketplace / A23D if license approved | `D:\ViperMeshAssets\incoming\a23d\books\novel-stack-muted\` | `D:\ViperMeshAssets\props\books\stacks\books_stack_novel_muted_a.blend` | `.blend` |
+| 1 | Dark leather ankle boots | BlenderKit / private / marketplace | `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit\footwear\ankle-boots-dark\` | `C:\Users\krist\Documents\ViperMeshAssets\props\footwear\ankle-boots\ankle_boots_dark_a.blend` | `.blend` |
+| 2 | Brown suede ankle boots | BlenderKit / private / marketplace | `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit\footwear\ankle-boots-suede\` | `C:\Users\krist\Documents\ViperMeshAssets\props\footwear\ankle-boots\ankle_boots_suede_brown_a.blend` | `.blend` |
+| 3 | White minimalist sneakers | BlenderKit / private / marketplace | `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit\footwear\sneakers-white\` | `C:\Users\krist\Documents\ViperMeshAssets\props\footwear\sneakers\sneakers_white_minimal_a.blend` | `.blend` |
+| 4 | Black leather loafers | BlenderKit / private / marketplace | `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit\footwear\loafers-black\` | `C:\Users\krist\Documents\ViperMeshAssets\props\footwear\loafers_black_a.blend` | `.blend` |
+| 5 | Olive branch vase arrangement | BlenderKit / private / marketplace | `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit\plants\olive-vase\` | `C:\Users\krist\Documents\ViperMeshAssets\props\plants\olive-branches\olive_branch_vase_a.blend` | `.blend` |
+| 6 | Small potted olive tree | BlenderKit / private / marketplace | `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit\plants\olive-tree-small\` | `C:\Users\krist\Documents\ViperMeshAssets\props\plants\indoor-potted\olive_tree_small_a.blend` | `.blend` |
+| 7 | Eucalyptus vase arrangement | BlenderKit / private / marketplace | `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit\plants\eucalyptus-vase\` | `C:\Users\krist\Documents\ViperMeshAssets\props\plants\eucalyptus_vase_a.blend` | `.blend` |
+| 8 | Monstera in pot | BlenderKit / private / marketplace | `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit\plants\monstera-pot\` | `C:\Users\krist\Documents\ViperMeshAssets\props\plants\indoor-potted\monstera_pot_a.blend` | `.blend` |
+| 9 | Round woven basket with handles | BlenderKit / private / marketplace | `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit\baskets\round-handled\` | `C:\Users\krist\Documents\ViperMeshAssets\props\baskets\woven\basket_round_handles_a.blend` | `.blend` |
+| 10 | Tall woven hamper basket | BlenderKit / private / marketplace | `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit\baskets\tall-hamper\` | `C:\Users\krist\Documents\ViperMeshAssets\props\baskets\woven\basket_tall_hamper_a.blend` | `.blend` |
+| 11 | Small tray basket | BlenderKit / private / marketplace | `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit\baskets\tray-small\` | `C:\Users\krist\Documents\ViperMeshAssets\props\baskets\woven\basket_tray_small_a.blend` | `.blend` |
+| 12 | Lidded storage basket | BlenderKit / private / marketplace | `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit\baskets\lidded-storage\` | `C:\Users\krist\Documents\ViperMeshAssets\props\baskets\woven\basket_lidded_storage_a.blend` | `.blend` |
+| 13 | Ceramic table lamp with linen shade | BlenderKit / private / marketplace | `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit\lamps\ceramic-linen\` | `C:\Users\krist\Documents\ViperMeshAssets\props\lamps\table-lamps\lamp_ceramic_linen_a.blend` | `.blend` |
+| 14 | Stone table lamp | BlenderKit / private / marketplace | `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit\lamps\stone-table\` | `C:\Users\krist\Documents\ViperMeshAssets\props\lamps\table-lamps\lamp_stone_table_a.blend` | `.blend` |
+| 15 | Brass desk lamp | BlenderKit / private / marketplace | `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit\lamps\brass-desk\` | `C:\Users\krist\Documents\ViperMeshAssets\props\lamps\table-lamps\lamp_brass_desk_a.blend` | `.blend` |
+| 16 | Mushroom table lamp | BlenderKit / private / marketplace | `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit\lamps\mushroom\` | `C:\Users\krist\Documents\ViperMeshAssets\props\lamps\table-lamps\lamp_mushroom_a.blend` | `.blend` |
+| 17 | Neutral hardcover book stack | BlenderKit / private / marketplace | `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit\books\stack-neutral\` | `C:\Users\krist\Documents\ViperMeshAssets\props\books\stacks\books_stack_neutral_a.blend` | `.blend` |
+| 18 | Blue-gray art book stack | BlenderKit / private / marketplace | `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit\books\stack-blue-gray\` | `C:\Users\krist\Documents\ViperMeshAssets\props\books\stacks\books_stack_blue_gray_a.blend` | `.blend` |
+| 19 | Single coffee-table book | BlenderKit / private / marketplace | `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit\books\coffee-table-single\` | `C:\Users\krist\Documents\ViperMeshAssets\props\books\stacks\book_coffee_table_single_a.blend` | `.blend` |
+| 20 | Muted novel stack | BlenderKit / private / marketplace | `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit\books\novel-stack-muted\` | `C:\Users\krist\Documents\ViperMeshAssets\props\books\stacks\books_stack_novel_muted_a.blend` | `.blend` |
 
-## What To Use A23D For
+## What To Use BlenderKit For
 
-A23D is most valuable here for:
+BlenderKit is currently the most practical manual intake source here for:
 - footwear
 - plants
 - baskets
