@@ -1,5 +1,54 @@
 # ViperMesh — Current Progress
 
+## Last Session: 2026-03-29 (Local Asset Library MVP)
+
+### What Was Done
+1. **Added the first local curated asset-library layer to the live Studio stack:**
+   - Added local asset MCP support to both addon copies:
+     - `desktop/assets/vipermesh-addon.py`
+     - `public/downloads/vipermesh-addon.py`
+   - New Blender-side tools:
+     - `get_local_asset_library_status`
+     - `search_local_assets`
+     - `import_local_asset`
+   - Added addon UI settings for:
+     - enabling the local asset library
+     - setting the catalog JSON path
+     - setting an optional library root path
+
+2. **Wired the new tools into the live agent/runtime path:**
+   - Added LangGraph tool wrappers in `lib/ai/agents.ts`
+   - Added tool metadata in `lib/orchestration/tool-registry.ts`
+   - Updated tool selection heuristics in `lib/orchestration/tool-filter.ts`
+   - Updated the live system prompt in `lib/orchestration/prompts/blender-agent-system.md`
+   - Updated UI/tool label maps in:
+     - `components/projects/agent-activity.tsx`
+     - `components/projects/step-session-drawer.tsx`
+   - Updated post-run tool summaries in `app/api/ai/chat/route.ts`
+
+3. **Added the first manifest/bootstrap layer for catalog population:**
+   - Added schema/helpers in `lib/assets/local-catalog.ts`
+   - Added bootstrap script `scripts/maintenance/build-local-asset-catalog.ts`
+   - Added npm script `assets:catalog`
+   - Added example manifest `data/local-assets/catalog.example.json`
+   - Added local asset tool guide `data/tool-guides/local-asset-guide.md`
+   - Added sourcing/design doc `docs/local-asset-library.md`
+
+4. **Validation:**
+   - `python -m py_compile desktop/assets/vipermesh-addon.py public/downloads/vipermesh-addon.py` passes
+   - `npx tsc --noEmit` passes
+   - `npm run lint` passes
+   - `npm run assets:catalog -- --root tmp/local-assets-test --out tmp/local-assets-test/catalog/assets.json` generated a valid starter manifest
+
+### Notes
+- This is intentionally an MVP with no DB migration yet. The feature is configured through the Blender addon and live MCP tools so it can be tested immediately in Studio once the addon is reloaded.
+- The bootstrap script discovers supported asset files and creates a starter manifest, but `.blend` entries still need manual `asset_names` refinement for precise imports.
+- The intended routing order is now:
+  1. local curated assets
+  2. Poly Haven
+  3. Sketchfab when explicitly enabled and license-safe
+  4. procedural `execute_code`
+
 ## Last Session: 2026-03-28 (Validated Leftover OAuth + Addon Cleanup Changes)
 
 ### What Was Done

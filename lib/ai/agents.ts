@@ -656,6 +656,51 @@ const renderImage = tool(
 
 // ---------- PolyHaven Tools ---------
 
+const getLocalAssetLibraryStatus = tool(
+  async () => executeMcpCommand("get_local_asset_library_status"),
+  {
+    name: "get_local_asset_library_status",
+    description: "Check whether the local curated ViperMesh asset library is configured and available.",
+    schema: z.object({}),
+  }
+)
+
+const searchLocalAssets = tool(
+  async ({ query, category, tags, style, limit }: {
+    query?: string
+    category?: string
+    tags?: string
+    style?: string
+    limit?: number
+  }) => executeMcpCommand("search_local_assets", { query, category, tags, style, limit }),
+  {
+    name: "search_local_assets",
+    description:
+      "Search the local curated asset catalog for reusable props, furniture, decor, or other prepared models.",
+    schema: z.object({
+      query: z.string().optional().describe("Search query, such as 'ankle boots' or 'olive branch vase'"),
+      category: z.string().optional().describe("Optional exact category filter, such as 'footwear'"),
+      tags: z.string().optional().describe("Optional comma-separated tag filter"),
+      style: z.string().optional().describe("Optional exact style filter, such as 'realistic'"),
+      limit: z.number().int().positive().max(25).optional().describe("Maximum number of matches to return"),
+    }),
+  }
+)
+
+const importLocalAsset = tool(
+  async ({ asset_id, link }: { asset_id: string; link?: boolean }) =>
+    executeMcpCommand("import_local_asset", { asset_id, link }),
+  {
+    name: "import_local_asset",
+    description:
+      "Import an asset from the local curated asset catalog into the current Blender scene.",
+    schema: z.object({
+      asset_id: z.string().describe("Asset ID from search_local_assets"),
+      link: z.boolean().optional().describe("Link instead of append when importing from .blend libraries"),
+    }),
+  }
+)
+
 const getPolyhavenCategories = tool(
   async ({ asset_type }: { asset_type: string }) =>
     executeMcpCommand("get_polyhaven_categories", { asset_type }),
@@ -841,6 +886,9 @@ const ALL_TOOLS = [
   setCameraProperties,
   setRenderSettings,
   renderImage,
+  getLocalAssetLibraryStatus,
+  searchLocalAssets,
+  importLocalAsset,
   getPolyhavenCategories,
   searchPolyhavenAssets,
   downloadPolyhavenAsset,

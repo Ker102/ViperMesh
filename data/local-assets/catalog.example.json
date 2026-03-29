@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "generated_at": "2026-03-29T00:00:00.000Z",
+  "library_root": "D:/ViperMeshAssets",
+  "assets": [
+    {
+      "id": "props/footwear/ankle-boots-leather-a",
+      "name": "Ankle Boots Leather A",
+      "category": "footwear",
+      "tags": ["boots", "ankle", "leather", "realistic"],
+      "style": "realistic",
+      "description": "Curated pair of ankle boots for interior lifestyle scenes.",
+      "license": "internal",
+      "source": "user-curated",
+      "source_url": "https://example.com/internal/ankle-boots-leather-a",
+      "preview_path": "previews/ankle-boots-leather-a.png",
+      "quality_score": 0.92,
+      "validated_blender_version": "5.x",
+      "dimensions_m": [0.29, 0.22, 0.29],
+      "import_spec": {
+        "file_path": "props/footwear/ankle_boots_leather_a.blend",
+        "format": "blend",
+        "append_type": "collections",
+        "asset_names": ["AnkleBootsLeatherA"]
+      }
+    }
+  ]
+}

@@ -16,6 +16,7 @@
     "test:vision": "tsx scripts/test-vision.ts",
     "test:memory": "tsx scripts/test-memory.ts",
     "test:rag": "tsx scripts/test-rag.ts",
+    "assets:catalog": "tsx scripts/maintenance/build-local-asset-catalog.ts",
     "analyze:orchestration": "node scripts/analyze-orchestration.mjs",
     "ingest:blender": "tsx scripts/ingest-blender-docs.ts",
     "mock:neural": "tsx scripts/mock-neural-server.ts",

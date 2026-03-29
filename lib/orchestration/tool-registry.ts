@@ -37,6 +37,27 @@ export const TOOL_REGISTRY: ToolMetadata[] = [
     parameters: "description: string (human-readable description of what the code should do — NOT actual Python code)",
   },
   {
+    name: "get_local_asset_library_status",
+    description:
+      "Check whether the local curated ViperMesh asset catalog is configured inside Blender and ready for search/import.",
+    category: "assets",
+    parameters: "(no parameters)",
+  },
+  {
+    name: "search_local_assets",
+    description:
+      "Search the local curated asset catalog for reusable models such as furniture, props, foliage, or decor.",
+    category: "assets",
+    parameters: "query?: string, category?: string, tags?: string (comma-separated), style?: string, limit?: number (default 10)",
+  },
+  {
+    name: "import_local_asset",
+    description:
+      "Append or link an asset from the local curated catalog into the Blender scene using its asset ID.",
+    category: "assets",
+    parameters: "asset_id: string, link?: boolean (default false)",
+  },
+  {
     name: "get_polyhaven_status",
     description:
       "Check whether PolyHaven integration is configured inside Blender and ready for asset downloads.",

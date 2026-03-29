@@ -7,6 +7,9 @@ const CATEGORY_GROUPS: Record<string, string[]> = {
   lighting: ["execute_code"],
   camera: ["execute_code"],
   assets: [
+    "get_local_asset_library_status",
+    "search_local_assets",
+    "import_local_asset",
     "get_polyhaven_status",
     "get_polyhaven_categories",
     "search_polyhaven_assets",
@@ -29,7 +32,7 @@ const KEYWORD_CATEGORY_MAP: Array<{ keywords: RegExp; categories: Array<keyof ty
   { keywords: /(color|material|texture|paint|shade|metallic)/i, categories: ["materials"] },
   { keywords: /(light|lighting|sun|shadow|illum|hdr)/i, categories: ["lighting", "assets"] },
   { keywords: /(camera|view|angle|isometric|shot)/i, categories: ["camera"] },
-  { keywords: /(polyhaven|asset|hdri|texture|model|download)/i, categories: ["assets"] },
+  { keywords: /(polyhaven|asset|assets|hdri|texture|model|download|catalog|library|private asset)/i, categories: ["assets"] },
   { keywords: /(hyper3d|rodin|generate asset|ai model)/i, categories: ["assets"] },
   { keywords: /(sketchfab)/i, categories: ["assets"] },
   { keywords: /(complex|script|python|custom code)/i, categories: ["advanced"] },
