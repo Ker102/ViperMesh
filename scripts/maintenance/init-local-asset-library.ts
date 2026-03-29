@@ -7,6 +7,10 @@ interface CliOptions {
 
 const SEED_DIRECTORIES = [
   "catalog",
+  "incoming/a23d",
+  "incoming/polyhaven",
+  "incoming/private",
+  "incoming/marketplace",
   "previews",
   "props/footwear/ankle-boots",
   "props/footwear/sneakers",

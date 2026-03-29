@@ -1,5 +1,44 @@
 # ViperMesh — Current Progress
 
+## Last Session: 2026-03-29 (First 20 Local Asset Intake Plan + A23D Restriction Check)
+
+### What Was Done
+1. **Defined the first concrete 20-asset intake shortlist:**
+   - Added `docs/first-20-local-assets.md`
+   - The doc specifies for each target asset:
+     - target prop
+     - recommended source class
+     - raw download staging folder
+     - curated final library path
+     - final preferred format
+
+2. **Extended the seed scaffold for raw download staging:**
+   - Updated `scripts/maintenance/init-local-asset-library.ts` to create:
+     - `incoming/a23d`
+     - `incoming/polyhaven`
+     - `incoming/private`
+     - `incoming/marketplace`
+
+3. **Re-verified the A23D fit for ViperMesh:**
+   - Updated `docs/local-asset-library.md` with the key restriction:
+     - A23D's public Fair Usage Policy dated **2026-01-06** says downloading assets solely to build private libraries is prohibited
+     - the same public policy also says downloading assets for creating, testing, benchmarking, improving, or operating AI/generative systems is prohibited
+   - Also noted from A23D's public Licenses page dated **2026-01-06**:
+     - only **Business Commercial** allows storage on company servers/internal asset libraries
+     - **Enterprise** is the path for custom AI/ML permissions
+
+4. **Validation:**
+   - `npx tsc --noEmit` passes
+   - `npm run lint` passes
+   - `npm run assets:init -- --root tmp/local-assets-seed-2` succeeds with the new staging folders
+
+### Notes
+- Because of the current published A23D restrictions, a one-month bulk download plan just to seed the ViperMesh agent's private local asset library is not a safe assumption under their standard public terms.
+- The practical recommendation remains:
+  1. keep Poly Haven mostly on-demand
+  2. use private/user-owned/internal-safe assets for the first local catalog population
+  3. use A23D for the local agent library only after written confirmation or a license that explicitly covers the AI/internal-library workflow
+
 ## Last Session: 2026-03-29 (Seed Local Asset Library Scaffold + A23D Guidance)
 
 ### What Was Done

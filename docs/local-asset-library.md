@@ -48,14 +48,19 @@ The first useful library is small and opinionated, not large and messy.
 
 ## A23D Guidance
 
-If you use A23D, treat it as a selective source for the local catalog:
+If you use A23D, treat it as a selective source for the local catalog only after checking that your license covers your exact use case:
 
 - download only the assets you actually want the agent to reuse
 - ingest them into your own curated local library one by one
 - keep source/license metadata in the manifest
 - do not try to bulk-mirror the service into ViperMesh
 
-That keeps you aligned with their legal posture and avoids building runtime coupling to a provider whose public API surface is not yet clear enough for production integration.
+Important constraint:
+
+- A23D's Fair Usage Policy dated **January 6, 2026** says downloading assets solely to build private libraries is prohibited, and downloading assets for creating, testing, benchmarking, improving, or operating AI/generative systems is also prohibited.
+- Their Licenses page dated **January 6, 2026** says only the **Business Commercial** license allows storage on company servers and internal asset libraries, and **Enterprise** may allow custom AI/ML permissions.
+
+For ViperMesh specifically, that means a one-month binge download just to seed the agent's private asset library is not a safe assumption under their standard public terms. If you want to use A23D for the agent-accessible local library, the safer route is to ask A23D for written confirmation or an Enterprise/custom license covering this AI/internal-library workflow.
 
 ## Do Poly Haven Assets Need To Be Local?
 
@@ -128,3 +133,7 @@ The live Studio path should work like this:
 2. If no match exists, fall back to Poly Haven for CC0-safe external assets.
 3. Use Sketchfab only when explicitly enabled and license handling is acceptable.
 4. Use procedural `execute_code` when the object is custom or no good asset exists.
+
+## Seed Shortlist
+
+Use [first-20-local-assets.md](C:/Users/krist/Desktop/Cursor-Projects/Projects/modelforge/ModelForge/docs/first-20-local-assets.md) as the first intake list with exact staging paths and curated target filenames.
