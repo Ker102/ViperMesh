@@ -40,6 +40,11 @@ Choose PolyHaven when:
 - you need CC0-safe external textures, HDRIs, or models
 - the local library does not contain a suitable match
 
+Keep the workflow hybrid:
+- use direct tools and `execute_code` for room structure, spatial layout, cameras, lights, and custom hero forms
+- use local curated assets for commodity props that benefit from a prepared silhouette
+- after import, always treat scale and orientation as suspect until checked in scene context
+
 ## SEARCH STRATEGY
 
 When searching the local catalog:
@@ -55,6 +60,7 @@ After importing a local asset:
 - place and scale it deliberately in scene context
 - if the asset is complex, adjust only the root-level transforms first
 - confirm silhouette and proportion with `get_viewport_screenshot`
+- do not assume two different local assets share consistent real-world scale; correct them relative to nearby objects
 
 ## QUALITY RULE
 

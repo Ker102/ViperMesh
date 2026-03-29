@@ -1,5 +1,38 @@
 # ViperMesh — Current Progress
 
+## Last Session: 2026-03-29 (Selective ViperMesh Asset Usage Clarified)
+
+### What Was Done
+1. **Confirmed the local asset library is already runtime-gated in the addon:**
+   - When `blendermcp_use_local_assets` is off, the Blender MCP server does **not** expose:
+     - `search_local_assets`
+     - `import_local_asset`
+   - So the user-facing checkbox already controls whether the agent can use the curated local asset library at all
+
+2. **Renamed the addon UI wording from generic local-library language to product language:**
+   - `Local Asset Library` → `ViperMesh Assets`
+   - Updated both addon copies:
+     - `desktop/assets/vipermesh-addon.py`
+     - `public/downloads/vipermesh-addon.py`
+   - Updated the enabled/disabled status messages to use the same wording
+
+3. **Strengthened the live Blender agent policy for hybrid asset use:**
+   - Updated `lib/orchestration/prompts/blender-agent-system.md`
+   - The prompt now tells the agent to:
+     - use local curated assets selectively for commodity props with recognizable silhouettes
+     - keep room shells, layout, architecture, cameras, lighting, and bespoke hero forms procedural/direct
+     - search/import a single strong asset candidate rather than replacing whole scenes with premade assets
+     - expect some local assets to need transform correction because cross-asset scale may not match perfectly
+
+4. **Strengthened supporting local-asset guidance and tool descriptions:**
+   - Updated `data/tool-guides/local-asset-guide.md`
+   - Updated local asset tool descriptions in `lib/ai/agents.ts`
+
+### Validation
+- `python -m py_compile desktop/assets/vipermesh-addon.py public/downloads/vipermesh-addon.py` ✅
+- `npx tsc --noEmit` ✅
+- `npm run lint` ✅
+
 ## Last Session: 2026-03-29 (Initial Curated BlenderKit Batch Promoted)
 
 ### What Was Done

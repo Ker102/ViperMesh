@@ -676,7 +676,7 @@ const searchLocalAssets = tool(
   {
     name: "search_local_assets",
     description:
-      "Search the local curated asset catalog for reusable props, furniture, decor, or other prepared models.",
+      "Search the local curated ViperMesh asset catalog for reusable commodity props, decor, furniture, or other prepared models that are better imported than procedurally rebuilt.",
     schema: z.object({
       query: z.string().optional().describe("Search query, such as 'ankle boots' or 'olive branch vase'"),
       category: z.string().optional().describe("Optional exact category filter, such as 'footwear'"),
@@ -693,7 +693,7 @@ const importLocalAsset = tool(
   {
     name: "import_local_asset",
     description:
-      "Import an asset from the local curated asset catalog into the current Blender scene.",
+      "Import a curated ViperMesh asset into the current Blender scene after selecting a specific catalog match.",
     schema: z.object({
       asset_id: z.string().describe("Asset ID from search_local_assets"),
       link: z.boolean().optional().describe("Link instead of append when importing from .blend libraries"),

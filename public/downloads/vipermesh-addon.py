@@ -2185,9 +2185,9 @@ class BlenderMCPServer:
         if not enabled:
             return {
                 "enabled": False,
-                "message": """Local asset library is currently disabled. To enable it:
+                "message": """ViperMesh Assets are currently disabled. To enable them:
                             1. In the 3D Viewport, find the ViperMesh panel in the sidebar (press N if hidden)
-                            2. Check the 'Local Asset Library' checkbox
+                            2. Check the 'ViperMesh Assets' checkbox
                             3. Set the catalog JSON path and optional library root
                             4. Restart the connection to ViperMesh""",
                 "catalog_path": catalog_path,
@@ -2204,7 +2204,7 @@ class BlenderMCPServer:
 
         return {
             "enabled": True,
-            "message": "Local asset library is enabled and ready to use.",
+            "message": "ViperMesh Assets are enabled and ready to use.",
             "catalog_path": catalog_path,
             "library_root": library_root,
             "asset_count": len(catalog.get("assets", [])),
@@ -3016,7 +3016,7 @@ class VIPERMESH_PT_Panel(bpy.types.Panel):
         # Asset Sources
         box = layout.box()
         box.label(text="Asset Sources", icon='ASSET_MANAGER')
-        box.prop(scene, "blendermcp_use_local_assets", text="Local Asset Library")
+        box.prop(scene, "blendermcp_use_local_assets", text="ViperMesh Assets")
         if scene.blendermcp_use_local_assets:
             col = box.column(align=True)
             col.prop(scene, "blendermcp_local_asset_catalog_path", text="Catalog JSON")
@@ -3111,8 +3111,8 @@ def register():
     )
 
     bpy.types.Scene.blendermcp_use_local_assets = bpy.props.BoolProperty(
-        name="Use Local Asset Library",
-        description="Enable curated local assets from a JSON manifest",
+        name="Use ViperMesh Assets",
+        description="Enable curated ViperMesh assets from a JSON manifest",
         default=False
     )
 
