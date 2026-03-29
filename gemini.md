@@ -257,6 +257,31 @@
 
 ## Previous Session: 2026-03-23 (03:30–04:00 AM)
 
+## Current Session: 2026-03-29
+
+### What Was Done
+1. **Expert Comparison Artifact for Test 20**
+   - Added scene-specific expert comparison script at `scripts/expert/test20_entryway_expert.py`
+   - Kept it outside the RAG corpus intentionally to avoid contaminating general retrieval with scene-specific patterns
+   - Added reusable MCP helper runner at `scripts/test/run-blender-script.ts`
+
+2. **Expert Scene Build Validation**
+   - Validated the expert script with `python -m py_compile`
+   - Confirmed the scene builds cleanly in Blender 5.0 headless mode
+   - Saved preview outputs:
+     - `tmp/expert-test20-render.png`
+     - `tmp/expert-test20.blend`
+
+3. **Crash Diagnosis**
+   - First attempt crashed Blender 5.0 during a boot construction path that used a more aggressive merged/remesh style
+   - Replaced that with a safer boot-construction approach that builds successfully
+   - This expert artifact is now usable as the first manual comparison baseline for Test 20
+
+### Current Status
+- Expert scene script exists and builds successfully
+- Plant silhouette is noticeably stronger than the agent output
+- Boot silhouette is improved versus the agent output, but may still need one more refinement pass after user review
+
 ### What Was Done
 1. **ViperMesh UI Rebrand** — Replaced all ~80 user-facing "ModelForge" text strings with "ViperMesh" across 20 files
    - **NOT changed**: `--forge-` CSS variable prefix (user confirmed leave as-is)
