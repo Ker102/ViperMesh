@@ -1,5 +1,23 @@
 # ViperMesh — Current Progress
 
+## Last Session: 2026-03-29 (First BlenderKit Asset Moved Into Intake Library)
+
+### What Was Done
+1. **Moved the first real BlenderKit source asset out of the BlenderKit cache and into the ViperMesh intake library:**
+   - Source cache path:
+     - `C:\Users\krist\blenderkit_data\models\army-shoes_0a407d12-e06d-42a5-9b94-d4777b5384a5\army-shoes_2K_412e4cfe-3568-4d4c-a8ce-246a3be7a75f.blend`
+   - New intake path:
+     - `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit\footwear\ankle-boots-dark\blenderkit_ankle_boots_dark_a.blend`
+
+2. **Naming choice:**
+   - Renamed the file away from the BlenderKit UUID-style cache name to a stable intake filename:
+     - `blenderkit_ankle_boots_dark_a.blend`
+
+### Notes
+- This is still a **raw intake asset**, not the final curated library asset yet.
+- The later curated target remains:
+  - `C:\Users\krist\Documents\ViperMeshAssets\props\footwear\ankle-boots\ankle_boots_dark_a.blend`
+
 ## Last Session: 2026-03-29 (BlenderKit Intake Path Alignment)
 
 ### What Was Done
