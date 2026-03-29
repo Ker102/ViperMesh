@@ -1,5 +1,38 @@
 # ViperMesh — Current Progress
 
+## Last Session: 2026-03-29 (BlenderKit Intake Batch Imported Into ViperMesh Staging)
+
+### What Was Done
+1. **Copied the current BlenderKit download batch into the ViperMesh intake tree:**
+   - Source cache root:
+     - `C:\Users\krist\blenderkit_data\models`
+   - Destination staging root:
+     - `C:\Users\krist\Documents\ViperMeshAssets\incoming\blenderkit`
+
+2. **Imported the first full raw intake set across the current priority categories:**
+   - footwear
+   - plants
+   - baskets
+   - lamps
+   - books
+
+3. **Normalized the raw intake filenames to stable ViperMesh staging names:**
+   - examples:
+     - `blenderkit_ankle_boots_suede_brown_a.blend`
+     - `blenderkit_olive_branch_vase_a.blend`
+     - `blenderkit_lamp_brass_desk_a.blend`
+     - `blenderkit_books_stack_blue_gray_a.blend`
+
+4. **Kept the BlenderKit cache intact:**
+   - Files were copied into the ViperMesh intake tree rather than removed from the BlenderKit cache
+
+### Notes
+- This batch includes more than the original strict 20-target minimum because a few categories now have multiple candidate variants staged for later curation.
+- Some category placements are intentionally provisional at the raw intake stage, especially for:
+  - basket subtypes
+  - book subtype buckets
+- That is acceptable because these are still **incoming** assets. Final correctness will be enforced during the curated `.blend` promotion pass into `props\...`.
+
 ## Last Session: 2026-03-29 (Local Asset Catalog Builder Hardened)
 
 ### What Was Done
