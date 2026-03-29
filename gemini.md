@@ -1,5 +1,34 @@
 # ViperMesh — Current Progress
 
+## Last Session: 2026-03-29 (BlenderKit + Adobe Asset Source Guidance)
+
+### What Was Done
+1. **Extended the local asset sourcing strategy doc:**
+   - Updated `docs/local-asset-library.md` with:
+     - BlenderKit guidance
+     - Adobe Substance 3D Assets guidance
+     - a clearer source matrix for what is safe as:
+       - manual artist-side use
+       - manual curation input
+       - agent-accessible internal library source
+
+2. **Captured the current position on BlenderKit:**
+   - Attractive for its large Blender-native library and subscription pricing
+   - Not yet something to architect the ViperMesh agent runtime around because:
+     - no clearly documented stable third-party API was surfaced in the public docs review
+     - BlenderKit's current public user terms require caution for use in developing other products/services or competing services
+
+3. **Captured the current position on Adobe Substance 3D Assets:**
+   - Best fit is materials / PBRs rather than models
+   - Strong manual look-dev value
+   - Public terms still need caution for an agent-accessible internal library because of AI/ML restrictions in the published Product Specific Terms
+
+### Notes
+- The practical recommendation remains:
+  1. Poly Haven for open/on-demand assets
+  2. private/user-owned/internal-safe assets for the first agent library seed
+  3. BlenderKit and Adobe as manual curation sources first, not automatic agent-library defaults
+
 ## Last Session: 2026-03-29 (First 20 Local Asset Intake Plan + A23D Restriction Check)
 
 ### What Was Done

@@ -24,8 +24,12 @@ Start with sources that are legally clean and operationally stable:
 
 - Poly Haven for CC0-safe HDRIs, textures, and some models. Asset usage is free, but commercial API use has a separate permission path.  
   Sources: [License](https://polyhaven.com/license), [API](https://polyhaven.com/our-api)
+- BlenderKit as a strong Blender-native discovery/download tool with a large integrated library and reasonable subscription pricing, but treat it cautiously for ViperMesh because its public user terms currently say the service may not be used to develop other products/services and assets may not be used in competing products/services.  
+  Sources: [About](https://www.blenderkit.com/about-blenderkit), [Pricing](https://www.blenderkit.com/plans/pricing/), [Licenses](https://www.blenderkit.com/docs/licenses/), [User Terms](https://www.blenderkit.com/terms-and-conditions-2021/)
 - A23D as a curated paid source for local-only ingestion, not as a library to mirror wholesale. Their public legal terms explicitly restrict circumvention/scraping and treat the assets as licensed, not sold. Public docs show Blender plugin/import workflows, but I did not find a public developer API spec strong enough to build against yet.  
   Sources: [Docs](https://www.a23d.co/docs), [Legal](https://www.a23d.co/legal)
+- Adobe Substance 3D Assets as a high-quality source for materials/PBRs and some models, but public terms still need caution for an AI-agent-accessible internal library.  
+  Sources: [Assets](https://www.adobe.com/products/substance3d/3d-assets.html), [Product Specific Terms](https://wwwimages2.adobe.com/content/dam/cc/en/legal/servicetou/Adobe-Substance-3D-Assets-Product-Specific-Terms-en_US-20240618.pdf)
 - Your own expert-made assets for props that matter repeatedly in tests and demos.
 - User-supplied private assets, which fit the local-library model especially well.
 - Internal photogrammetry / scans or commissioned assets that you fully control.
@@ -61,6 +65,53 @@ Important constraint:
 - Their Licenses page dated **January 6, 2026** says only the **Business Commercial** license allows storage on company servers and internal asset libraries, and **Enterprise** may allow custom AI/ML permissions.
 
 For ViperMesh specifically, that means a one-month binge download just to seed the agent's private asset library is not a safe assumption under their standard public terms. If you want to use A23D for the agent-accessible local library, the safer route is to ask A23D for written confirmation or an Enterprise/custom license covering this AI/internal-library workflow.
+
+## BlenderKit Guidance
+
+BlenderKit is attractive because:
+
+- the library is very large
+- the subscription is relatively inexpensive
+- it is already deeply integrated into Blender through its addon
+- it covers models, materials, HDRIs, scenes, brushes, and add-ons
+
+But for ViperMesh there are two important caveats:
+
+- I did not find a clearly documented public third-party developer API that I would treat as a stable integration target for the agent runtime
+- BlenderKit's public user terms currently say the service may not be used in the development of other products/services, and BlenderKit assets may not be used in competing products/services
+
+So the safe recommendation is:
+
+- **good** for manual artist-side browsing and one-off scene work in Blender
+- **possibly useful** for manual curation into a private internal library only after you are comfortable with the licensing interpretation
+- **not** the first provider I would architect the ViperMesh agent runtime around
+
+If you use BlenderKit, treat it first as a manual curation source:
+
+1. download a chosen asset through the BlenderKit addon
+2. clean it in Blender
+3. save a curated `.blend`
+4. index that curated file in the ViperMesh manifest
+
+Do not start by building a custom automated backend against BlenderKit.
+
+## Adobe Substance 3D Guidance
+
+Adobe Substance 3D Assets are especially valuable for:
+
+- PBR materials
+- SBSAR-driven parametric materials
+- polished production-grade surfaces
+
+Technically, Adobe materials are more compelling for ViperMesh than Adobe models.
+
+But the public Product Specific Terms for Substance 3D Assets still need caution for agent-accessible internal libraries, because Adobe's public terms restrict use tied to creating, training, testing, or improving AI/ML systems.
+
+So the practical split is:
+
+- **good** for manual artist-side look-dev and material work
+- **excellent** as inspiration and manual authoring input
+- **not automatically safe** as a default source for the reusable ViperMesh agent library without license clarity
 
 ## Do Poly Haven Assets Need To Be Local?
 
