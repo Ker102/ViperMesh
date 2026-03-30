@@ -771,3 +771,6 @@
 ### Notes
 - The reserved cache path is only a stable location for future managed downloads. The current runtime still imports local files directly.
 - Manual `Catalog JSON` and `Library Root` overrides remain intact for advanced users and BYO asset libraries.
+2. **Gemini Tool Schema Compatibility Fix**:
+   - Fixed a Studio startup failure where Gemini rejected the `search_local_assets` tool schema because `limit` used a strict positive Zod constraint that serialized to JSON Schema `exclusiveMinimum`
+   - Replaced that tool parameter constraint with a Gemini-safe integer range using `min(1)` and `max(25)`

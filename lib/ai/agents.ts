@@ -682,7 +682,7 @@ const searchLocalAssets = tool(
       category: z.string().optional().describe("Optional exact category filter, such as 'footwear'"),
       tags: z.string().optional().describe("Optional comma-separated tag filter"),
       style: z.string().optional().describe("Optional exact style filter, such as 'realistic'"),
-      limit: z.number().int().positive().max(25).optional().describe("Maximum number of matches to return"),
+      limit: z.number().int().min(1).max(25).optional().describe("Maximum number of matches to return"),
     }),
   }
 )
