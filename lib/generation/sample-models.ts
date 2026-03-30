@@ -19,6 +19,9 @@ const SAMPLE_ROOTS = [
     },
 ] as const;
 
+const GLB_MAGIC = "glTF";
+const MIN_SAMPLE_GLB_BYTES = 4096;
+
 function humanizeName(fileName: string): string {
     return fileName
         .replace(/\.glb$/i, "")
@@ -50,18 +53,44 @@ async function collectGlbFiles(rootPath: string): Promise<string[]> {
     }
 }
 
+async function isUsableGlb(filePath: string): Promise<boolean> {
+    try {
+        const stats = await fs.stat(filePath);
+        if (stats.size < MIN_SAMPLE_GLB_BYTES) {
+            return false;
+        }
+
+        const handle = await fs.open(filePath, "r");
+        try {
+            const header = Buffer.alloc(4);
+            await handle.read(header, 0, header.length, 0);
+            return header.toString("utf8") === GLB_MAGIC;
+        } finally {
+            await handle.close();
+        }
+    } catch {
+        return false;
+    }
+}
+
 export async function listViewerSampleModels(): Promise<ViewerSampleModel[]> {
     const groups = await Promise.all(
         SAMPLE_ROOTS.map(async ({ source, rootPath }) => {
             const files = await collectGlbFiles(rootPath);
-            return files.map((filePath) => {
+            const validFlags = await Promise.all(files.map((filePath) => isUsableGlb(filePath)));
+
+            return files.flatMap((filePath, index) => {
+                if (!validFlags[index]) {
+                    return [];
+                }
+
                 const relativePath = path.relative(rootPath, filePath).replace(/\\/g, "/");
-                return {
+                return [{
                     id: `${source.toLowerCase().replace(/\s+/g, "-")}:${relativePath}`,
                     name: humanizeName(path.basename(filePath)),
                     source,
                     filePath,
-                };
+                }];
             });
         })
     );

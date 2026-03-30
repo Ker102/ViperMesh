@@ -800,6 +800,10 @@
    - Added authenticated route `app/api/generate/3d/samples/route.ts` that lists available local sample models and streams a selected `.glb` back to the browser
    - Extended `components/generation/GenerationPanel.tsx` with a "Viewer Test Models" section so the model viewer can be exercised with existing local GLBs instead of calling Replicate or fal
    - This keeps `/generate` useful as a viewer sandbox while the real long-term viewer integration still targets the in-project Studio workflow after neural stages succeed
+8. **Viewer Sample Filtering Fix**:
+   - Diagnosed the sample-model runtime failure: the sandbox route was exposing tiny placeholder `.glb` files (`13` bytes and `772` bytes) that were not valid renderable scene assets
+   - Updated `lib/generation/sample-models.ts` to only surface usable GLBs by checking the file header for `glTF` magic bytes and enforcing a minimum sample size threshold
+   - The viewer sandbox now only lists the two valid neural-output GLBs, avoiding malformed sample files that caused `<model-viewer>` to fail with `this[$preparedGLTF] is undefined`
 
 ### Validation
 - `npx tsc --noEmit`
