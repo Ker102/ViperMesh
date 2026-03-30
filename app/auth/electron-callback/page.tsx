@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { useEffect, useState, useRef, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { Loader2, CheckCircle, XCircle } from "lucide-react"
@@ -90,7 +91,13 @@ function ElectronCallbackContent() {
                 {/* Logo */}
                 <div className="mb-8">
                     <div className="w-16 h-16 mx-auto flex items-center justify-center">
-                        <img src="/vipermesh-logo-transparent.png" alt="ViperMesh" className="w-16 h-16 object-contain" />
+                        <Image
+                            src="/vipermesh-logo-transparent.png"
+                            alt="ViperMesh"
+                            width={64}
+                            height={64}
+                            className="w-16 h-16 object-contain"
+                        />
                     </div>
                     <h1 className="mt-4 text-xl font-semibold text-white">ViperMesh</h1>
                 </div>

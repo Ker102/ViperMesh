@@ -35,6 +35,9 @@ const TOOL_LABELS: Record<string, string> = {
   parent_set: "Setting parent",
   join_objects: "Joining objects",
   export_object: "Exporting model",
+  get_local_asset_library_status: "Checking local library",
+  search_local_assets: "Searching local assets",
+  import_local_asset: "Importing local asset",
   search_polyhaven_assets: "Searching PolyHaven",
   download_polyhaven_asset: "Downloading asset",
   set_texture: "Applying texture",
@@ -45,13 +48,15 @@ function getToolLabel(toolName: string): string {
 }
 
 // Hammer/wrench icon SVG
-function ToolIcon({ status }: { status: "started" | "completed" | "failed" }) {
+function ToolIcon({ status }: { status: "started" | "completed" | "failed" | "skipped" }) {
   const color =
     status === "started"
       ? "hsl(var(--forge-accent))"
       : status === "completed"
         ? "hsl(150 60% 45%)"
-        : "hsl(0 70% 55%)"
+        : status === "failed"
+          ? "hsl(0 70% 55%)"
+          : "hsl(var(--forge-text-muted))"
 
   return (
     <svg
@@ -89,7 +94,7 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
     const calls: Array<{
       toolName: string
       label: string
-      status: "started" | "completed" | "failed"
+      status: "started" | "completed" | "failed" | "skipped"
       timestamp: string
     }> = []
 
@@ -97,7 +102,7 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
       if (event.type === "agent:tool_call") {
         const e = event as unknown as {
           toolName: string
-          status: "started" | "completed" | "failed"
+          status: "started" | "completed" | "failed" | "skipped"
           timestamp: string
         }
         calls.push({
@@ -140,15 +145,46 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
     [toolEvents]
   )
 
+  // Group consecutive completed tools with the same name
+  const groupedCompleted = useMemo(() => {
+    const groups: Array<{
+      toolName: string
+      label: string
+      count: number
+      timestamp: string
+    }> = []
+
+    for (const e of toolEvents) {
+      if (e.status !== "completed") continue
+
+      const last = groups[groups.length - 1]
+      if (last && last.toolName === e.toolName) {
+        last.count++
+        last.timestamp = e.timestamp // keep latest timestamp
+      } else {
+        groups.push({
+          toolName: e.toolName,
+          label: e.label,
+          count: 1,
+          timestamp: e.timestamp,
+        })
+      }
+    }
+    return groups
+  }, [toolEvents])
+
+  const allCompleted = useMemo(
+    () => toolEvents.filter((e) => e.status === "completed"),
+    [toolEvents]
+  )
+
+  const allFailed = useMemo(
+    () => toolEvents.filter((e) => e.status === "failed"),
+    [toolEvents]
+  )
+  const isReasoning = isActive && !activeTool
+
   if (!isActive && toolEvents.length === 0) return null
-
-  // Show last few completed tools + active tool
-  const recentCompleted = toolEvents
-    .filter((e) => e.status === "completed")
-    .slice(-3)
-
-  const allCompleted = toolEvents.filter((e) => e.status === "completed")
-  const allFailed = toolEvents.filter((e) => e.status === "failed")
 
   // ── Collapsed summary when agent is done ──
   if (!isActive && completedCount > 0) {
@@ -280,12 +316,37 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
         </div>
       )}
 
-      {/* Recent completed tools */}
-      {recentCompleted.length > 0 && (
+      {/* Reasoning state between tool calls */}
+      {isReasoning && (
+        <div
+          className="flex items-center gap-2 py-1.5 px-2 rounded-lg mb-1"
+          style={{ backgroundColor: "hsl(var(--forge-surface-dim))" }}
+        >
+          <svg
+            className="w-4 h-4 animate-spin shrink-0"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="hsl(var(--forge-accent))"
+            strokeWidth="2"
+          >
+            <circle cx="12" cy="12" r="10" opacity="0.25" />
+            <path d="M12 2a10 10 0 0 1 10 10" />
+          </svg>
+          <span
+            className="text-sm font-medium"
+            style={{ color: "hsl(var(--forge-accent))" }}
+          >
+            Thinking…
+          </span>
+        </div>
+      )}
+
+      {/* All completed tools (grouped by consecutive identical names) */}
+      {groupedCompleted.length > 0 && (
         <div className="space-y-0.5">
-          {recentCompleted.map((e, i) => (
+          {groupedCompleted.map((g, i) => (
             <div
-              key={`${e.toolName}-${e.timestamp}-${i}`}
+              key={`${g.toolName}-${g.timestamp}-${i}`}
               className="flex items-center gap-2 py-1 px-2 rounded-lg opacity-60"
             >
               <ToolIcon status="completed" />
@@ -293,7 +354,7 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
                 className="text-xs"
                 style={{ color: "hsl(var(--forge-text-muted))" }}
               >
-                {e.label}
+                {g.label}{g.count > 1 ? ` ×${g.count}` : ""}
               </span>
               <svg
                 width="12"
@@ -310,16 +371,6 @@ export function AgentActivity({ events, isActive }: AgentActivityProps) {
               </svg>
             </div>
           ))}
-        </div>
-      )}
-
-      {/* Total count when many tools used */}
-      {completedCount > 3 && (
-        <div
-          className="text-xs mt-1 px-2"
-          style={{ color: "hsl(var(--forge-text-subtle))" }}
-        >
-          +{completedCount - 3} more completed
         </div>
       )}
     </div>

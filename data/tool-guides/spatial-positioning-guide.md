@@ -2,7 +2,7 @@
 title: "Spatial Positioning & Rotation-Aware Placement Guide"
 category: "spatial-positioning"
 tags: ["position", "rotation", "transform", "offset", "grounding", "alignment", "bounding box", "origin", "mathutils", "matrix", "execute_code", "set_object_transform", "get_object_info"]
-triggered_by: ["execute_code", "set_object_transform", "get_object_info"]
+triggered_by: ["set_object_transform", "get_object_info"]
 description: "Domain knowledge for accurate object positioning in 3D space, including rotation-aware placement, relative offsets, grounding, alignment, and bounding-box math. Prevents floating objects, misaligned parts, and incorrect spatial relationships."
 blender_version: "4.0+"
 ---
@@ -111,6 +111,24 @@ obj.matrix_world = loc @ rot
 # Applied right-to-left: scale first, rotate second, translate last
 ```
 
+### Local-to-World Attachment Points
+When a piece attaches to a rotated object, compute the connection point in world space first.
+
+```python
+from mathutils import Vector
+
+def local_point_to_world(obj, local_point):
+    return obj.matrix_world @ Vector(local_point)
+
+# Example pattern:
+parent_tip_world = local_point_to_world(parent_obj, (0.0, 0.5, 0.0))
+child_socket_world = local_point_to_world(child_obj, (0.0, -0.25, 0.0))
+delta = parent_tip_world - child_socket_world
+child_obj.matrix_world.translation += delta
+```
+
+**Rule:** If two rotated parts must meet cleanly, align named local attachment points in world space instead of guessing offsets from object origins.
+
 ## ALIGNMENT PATTERNS
 
 ### Center-to-Center (Stack Vertically)
@@ -130,6 +148,26 @@ B.location.x = A.location.x + (A_width/2) + (B_width/2)
 ```
 B.location.z = surface_top_z + (B_height/2) + gap
 ```
+
+### Support Placement via World-Space Bounding Boxes
+For rotated or non-uniformly scaled objects, derive the true contact surfaces from the world-space bounding box:
+
+```python
+from mathutils import Vector
+
+def world_bbox(obj):
+    corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+    min_corner = Vector((min(c.x for c in corners), min(c.y for c in corners), min(c.z for c in corners)))
+    max_corner = Vector((max(c.x for c in corners), max(c.y for c in corners), max(c.z for c in corners)))
+    return min_corner, max_corner
+
+obj_min, obj_max = world_bbox(obj)
+support_min, support_max = world_bbox(support_obj)
+delta_z = (support_max.z + 0.002) - obj_min.z
+obj.matrix_world.translation += Vector((0, 0, delta_z))
+```
+
+**Rule:** For "resting on" placement, move the object's actual world-space bottom to the support's actual world-space top. Do not approximate with `location.z + height/2` when rotation is involved.
 
 ### Symmetric Placement
 Place objects symmetrically around a center point:
@@ -222,6 +260,25 @@ for existing in placed_objects:
         # push new_loc outward
 ```
 
+### Raycast Drop Placement for Irregular Surfaces
+Axis-aligned stacking is not enough for sloped or uneven supports. Use `scene.ray_cast` in world space:
+
+```python
+from mathutils import Vector
+
+depsgraph = bpy.context.evaluated_depsgraph_get()
+origin = Vector((obj.location.x, obj.location.y, obj.location.z + 100.0))
+direction = Vector((0, 0, -1))
+hit, location, normal, face_index, hit_obj, matrix = bpy.context.scene.ray_cast(
+    depsgraph,
+    origin,
+    direction,
+    distance=200.0,
+)
+```
+
+If the ray hits, translate the object so its world-space bottom sits at `location.z + margin`.
+
 ### Safety Margin Reference
 | Relationship | Minimum margin |
 |---|---|
@@ -271,6 +328,75 @@ Use these to validate proportions when the user doesn't provide exact sizes.
 | Shoulder width | 0.40–0.50 m |
 | Seated height | 0.80–0.90 m |
 
+## OBJECT FUNCTIONAL DIRECTION & CLEARANCE
+
+In professional 3D modeling, many objects have a **functional direction** — they are designed to be used, viewed, or accessed from a specific side. Understanding functional direction is critical for realistic scene composition.
+
+### Functional Direction Principle
+Every object that serves a user or interacts with another object has an **intended usage axis**:
+
+| Object Type | Forward/Open Side | Back/Closed Side |
+|---|---|---|
+| Seating (chairs, sofas, benches) | Open seat side (where user sits from) | Backrest / back panel |
+| Displays (monitors, TVs, paintings) | Screen / visible face | Back housing / wall mount |
+| Storage (shelves, cabinets, fridges) | Door / access opening | Back panel against wall |
+| Vehicles | Hood / front grille | Trunk / tailgate |
+| Appliances (ovens, microwaves) | Door / control panel | Back venting |
+| Speakers / audio equipment | Driver cone / front grille | Wiring / port panel |
+
+### Placement Rule: Face the Companion Object
+When an object is described as being "at", "facing", or "pushed in" to another object, its **open/functional side faces the companion object**, and its **closed/back side faces away**.
+
+This means the back geometry extends **away** from the companion, never into it.
+
+### Algorithmic Placement for Directional Objects
+
+```python
+# General formula: place object B facing object A
+# 1. Determine A's near edge (the surface closest to where B should be)
+A_near_edge = A_center - A_half_depth  # or + depending on direction
+
+# 2. Place B so its FUNCTIONAL side (front) faces A,
+#    with its center offset by B's half-depth + clearance gap
+B_center = A_near_edge - B_half_depth - clearance_gap
+
+# 3. The back of B extends AWAY from A:
+B_back = B_center - B_back_extent  # always farther from A, never closer
+
+# 4. Verify: B's closest point to A should not overlap A
+B_closest_to_A = B_center + B_half_depth
+assert B_closest_to_A < A_near_edge  # must be outside A's bounding box
+```
+
+### Anti-Pattern: Reversed Functional Direction
+If the back geometry is placed on the companion-object side:
+- The back panel/structure **clips through** the companion
+- The object appears oriented away from its companion (visually nonsensical)
+- The user-facing side points at empty space instead of the interaction surface
+
+### AABB Clearance Validation
+After placing **any** object near another, validate no intersection using axis-aligned bounding box (AABB) overlap detection:
+
+```python
+def check_clearance(obj_a, obj_b):
+    """Return True if objects do NOT overlap (AABB test in world space)."""
+    from mathutils import Vector
+    a_corners = [obj_a.matrix_world @ Vector(c) for c in obj_a.bound_box]
+    b_corners = [obj_b.matrix_world @ Vector(c) for c in obj_b.bound_box]
+
+    a_min = Vector((min(c.x for c in a_corners), min(c.y for c in a_corners), min(c.z for c in a_corners)))
+    a_max = Vector((max(c.x for c in a_corners), max(c.y for c in a_corners), max(c.z for c in a_corners)))
+    b_min = Vector((min(c.x for c in b_corners), min(c.y for c in b_corners), min(c.z for c in b_corners)))
+    b_max = Vector((max(c.x for c in b_corners), max(c.y for c in b_corners), max(c.z for c in b_corners)))
+
+    overlap = (a_min.x < b_max.x and a_max.x > b_min.x and
+               a_min.y < b_max.y and a_max.y > b_min.y and
+               a_min.z < b_max.z and a_max.z > b_min.z)
+    return not overlap
+```
+
+This is a standard technique from real-time collision detection — use it whenever two objects must be close but not interpenetrating.
+
 ## COMMON MISTAKES TO AVOID
 
 1. ❌ **Moving to Z=2 when user said "move up by 2"** — Read current position first
@@ -283,3 +409,7 @@ Use these to validate proportions when the user doesn't provide exact sizes.
 8. ❌ **Ignoring scale when computing proximity offsets** — A sphere(r=0.2, scale_x=1.3) extends 0.26m, NOT 0.2m. Always multiply: `actual_extent = radius × scale`
 9. ❌ **Placing "beside" objects at a fixed offset from center instead of from surface** — "Beside" means surface-to-surface contact, not center-to-center distance
 10. ❌ **Objects inside each other when meant to be touching** — Always compute both surfaces: `A_surface + B_half_width + margin`, never just `A_center + arbitrary_offset`
+11. ❌ **Reversing an object's functional direction** — When placing an object "at" or "facing" a companion, the open/functional side must face the companion. Back geometry extends AWAY, never into the companion object.
+12. ❌ **Skipping clearance validation after close placement** — After positioning any object near another, run an AABB overlap check to catch interpenetration before the user sees it
+13. ❌ **Using local attachment coordinates as if they were already world-space** — always convert with `matrix_world @ Vector(...)`
+14. ❌ **Using axis-aligned formulas on rotated or sloped supports** — derive contact from world-space bounding boxes or ray casts

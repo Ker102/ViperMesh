@@ -17,12 +17,11 @@ def setup_eevee_quality(quality: str = 'MEDIUM') -> dict:
     """
     Configure Eevee quality preset for Blender 5.x.
     
-    NOTE: In Blender 5.x, many EEVEE properties were removed or changed:
-    - use_ssr, use_ssr_refraction — REMOVED (reflections are automatic)
-    - use_gtao — REMOVED (AO is always active)
-    - use_bloom — REMOVED (use compositor Glare node instead)
-    - shadow_cascade_size — REMOVED
-    - taa_render_samples — REMOVED (use scene.eevee.taa_samples for viewport)
+    NOTE: In Blender 5.x:
+    - scene.eevee.taa_samples controls viewport sampling
+    - scene.eevee.taa_render_samples controls final render sampling
+    - legacy top-level toggles like use_ssr, use_gtao, use_bloom, and
+      shadow_cascade_size were removed or replaced
     
     Args:
         quality: 'LOW', 'MEDIUM', 'HIGH', 'ULTRA'
@@ -48,9 +47,10 @@ def setup_eevee_quality(quality: str = 'MEDIUM') -> dict:
     }
     
     preset = presets.get(quality, presets['MEDIUM'])
-    
-    # Blender 5.x: use scene render samples
-    bpy.context.scene.eevee.taa_samples = preset['samples']
+
+    eevee = bpy.context.scene.eevee
+    eevee.taa_render_samples = preset['samples']
+    eevee.taa_samples = max(16, preset['samples'] // 2)
     
     return preset
 
@@ -134,6 +134,7 @@ def setup_bloom_compositor(
     """
     scene = bpy.context.scene
     scene.use_nodes = True
+    scene.render.use_compositing = True
 
     # Blender 5.x: use compositing_node_group; fallback to node_tree for older versions
     tree = getattr(scene, 'compositing_node_group', None) or scene.node_tree

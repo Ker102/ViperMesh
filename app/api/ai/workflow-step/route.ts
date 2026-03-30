@@ -13,7 +13,9 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { createBlenderAgentV2 } from "@/lib/ai/agents"
-import type { WorkflowStepAction, WorkflowStepResult, WorkflowStep } from "@/lib/orchestration/workflow-types"
+import { createMcpClient } from "@/lib/mcp"
+import { getLocalAssetLibraryStatus } from "@/lib/mcp/client"
+import type { WorkflowStepResult } from "@/lib/orchestration/workflow-types"
 import { z } from "zod"
 
 // ---------------------------------------------------------------------------
@@ -120,12 +122,20 @@ async function executeBlenderAgentStep(
         const focusedRequest = `${step.description}. Context: the user is working on "${userRequest}". Focus only on this specific task: ${step.title}.`
 
         console.log(`[WorkflowStep] Executing blender agent step: "${step.title}"`)
+        const localAssetRuntime = await getLocalAssetLibraryStatus()
+        console.log("[WorkflowStep] Local asset runtime status:", {
+            enabled: localAssetRuntime.enabled,
+            message: localAssetRuntime.message,
+            catalogPath: localAssetRuntime.catalogPath,
+            assetCount: localAssetRuntime.assetCount,
+        })
 
         // Call the v2 LangGraph agent directly — it has:
         // - RAG middleware (injects relevant tool-guides from vectorstore)
         // - Updated system prompt with all direct MCP tools
         // - ReAct loop for autonomous tool selection
         const agent = createBlenderAgentV2({
+            allowLocalAssets: Boolean(localAssetRuntime.enabled),
             allowPolyHaven: true,
             allowSketchfab: false,
             allowHyper3d: false,
@@ -142,10 +152,12 @@ async function executeBlenderAgentStep(
         // Check if the agent produced any tool calls / responses
         const messages = result.messages ?? []
         const hasToolCalls = messages.some(
-            (m: Record<string, unknown>) =>
-                (m as { _getType?: () => string })._getType?.() === "ai" &&
-                Array.isArray((m as { tool_calls?: unknown[] }).tool_calls) &&
-                ((m as { tool_calls?: unknown[] }).tool_calls?.length ?? 0) > 0
+            (message) => {
+                const msg = message as { _getType?: () => string; tool_calls?: unknown[] }
+                return msg._getType?.() === "ai" &&
+                    Array.isArray(msg.tool_calls) &&
+                    (msg.tool_calls.length ?? 0) > 0
+            }
         )
 
         console.log(`[WorkflowStep] Agent completed: ${messages.length} messages, tool calls: ${hasToolCalls}`)

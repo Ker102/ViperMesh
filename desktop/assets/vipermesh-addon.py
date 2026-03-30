@@ -18,15 +18,18 @@ from bpy.props import StringProperty, IntProperty, BoolProperty, EnumProperty
 import io
 from contextlib import redirect_stdout, suppress
 
+ADDON_VERSION = (1, 2, 0)
+ADDON_VERSION_LABEL = ".".join(str(part) for part in ADDON_VERSION)
+
 bl_info = {
     "name": "ViperMesh Blender",
     "author": "ViperMesh Team",
-    "version": (1, 1, 0),
+    "version": ADDON_VERSION,
     "blender": (3, 0, 0),
     "location": "View3D > Sidebar > ViperMesh",
-    "description": "Connect Blender to ViperMesh AI Assistant",
+    "description": "Connect Blender to the ViperMesh Studio agent with managed asset-source support",
     "category": "Interface",
-    "doc_url": "https://github.com/Ker102/ModelForge",
+    "doc_url": "https://github.com/Ker102/ViperMesh",
 }
 
 RODIN_FREE_TRIAL_KEY = os.environ.get("RODIN_FREE_TRIAL_KEY", "")
@@ -234,10 +237,19 @@ class BlenderMCPServer:
             "set_camera_properties": self.set_camera_properties,
             "set_render_settings": self.set_render_settings,
             "render_image": self.render_image,
+            "get_local_asset_library_status": self.get_local_asset_library_status,
             "get_polyhaven_status": self.get_polyhaven_status,
             "get_hyper3d_status": self.get_hyper3d_status,
             "get_sketchfab_status": self.get_sketchfab_status,
         }
+
+        # Add local asset library handlers only if enabled
+        if bpy.context.scene.blendermcp_use_local_assets:
+            local_asset_handlers = {
+                "search_local_assets": self.search_local_assets,
+                "import_local_asset": self.import_local_asset,
+            }
+            handlers.update(local_asset_handlers)
 
         # Add Polyhaven handlers only if enabled
         if bpy.context.scene.blendermcp_use_polyhaven:
@@ -1435,7 +1447,7 @@ class BlenderMCPServer:
             if asset_type not in ["hdris", "textures", "models", "all"]:
                 return {"error": f"Invalid asset type: {asset_type}. Must be one of: hdris, textures, models, all"}
 
-            response = requests.get(f"https://api.polyhaven.com/categories/{asset_type}", headers=REQ_HEADERS)
+            response = requests.get(f"https://api.polyhaven.com/categories/{asset_type}", headers=REQ_HEADERS, timeout=30)
             if response.status_code == 200:
                 return {"categories": response.json()}
             else:
@@ -1457,7 +1469,7 @@ class BlenderMCPServer:
             if categories:
                 params["categories"] = categories
 
-            response = requests.get(url, params=params, headers=REQ_HEADERS)
+            response = requests.get(url, params=params, headers=REQ_HEADERS, timeout=30)
             if response.status_code == 200:
                 # Limit the response size to avoid overwhelming Blender
                 assets = response.json()
@@ -1477,7 +1489,7 @@ class BlenderMCPServer:
     def download_polyhaven_asset(self, asset_id, asset_type, resolution="1k", file_format=None):
         try:
             # First get the files information
-            files_response = requests.get(f"https://api.polyhaven.com/files/{asset_id}", headers=REQ_HEADERS)
+            files_response = requests.get(f"https://api.polyhaven.com/files/{asset_id}", headers=REQ_HEADERS, timeout=30)
             if files_response.status_code != 200:
                 return {"error": f"Failed to get asset files: {files_response.status_code}"}
 
@@ -1601,7 +1613,7 @@ class BlenderMCPServer:
                                 # Use NamedTemporaryFile like we do for HDRIs
                                 with tempfile.NamedTemporaryFile(suffix=f".{file_format}", delete=False) as tmp_file:
                                     # Download the file
-                                    response = requests.get(file_url, headers=REQ_HEADERS)
+                                    response = requests.get(file_url, headers=REQ_HEADERS, timeout=60)
                                     if response.status_code == 200:
                                         tmp_file.write(response.content)
                                         tmp_path = tmp_file.name
@@ -1738,7 +1750,7 @@ class BlenderMCPServer:
                         main_file_name = file_url.split("/")[-1]
                         main_file_path = os.path.join(temp_dir, main_file_name)
 
-                        response = requests.get(file_url, headers=REQ_HEADERS)
+                        response = requests.get(file_url, headers=REQ_HEADERS, timeout=60)
                         if response.status_code != 200:
                             return {"error": f"Failed to download model: {response.status_code}"}
 
@@ -1756,7 +1768,7 @@ class BlenderMCPServer:
                                 os.makedirs(os.path.dirname(include_file_path), exist_ok=True)
 
                                 # Download the included file
-                                include_response = requests.get(include_url, headers=REQ_HEADERS)
+                                include_response = requests.get(include_url, headers=REQ_HEADERS, timeout=60)
                                 if include_response.status_code == 200:
                                     with open(include_file_path, "wb") as f:
                                         f.write(include_response.content)
@@ -2062,6 +2074,317 @@ class BlenderMCPServer:
             print(f"Error in set_texture: {str(e)}")
             traceback.print_exc()
             return {"error": f"Failed to apply texture: {str(e)}"}
+
+    #region Local Asset Library
+    @staticmethod
+    def _default_managed_asset_library_root():
+        documents_root = os.path.abspath(os.path.expanduser("~/Documents"))
+        if os.path.isdir(documents_root):
+            return os.path.join(documents_root, "ViperMeshAssets")
+        return os.path.join(os.path.abspath(os.path.expanduser("~")), "ViperMeshAssets")
+
+    @staticmethod
+    def _default_managed_asset_catalog_path():
+        return os.path.join(
+            BlenderMCPServer._default_managed_asset_library_root(),
+            "catalog",
+            "assets.json"
+        )
+
+    @staticmethod
+    def _default_managed_asset_cache_root():
+        return os.path.join(
+            BlenderMCPServer._default_managed_asset_library_root(),
+            "cache"
+        )
+
+    @staticmethod
+    def _resolve_local_asset_catalog_path():
+        scene = bpy.context.scene
+        raw_path = (
+            getattr(scene, "blendermcp_local_asset_catalog_path", "")
+            or os.environ.get("VIPERMESH_LOCAL_ASSET_CATALOG", "")
+            or BlenderMCPServer._default_managed_asset_catalog_path()
+        )
+        if not raw_path:
+            return None
+        return os.path.abspath(os.path.expanduser(raw_path))
+
+    @staticmethod
+    def _resolve_local_asset_library_root(catalog=None):
+        scene = bpy.context.scene
+        raw_root = (
+            getattr(scene, "blendermcp_local_asset_library_root", "")
+            or os.environ.get("VIPERMESH_LOCAL_ASSET_LIBRARY_ROOT", "")
+            or BlenderMCPServer._default_managed_asset_library_root()
+        )
+        if raw_root:
+            return os.path.abspath(os.path.expanduser(raw_root))
+        if isinstance(catalog, dict) and catalog.get("library_root"):
+            return os.path.abspath(os.path.expanduser(catalog["library_root"]))
+        catalog_path = BlenderMCPServer._resolve_local_asset_catalog_path()
+        if catalog_path:
+            return os.path.dirname(catalog_path)
+        return None
+
+    @staticmethod
+    def _load_local_asset_catalog():
+        catalog_path = BlenderMCPServer._resolve_local_asset_catalog_path()
+        if not catalog_path:
+            return None, None, "Local asset catalog path is not configured."
+        if not os.path.isfile(catalog_path):
+            return None, catalog_path, f"Local asset catalog was not found at: {catalog_path}"
+
+        try:
+            with open(catalog_path, "r", encoding="utf-8") as f:
+                catalog = json.load(f)
+        except json.JSONDecodeError as e:
+            return None, catalog_path, f"Local asset catalog is not valid JSON: {str(e)}"
+        except Exception as e:
+            return None, catalog_path, f"Failed to read local asset catalog: {str(e)}"
+
+        assets = catalog.get("assets")
+        if not isinstance(assets, list):
+            return None, catalog_path, "Local asset catalog must contain an 'assets' array."
+
+        return catalog, catalog_path, None
+
+    @staticmethod
+    def _asset_text_fields(asset):
+        values = [
+            asset.get("id", ""),
+            asset.get("name", ""),
+            asset.get("category", ""),
+            asset.get("style", ""),
+            asset.get("description", ""),
+            asset.get("license", ""),
+            asset.get("source", ""),
+            " ".join(asset.get("tags", [])),
+        ]
+        return " ".join(str(v) for v in values if v).lower()
+
+    @staticmethod
+    def _score_local_asset(asset, query_terms):
+        searchable = BlenderMCPServer._asset_text_fields(asset)
+        tags = [str(tag).lower() for tag in asset.get("tags", [])]
+        name = str(asset.get("name", "")).lower()
+        category = str(asset.get("category", "")).lower()
+        style = str(asset.get("style", "")).lower()
+        description = str(asset.get("description", "")).lower()
+
+        score = float(asset.get("quality_score", 0.0) or 0.0)
+        for term in query_terms:
+            if term not in searchable:
+                return None
+            if term in name:
+                score += 10
+            elif term in tags:
+                score += 6
+            elif term in category or term in style:
+                score += 4
+            elif term in description:
+                score += 2
+            else:
+                score += 1
+        return score
+
+    @staticmethod
+    def _resolve_local_asset_file_path(catalog, catalog_path, asset):
+        import_spec = asset.get("import_spec") or {}
+        file_path = import_spec.get("file_path") or asset.get("file_path")
+        if not file_path:
+            return None, import_spec, "Asset is missing import_spec.file_path"
+
+        file_path = os.path.expanduser(file_path)
+        if os.path.isabs(file_path):
+            return os.path.abspath(file_path), import_spec, None
+
+        library_root = BlenderMCPServer._resolve_local_asset_library_root(catalog)
+        base_dir = library_root or os.path.dirname(catalog_path)
+        return os.path.abspath(os.path.join(base_dir, file_path)), import_spec, None
+
+    def get_local_asset_library_status(self):
+        """Get the current status of the local curated asset library."""
+        enabled = bpy.context.scene.blendermcp_use_local_assets
+        catalog, catalog_path, error = self._load_local_asset_catalog()
+        library_root = self._resolve_local_asset_library_root(catalog)
+
+        if not enabled:
+            return {
+                "enabled": False,
+                "message": """ViperMesh Assets are currently disabled. To enable them:
+                            1. In the 3D Viewport, find the ViperMesh panel in the sidebar (press N if hidden)
+                            2. Check the 'ViperMesh Assets' checkbox
+                            3. Keep the managed defaults, or override them with your own catalog and library root
+                            4. Restart the connection to ViperMesh""",
+                "catalog_path": catalog_path,
+                "library_root": library_root,
+                "managed_cache_root": self._default_managed_asset_cache_root(),
+            }
+
+        if error:
+            return {
+                "enabled": False,
+                "message": error,
+                "catalog_path": catalog_path,
+                "library_root": library_root,
+                "managed_cache_root": self._default_managed_asset_cache_root(),
+            }
+
+        return {
+            "enabled": True,
+            "message": "ViperMesh Assets are enabled and ready to use.",
+            "catalog_path": catalog_path,
+            "library_root": library_root,
+            "managed_cache_root": self._default_managed_asset_cache_root(),
+            "asset_count": len(catalog.get("assets", [])),
+            "catalog_version": catalog.get("version"),
+        }
+
+    def search_local_assets(self, query=None, category=None, tags=None, style=None, limit=10):
+        """Search the local curated asset manifest."""
+        catalog, catalog_path, error = self._load_local_asset_catalog()
+        if error:
+            return {"error": error}
+
+        query_terms = [term.strip().lower() for term in str(query or "").split() if term.strip()]
+        requested_category = str(category or "").strip().lower()
+        requested_style = str(style or "").strip().lower()
+        requested_tags = [tag.strip().lower() for tag in str(tags or "").split(",") if tag.strip()]
+
+        matches = []
+        for asset in catalog.get("assets", []):
+            asset_category = str(asset.get("category", "")).lower()
+            asset_style = str(asset.get("style", "")).lower()
+            asset_tags = [str(tag).lower() for tag in asset.get("tags", [])]
+
+            if requested_category and requested_category != asset_category:
+                continue
+            if requested_style and requested_style != asset_style:
+                continue
+            if requested_tags and not all(tag in asset_tags for tag in requested_tags):
+                continue
+
+            score = self._score_local_asset(asset, query_terms)
+            if query_terms and score is None:
+                continue
+            if score is None:
+                score = float(asset.get("quality_score", 0.0) or 0.0)
+
+            matches.append({
+                "id": asset.get("id"),
+                "name": asset.get("name"),
+                "category": asset.get("category"),
+                "style": asset.get("style"),
+                "tags": asset.get("tags", []),
+                "description": asset.get("description", ""),
+                "license": asset.get("license", ""),
+                "source": asset.get("source", ""),
+                "preview_path": asset.get("preview_path"),
+                "quality_score": asset.get("quality_score"),
+                "dimensions_m": asset.get("dimensions_m"),
+                "score": round(score, 3),
+            })
+
+        matches.sort(key=lambda item: item.get("score", 0), reverse=True)
+        return {
+            "success": True,
+            "catalog_path": catalog_path,
+            "result_count": len(matches),
+            "assets": matches[:max(1, int(limit or 10))],
+        }
+
+    def import_local_asset(self, asset_id, link=False):
+        """Import an asset from the local curated manifest into the scene."""
+        catalog, catalog_path, error = self._load_local_asset_catalog()
+        if error:
+            return {"error": error}
+
+        asset = next((item for item in catalog.get("assets", []) if item.get("id") == asset_id), None)
+        if asset is None:
+            return {"error": f"Asset '{asset_id}' was not found in the local asset catalog."}
+
+        resolved_path, import_spec, path_error = self._resolve_local_asset_file_path(catalog, catalog_path, asset)
+        if path_error:
+            return {"error": path_error}
+        if not os.path.isfile(resolved_path):
+            return {"error": f"Asset file was not found at: {resolved_path}"}
+
+        format_hint = str(import_spec.get("format") or os.path.splitext(resolved_path)[1].lstrip(".")).lower()
+        if format_hint == "gltf":
+            format_hint = "glb"
+
+        existing_objects = set(obj.name for obj in bpy.data.objects)
+        existing_collections = set(coll.name for coll in bpy.data.collections)
+
+        try:
+            if format_hint == "glb":
+                bpy.ops.import_scene.gltf(filepath=resolved_path)
+            elif format_hint == "fbx":
+                bpy.ops.import_scene.fbx(filepath=resolved_path)
+            elif format_hint == "obj":
+                bpy.ops.import_scene.obj(filepath=resolved_path)
+            elif format_hint == "blend":
+                append_type = str(import_spec.get("append_type", "collections")).lower()
+                if append_type == "collection":
+                    append_type = "collections"
+                if append_type == "object":
+                    append_type = "objects"
+                if append_type not in {"collections", "objects"}:
+                    return {"error": f"Unsupported blend append_type: {append_type}"}
+
+                requested_names = import_spec.get("asset_names") or []
+                with bpy.data.libraries.load(resolved_path, link=link) as (data_from, data_to):
+                    available_names = list(getattr(data_from, append_type))
+                    if not requested_names:
+                        requested_names = available_names[:1]
+                    valid_names = [name for name in requested_names if name in available_names]
+                    if not valid_names:
+                        return {"error": f"No importable {append_type} matched the manifest entry for '{asset_id}'."}
+
+                    if append_type == "collections":
+                        data_to.collections = valid_names
+                    else:
+                        data_to.objects = valid_names
+
+                if append_type == "collections":
+                    scene_children = {child.name for child in bpy.context.scene.collection.children}
+                    for coll in bpy.data.collections:
+                        if coll.name not in existing_collections and coll.name not in scene_children:
+                            bpy.context.scene.collection.children.link(coll)
+                else:
+                    current_objects = {obj.name for obj in bpy.context.collection.objects}
+                    for obj in bpy.data.objects:
+                        if obj.name not in existing_objects and obj.name not in current_objects:
+                            bpy.context.collection.objects.link(obj)
+            else:
+                return {"error": f"Unsupported local asset format: {format_hint}"}
+
+            bpy.context.view_layer.update()
+
+            imported_objects = [obj.name for obj in bpy.data.objects if obj.name not in existing_objects]
+            imported_collections = [coll.name for coll in bpy.data.collections if coll.name not in existing_collections]
+
+            return {
+                "success": True,
+                "message": f"Imported local asset '{asset_id}'",
+                "asset": {
+                    "id": asset.get("id"),
+                    "name": asset.get("name"),
+                    "category": asset.get("category"),
+                    "style": asset.get("style"),
+                    "license": asset.get("license"),
+                    "source": asset.get("source"),
+                },
+                "file_path": resolved_path,
+                "format": format_hint,
+                "imported_objects": imported_objects,
+                "imported_collections": imported_collections,
+            }
+        except Exception as e:
+            traceback.print_exc()
+            return {"error": f"Failed to import local asset: {str(e)}"}
+    #endregion
 
     def get_polyhaven_status(self):
         """Get the current status of PolyHaven integration"""
@@ -2694,6 +3017,12 @@ class VIPERMESH_PT_Panel(bpy.types.Panel):
         if scene.blendermcp_server_running != actually_running:
             scene.blendermcp_server_running = actually_running
 
+        version_row = layout.row()
+        version_row.enabled = False
+        version_row.label(text=f"Addon v{ADDON_VERSION_LABEL}")
+
+        layout.separator()
+
         # Header with status
         box = layout.box()
         row = box.row()
@@ -2723,6 +3052,11 @@ class VIPERMESH_PT_Panel(bpy.types.Panel):
         # Asset Sources
         box = layout.box()
         box.label(text="Asset Sources", icon='ASSET_MANAGER')
+        box.prop(scene, "blendermcp_use_local_assets", text="ViperMesh Assets")
+        if scene.blendermcp_use_local_assets:
+            col = box.column(align=True)
+            col.prop(scene, "blendermcp_local_asset_catalog_path", text="Catalog JSON")
+            col.prop(scene, "blendermcp_local_asset_library_root", text="Library Root")
         box.prop(scene, "blendermcp_use_polyhaven", text="Poly Haven")
 
         box.prop(scene, "blendermcp_use_hyper3d", text="Hyper3D Rodin")
@@ -2812,6 +3146,32 @@ def register():
         default=False
     )
 
+    bpy.types.Scene.blendermcp_use_local_assets = bpy.props.BoolProperty(
+        name="Use ViperMesh Assets",
+        description="Enable curated ViperMesh assets from a JSON manifest",
+        default=False
+    )
+
+    bpy.types.Scene.blendermcp_local_asset_catalog_path = bpy.props.StringProperty(
+        name="Local Asset Catalog",
+        description="Path to the ViperMesh local asset catalog JSON manifest",
+        default=(
+            os.environ.get("VIPERMESH_LOCAL_ASSET_CATALOG", "")
+            or BlenderMCPServer._default_managed_asset_catalog_path()
+        ),
+        subtype="FILE_PATH"
+    )
+
+    bpy.types.Scene.blendermcp_local_asset_library_root = bpy.props.StringProperty(
+        name="Local Asset Library Root",
+        description="Optional root folder used to resolve relative asset paths from the catalog",
+        default=(
+            os.environ.get("VIPERMESH_LOCAL_ASSET_LIBRARY_ROOT", "")
+            or BlenderMCPServer._default_managed_asset_library_root()
+        ),
+        subtype="DIR_PATH"
+    )
+
     bpy.types.Scene.blendermcp_use_polyhaven = bpy.props.BoolProperty(
         name="Use Poly Haven",
         description="Enable Poly Haven asset integration",
@@ -2882,7 +3242,9 @@ def unregister():
         bpy.app.handlers.load_post.remove(_sync_server_status)
 
     props = [
-        "blendermcp_port", "blendermcp_server_running", "blendermcp_use_polyhaven",
+        "blendermcp_port", "blendermcp_server_running", "blendermcp_use_local_assets",
+        "blendermcp_local_asset_catalog_path", "blendermcp_local_asset_library_root",
+        "blendermcp_use_polyhaven",
         "blendermcp_use_hyper3d", "blendermcp_hyper3d_mode", "blendermcp_hyper3d_api_key",
         "blendermcp_use_sketchfab", "blendermcp_sketchfab_api_key",
     ]

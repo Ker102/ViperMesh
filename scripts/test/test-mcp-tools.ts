@@ -173,7 +173,9 @@ print("Created TestCube with red material")
 
   // ── Phase 2: PolyHaven Tools ──────────────────────────────────────
   console.log()
-  console.log(yellow("▸ Phase 2: PolyHaven Tools"))
+  console.log(yellow("▸ Phase 2: Asset Tools"))
+
+  await test("Get local asset library status", "get_local_asset_library_status")
 
   await test("Get PolyHaven categories", "get_polyhaven_categories", {
     asset_type: "textures"

@@ -1,5 +1,6 @@
 const path = require("node:path")
 const http = require("node:http")
+const fs = require("node:fs")
 const { spawn } = require("node:child_process")
 const { app, BrowserWindow, ipcMain, nativeTheme, dialog, shell } = require("electron")
 
@@ -8,6 +9,114 @@ const DEFAULT_PORT = 3000
 const AUTH_CALLBACK_PORT = 45678 // Local port for OAuth callback
 const IS_DEV = process.env.VIPERMESH_DESKTOP_ENV === "development"
 const PROTOCOL = "vipermesh"
+const MANAGED_ASSET_LIBRARY_NAME = "ViperMeshAssets"
+const MANAGED_ASSET_DIRECTORIES = [
+  "catalog",
+  "cache",
+  "cache/downloads",
+  "incoming/blenderkit",
+  "incoming/polyhaven",
+  "incoming/private",
+  "incoming/marketplace",
+  "previews",
+  "props/footwear/ankle-boots",
+  "props/footwear/sneakers",
+  "props/plants/olive-branches",
+  "props/plants/indoor-potted",
+  "props/baskets/woven",
+  "props/lamps/table-lamps",
+  "props/books/stacks",
+  "props/decor/vases",
+  "props/decor/mirrors",
+  "furniture/console-tables",
+  "furniture/chairs",
+  "furniture/stools",
+  "materials/wood",
+  "materials/fabric",
+  "materials/ceramic",
+  "hdris/interior",
+  "hdris/studio",
+]
+
+function resolveManagedAssetLibraryRoot() {
+  const envRoot = process.env.VIPERMESH_LOCAL_ASSET_LIBRARY_ROOT?.trim()
+  if (envRoot) {
+    return path.resolve(envRoot)
+  }
+
+  return path.join(app.getPath("documents"), MANAGED_ASSET_LIBRARY_NAME)
+}
+
+function resolveManagedAssetCatalogPath(libraryRoot = resolveManagedAssetLibraryRoot()) {
+  const envCatalog = process.env.VIPERMESH_LOCAL_ASSET_CATALOG?.trim()
+  if (envCatalog) {
+    return path.resolve(envCatalog)
+  }
+
+  return path.join(libraryRoot, "catalog", "assets.json")
+}
+
+function resolveManagedAssetCacheRoot(libraryRoot = resolveManagedAssetLibraryRoot()) {
+  const envCache = process.env.VIPERMESH_LOCAL_ASSET_CACHE_ROOT?.trim()
+  if (envCache) {
+    return path.resolve(envCache)
+  }
+
+  return path.join(libraryRoot, "cache")
+}
+
+function readManagedCatalogAssetCount(catalogPath) {
+  if (!fs.existsSync(catalogPath)) {
+    return 0
+  }
+
+  try {
+    const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf-8"))
+    return Array.isArray(catalog.assets) ? catalog.assets.length : 0
+  } catch (error) {
+    console.warn("[Desktop] Failed to read managed asset catalog:", error)
+    return 0
+  }
+}
+
+function buildEmptyManagedCatalog(libraryRoot) {
+  return `${JSON.stringify({
+    version: 1,
+    generated_at: new Date().toISOString(),
+    library_root: libraryRoot,
+    assets: [],
+  }, null, 2)}\n`
+}
+
+function ensureManagedAssetDefaults() {
+  const libraryRoot = resolveManagedAssetLibraryRoot()
+  const catalogPath = resolveManagedAssetCatalogPath(libraryRoot)
+  const cacheRoot = resolveManagedAssetCacheRoot(libraryRoot)
+
+  fs.mkdirSync(libraryRoot, { recursive: true })
+
+  for (const relativeDir of MANAGED_ASSET_DIRECTORIES) {
+    fs.mkdirSync(path.join(libraryRoot, relativeDir), { recursive: true })
+  }
+
+  fs.mkdirSync(path.dirname(catalogPath), { recursive: true })
+  fs.mkdirSync(cacheRoot, { recursive: true })
+
+  if (!fs.existsSync(catalogPath)) {
+    fs.writeFileSync(catalogPath, buildEmptyManagedCatalog(libraryRoot), "utf-8")
+  }
+
+  return {
+    libraryRoot,
+    catalogPath,
+    cacheRoot,
+    catalogExists: fs.existsSync(catalogPath),
+    assetCount: readManagedCatalogAssetCount(catalogPath),
+    usingEnvCatalogOverride: Boolean(process.env.VIPERMESH_LOCAL_ASSET_CATALOG?.trim()),
+    usingEnvLibraryRootOverride: Boolean(process.env.VIPERMESH_LOCAL_ASSET_LIBRARY_ROOT?.trim()),
+    usingEnvCacheOverride: Boolean(process.env.VIPERMESH_LOCAL_ASSET_CACHE_ROOT?.trim()),
+  }
+}
 
 // Register deep link protocol (for OAuth callback)
 if (process.defaultApp) {
@@ -302,6 +411,10 @@ app.on("ready", async () => {
   console.log("[Desktop] Mode:", IS_DEV ? "development" : "production")
 
   try {
+    const managedAssets = ensureManagedAssetDefaults()
+    console.log("[Desktop] Managed asset library root:", managedAssets.libraryRoot)
+    console.log("[Desktop] Managed asset catalog path:", managedAssets.catalogPath)
+
     // Start bundled server if in production
     if (!IS_DEV) {
       await startBundledServer()
@@ -423,6 +536,10 @@ ipcMain.handle("app:get-info", () => {
   }
 })
 
+ipcMain.handle("assets:get-managed-config", () => {
+  return ensureManagedAssetDefaults()
+})
+
 ipcMain.handle("addon:get-path", () => {
   // In production, addon is in resources/assets
   // In dev, it's in desktop/assets
@@ -432,18 +549,23 @@ ipcMain.handle("addon:get-path", () => {
 
   return {
     path: addonPath,
-    exists: require("fs").existsSync(addonPath)
+    exists: fs.existsSync(addonPath)
   }
 })
 
 ipcMain.handle("addon:open-folder", () => {
-  const { shell } = require("electron")
   const addonPath = IS_DEV
     ? path.join(__dirname, "assets")
     : path.join(process.resourcesPath, "assets")
 
   shell.openPath(addonPath)
   return { opened: true, path: addonPath }
+})
+
+ipcMain.handle("assets:open-managed-folder", () => {
+  const { libraryRoot } = ensureManagedAssetDefaults()
+  shell.openPath(libraryRoot)
+  return { opened: true, path: libraryRoot }
 })
 
 // Open URL in system browser (not Electron window)

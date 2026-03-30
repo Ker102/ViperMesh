@@ -72,15 +72,9 @@ function isValidModelUrl(urlString: string): boolean {
 }
 
 export function ModelViewer({ url }: ModelViewerProps) {
-    const [isValidUrl, setIsValidUrl] = useState(false);
-    const [hasError, setHasError] = useState(false);
-
-    useEffect(() => {
-        if (url) {
-            setIsValidUrl(isValidModelUrl(url));
-            setHasError(false);
-        }
-    }, [url]);
+    const [failedUrl, setFailedUrl] = useState<string | null>(null);
+    const isValidUrl = url ? isValidModelUrl(url) : false;
+    const hasError = failedUrl === url;
 
     if (!url) return null;
 
@@ -124,7 +118,7 @@ export function ModelViewer({ url }: ModelViewerProps) {
                 dpr={[1, 2]}
                 camera={{ fov: 50 }}
                 aria-describedby="model-description"
-                onError={() => setHasError(true)}
+                onError={() => setFailedUrl(url)}
             >
                 <Suspense fallback={null}>
                     <Stage environment="city" intensity={0.6}>

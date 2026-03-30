@@ -113,37 +113,70 @@ function withGuide(toolName: string, baseDescription: string): string {
  * Includes the applied parameters in the response so the agent can verify
  * what was configured without needing to call get_scene_info.
  */
+const MCP_RETRYABLE_ERROR_PATTERN = /(ECONNREFUSED|ECONNRESET|socket hang up|timed out|write after end|EPIPE)/i
+let mcpCommandQueue: Promise<void> = Promise.resolve()
+
+function isRetryableMcpTransportError(message: string) {
+  return MCP_RETRYABLE_ERROR_PATTERN.test(message)
+}
+
+function enqueueMcpCommand<T>(task: () => Promise<T>) {
+  const run = mcpCommandQueue.catch(() => undefined).then(task)
+  mcpCommandQueue = run.then(() => undefined, () => undefined)
+  return run
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 export async function executeMcpCommand(
   commandType: string,
   params: Record<string, unknown> = {}
 ): Promise<string> {
-  const client = createMcpClient()
-  try {
-    const response: McpResponse = await client.execute({
-      type: commandType,
-      params,
-    })
-    if (response.status === "error") {
-      return JSON.stringify({ error: response.message ?? "MCP command failed" })
+  return enqueueMcpCommand(async () => {
+    const maxAttempts = 3
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const client = createMcpClient()
+      try {
+        const response: McpResponse = await client.execute({
+          type: commandType,
+          params,
+        })
+        if (response.status === "error") {
+          const message = response.message ?? "MCP command failed"
+          if (attempt < maxAttempts && isRetryableMcpTransportError(message)) {
+            await sleep(150 * attempt)
+            continue
+          }
+          return JSON.stringify({ error: message })
+        }
+        // Blender executes commands on its main thread, so serializing
+        // MCP traffic avoids connection churn from parallel tool bursts.
+        const result = response.result ?? response.raw ?? { status: "ok" }
+        const appliedParams = Object.fromEntries(
+          Object.entries(params).filter(([, v]) => v !== undefined && v !== null)
+        )
+        return JSON.stringify({
+          ...(typeof result === "object" ? result : { status: result }),
+          _applied: appliedParams,
+          _command: commandType,
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        if (attempt < maxAttempts && isRetryableMcpTransportError(message)) {
+          await sleep(150 * attempt)
+          continue
+        }
+        return JSON.stringify({ error: message })
+      } finally {
+        await client.close().catch(() => undefined)
+      }
     }
-    // Include the applied parameters in the result so the agent
-    // knows exactly what was set without re-querying the scene
-    const result = response.result ?? response.raw ?? { status: "ok" }
-    const appliedParams = Object.fromEntries(
-      Object.entries(params).filter(([, v]) => v !== undefined && v !== null)
-    )
-    return JSON.stringify({
-      ...( typeof result === "object" ? result : { status: result }),
-      _applied: appliedParams,
-      _command: commandType,
-    })
-  } catch (error) {
-    return JSON.stringify({
-      error: error instanceof Error ? error.message : String(error),
-    })
-  } finally {
-    await client.close().catch(() => undefined)
-  }
+
+    return JSON.stringify({ error: "MCP command failed after retries" })
+  })
 }
 
 // ---------- Core Tools ---------
@@ -656,6 +689,51 @@ const renderImage = tool(
 
 // ---------- PolyHaven Tools ---------
 
+const getLocalAssetLibraryStatus = tool(
+  async () => executeMcpCommand("get_local_asset_library_status"),
+  {
+    name: "get_local_asset_library_status",
+    description: "Check whether the local curated ViperMesh asset library is configured and available.",
+    schema: z.object({}),
+  }
+)
+
+const searchLocalAssets = tool(
+  async ({ query, category, tags, style, limit }: {
+    query?: string
+    category?: string
+    tags?: string
+    style?: string
+    limit?: number
+  }) => executeMcpCommand("search_local_assets", { query, category, tags, style, limit }),
+  {
+    name: "search_local_assets",
+    description:
+      "Search the local curated ViperMesh asset catalog for reusable commodity props, decor, furniture, or other prepared models that are better imported than procedurally rebuilt.",
+    schema: z.object({
+      query: z.string().optional().describe("Search query, such as 'ankle boots' or 'olive branch vase'"),
+      category: z.string().optional().describe("Optional exact category filter, such as 'footwear'"),
+      tags: z.string().optional().describe("Optional comma-separated tag filter"),
+      style: z.string().optional().describe("Optional exact style filter, such as 'realistic'"),
+      limit: z.number().int().min(1).max(25).optional().describe("Maximum number of matches to return"),
+    }),
+  }
+)
+
+const importLocalAsset = tool(
+  async ({ asset_id, link }: { asset_id: string; link?: boolean }) =>
+    executeMcpCommand("import_local_asset", { asset_id, link }),
+  {
+    name: "import_local_asset",
+    description:
+      "Import a curated ViperMesh asset into the current Blender scene after selecting a specific catalog match.",
+    schema: z.object({
+      asset_id: z.string().describe("Asset ID from search_local_assets"),
+      link: z.boolean().optional().describe("Link instead of append when importing from .blend libraries"),
+    }),
+  }
+)
+
 const getPolyhavenCategories = tool(
   async ({ asset_type }: { asset_type: string }) =>
     executeMcpCommand("get_polyhaven_categories", { asset_type }),
@@ -803,6 +881,7 @@ const POLYHAVEN_TOOL_NAMES = new Set([
   "download_polyhaven_asset",
   "set_texture",
 ])
+const LOCAL_ASSET_TOOL_NAMES = new Set(["search_local_assets", "import_local_asset"])
 const HYPER3D_TOOL_NAMES = new Set([
   "get_hyper3d_status",
   "create_rodin_job",
@@ -841,6 +920,9 @@ const ALL_TOOLS = [
   setCameraProperties,
   setRenderSettings,
   renderImage,
+  getLocalAssetLibraryStatus,
+  searchLocalAssets,
+  importLocalAsset,
   getPolyhavenCategories,
   searchPolyhavenAssets,
   downloadPolyhavenAsset,
@@ -882,7 +964,7 @@ for (const t of ALL_TOOLS) {
  *
  * If the previous/in-flight call failed, retries are allowed.
  */
-function createDedupMiddleware() {
+function createDedupMiddleware(onStreamEvent?: (event: AgentStreamEvent) => void) {
   // Stable hash: deep-sort keys so {a:1,b:2} and {b:2,a:1} produce the same string,
   // including nested objects (e.g. {properties:{width:0.01}} vs {properties:{width:0.2}})
   function stableHash(args: Record<string, unknown>): string {
@@ -906,6 +988,7 @@ function createDedupMiddleware() {
   const lastCalls = new Map<string, { result: unknown; failed: boolean }>()
   // In-flight calls: key = "toolName:argsHash" → promise of result
   const inFlight = new Map<string, Promise<unknown>>()
+  let renderFailedThisRun = false
 
   return createMiddleware({
     name: "DedupMiddleware",
@@ -914,10 +997,40 @@ function createDedupMiddleware() {
       const argsHash = stableHash((request.toolCall.args as Record<string, unknown>) ?? {})
       const flightKey = `${toolName}:${argsHash}`
 
+      if (toolName === "render_image" && renderFailedThisRun) {
+        console.log("[Dedup] Blocking additional render attempt after prior render failure")
+        onStreamEvent?.({
+          type: "agent:tool_call",
+          toolName,
+          status: "skipped",
+          timestamp: new Date().toISOString(),
+          toolCallId: request.toolCall.id ?? "unknown",
+          args: (request.toolCall.args as Record<string, unknown>) ?? {},
+        })
+        const { ToolMessage: TM } = await import("@langchain/core/messages")
+        return new TM({
+          content: JSON.stringify({
+            _skipped_render_retry: true,
+            _message:
+              "render_image already failed once in this run. Do not retry render_image again until the user confirms a follow-up render pass.",
+          }),
+          tool_call_id: request.toolCall.id ?? "unknown",
+        })
+      }
+
       // Check 1: Sequential duplicate — same tool+args already succeeded
       const lastCall = lastCalls.get(flightKey)
       if (lastCall && !lastCall.failed) {
         console.log(`[Dedup] Skipping duplicate: ${toolName} (identical args, previous call succeeded)`)
+        onStreamEvent?.({
+          type: "agent:tool_call",
+          toolName,
+          status: "skipped",
+          timestamp: new Date().toISOString(),
+          toolCallId: request.toolCall.id ?? "unknown",
+          args: (request.toolCall.args as Record<string, unknown>) ?? {},
+          duplicate: true,
+        })
         const { ToolMessage: TM } = await import("@langchain/core/messages")
         return new TM({
           content: JSON.stringify({
@@ -931,6 +1044,15 @@ function createDedupMiddleware() {
       // Check 2: Parallel duplicate — same call already in-flight
       if (inFlight.has(flightKey)) {
         console.log(`[Dedup] Coalescing parallel call: ${toolName} (waiting for in-flight result)`)
+        onStreamEvent?.({
+          type: "agent:tool_call",
+          toolName,
+          status: "skipped",
+          timestamp: new Date().toISOString(),
+          toolCallId: request.toolCall.id ?? "unknown",
+          args: (request.toolCall.args as Record<string, unknown>) ?? {},
+          duplicate: true,
+        })
         const existingResult = await inFlight.get(flightKey)
         const { ToolMessage: TM } = await import("@langchain/core/messages")
         return new TM({
@@ -951,10 +1073,15 @@ function createDedupMiddleware() {
       let failed = false
       try {
         result = await handler(request)
-        const content = typeof result === "object" && "content" in result ? String(result.content) : ""
-        failed = content.includes('"error"')
+        failed = getToolResultError(result) !== null
+        if (toolName === "render_image" && failed) {
+          renderFailedThisRun = true
+        }
       } catch (error) {
         failed = true
+        if (toolName === "render_image") {
+          renderFailedThisRun = true
+        }
         throw error
       } finally {
         // Cache result and clear in-flight
@@ -966,6 +1093,30 @@ function createDedupMiddleware() {
       return result
     },
   })
+}
+
+function getToolResultContent(result: unknown): string {
+  return typeof result === "object" && result !== null && "content" in result
+    ? String(result.content)
+    : ""
+}
+
+function getToolResultError(result: unknown): string | null {
+  const content = getToolResultContent(result)
+  if (!content || content.includes("_skipped_duplicate") || content.includes("_skipped_render_retry")) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(content) as { error?: unknown }
+    if (typeof parsed?.error === "string" && parsed.error.trim()) {
+      return parsed.error
+    }
+  } catch {
+    // Fall back to string detection when the tool returns non-JSON content.
+  }
+
+  return content.includes('"error"') ? content : null
 }
 
 function createStreamingMiddleware(onStreamEvent?: (event: AgentStreamEvent) => void) {
@@ -980,6 +1131,8 @@ function createStreamingMiddleware(onStreamEvent?: (event: AgentStreamEvent) => 
         toolName,
         status: "started",
         timestamp: new Date().toISOString(),
+        toolCallId: request.toolCall.id ?? "unknown",
+        args: (request.toolCall.args as Record<string, unknown>) ?? {},
       })
 
       let result: Awaited<ReturnType<typeof handler>>
@@ -987,9 +1140,22 @@ function createStreamingMiddleware(onStreamEvent?: (event: AgentStreamEvent) => 
         result = await handler(request)
 
         // Check if the result indicates a skipped duplicate
-        const content = typeof result === "object" && "content" in result ? String(result.content) : ""
-        if (content.includes("_skipped_duplicate")) {
+        const content = getToolResultContent(result)
+        if (content.includes("_skipped_duplicate") || content.includes("_skipped_render_retry")) {
           // Don't emit completed for skipped duplicates
+          return result
+        }
+
+        const embeddedError = getToolResultError(result)
+        if (embeddedError) {
+          onStreamEvent?.({
+            type: "agent:tool_call",
+            toolName,
+            status: "failed",
+            timestamp: new Date().toISOString(),
+            toolCallId: request.toolCall.id ?? "unknown",
+            error: embeddedError,
+          })
           return result
         }
 
@@ -999,6 +1165,7 @@ function createStreamingMiddleware(onStreamEvent?: (event: AgentStreamEvent) => 
           toolName,
           status: "completed",
           timestamp: new Date().toISOString(),
+          toolCallId: request.toolCall.id ?? "unknown",
         })
       } catch (error) {
         // Emit tool_call failed
@@ -1007,6 +1174,8 @@ function createStreamingMiddleware(onStreamEvent?: (event: AgentStreamEvent) => 
           toolName,
           status: "failed",
           timestamp: new Date().toISOString(),
+          toolCallId: request.toolCall.id ?? "unknown",
+          error: error instanceof Error ? error.message : String(error),
         })
         throw error
       }
@@ -1195,6 +1364,8 @@ function createRAGMiddleware() {
 // ============================================================================
 
 export interface BlenderAgentV2Options {
+  /** Allow curated ViperMesh local assets */
+  allowLocalAssets?: boolean
   /** Allow PolyHaven assets */
   allowPolyHaven?: boolean
   /** Allow Sketchfab assets */
@@ -1226,6 +1397,7 @@ export interface BlenderAgentV2Options {
  */
 export function createBlenderAgentV2(options: BlenderAgentV2Options = {}) {
   const {
+    allowLocalAssets = true,
     allowPolyHaven = true,
     allowSketchfab = false,
     allowHyper3d = false,
@@ -1237,6 +1409,7 @@ export function createBlenderAgentV2(options: BlenderAgentV2Options = {}) {
 
   // Filter tools based on config
   const tools = ALL_TOOLS.filter((t) => {
+    if (!allowLocalAssets && LOCAL_ASSET_TOOL_NAMES.has(t.name)) return false
     if (!allowSketchfab && SKETCHFAB_TOOL_NAMES.has(t.name)) return false
     if (!allowPolyHaven && POLYHAVEN_TOOL_NAMES.has(t.name)) return false
     if (!allowHyper3d && HYPER3D_TOOL_NAMES.has(t.name)) return false
@@ -1254,7 +1427,7 @@ export function createBlenderAgentV2(options: BlenderAgentV2Options = {}) {
 
   // Build middleware stack (dedup runs first to catch duplicates before side effects)
   const middleware = [
-    createDedupMiddleware(),
+    createDedupMiddleware(onStreamEvent),
     createStreamingMiddleware(onStreamEvent),
     createViewportMiddleware(onStreamEvent),
   ]

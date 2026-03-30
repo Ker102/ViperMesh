@@ -20,6 +20,15 @@ contextBridge.exposeInMainWorld("vipermesh", {
     return ipcRenderer.invoke("addon:open-folder")
   },
 
+  // Managed Local Assets
+  getManagedAssetConfig: async () => {
+    return ipcRenderer.invoke("assets:get-managed-config")
+  },
+
+  openManagedAssetFolder: async () => {
+    return ipcRenderer.invoke("assets:open-managed-folder")
+  },
+
   // Open URL in system browser (not Electron window)
   openExternal: async (url) => {
     return ipcRenderer.invoke("shell:open-external", url)

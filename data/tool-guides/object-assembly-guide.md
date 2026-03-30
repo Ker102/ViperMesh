@@ -2,7 +2,7 @@
 title: "Multi-Part Object Assembly Guide"
 category: "object-assembly"
 tags: ["assembly", "compound", "multi-part", "parent", "attach", "connect", "hierarchy", "empty", "pole", "arm", "joint", "furniture", "vehicle", "building", "execute_code", "parent_set", "set_object_transform"]
-triggered_by: ["execute_code", "parent_set", "set_object_transform"]
+triggered_by: ["parent_set", "set_object_transform"]
 description: "Domain knowledge for building compound objects from primitives. Covers connection point calculation, parent-child assembly, flush attachment, and common archetypes like furniture, street infrastructure, and architectural elements."
 blender_version: "4.0+"
 ---

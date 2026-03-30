@@ -2,7 +2,7 @@ import { McpClientConfig } from "./types"
 
 const DEFAULT_HOST = "127.0.0.1"
 const DEFAULT_PORT = 9876
-const DEFAULT_TIMEOUT = 30_000
+const DEFAULT_TIMEOUT = 120_000
 
 let cachedConfig: McpClientConfig | null = null
 

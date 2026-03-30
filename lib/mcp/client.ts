@@ -3,6 +3,16 @@ import { randomUUID } from "crypto"
 import { getMcpConfig } from "./config"
 import { McpCommand, McpResponse } from "./types"
 
+export interface LocalAssetLibraryStatus {
+  enabled?: boolean
+  message?: string
+  catalog_path?: string
+  library_root?: string
+  managed_cache_root?: string
+  asset_count?: number
+  catalog_version?: number
+}
+
 export class BlenderMcpClient {
   private socket: net.Socket | null = null
   private connected = false
@@ -118,6 +128,54 @@ export class BlenderMcpClient {
 
 export function createMcpClient() {
   return new BlenderMcpClient()
+}
+
+export async function getLocalAssetLibraryStatus() {
+  const client = createMcpClient()
+  try {
+    const response = await client.execute<LocalAssetLibraryStatus>({
+      type: "get_local_asset_library_status",
+      params: {},
+    })
+
+    if (response.status === "ok" || response.status === "success") {
+      const result = response.result ?? {}
+      return {
+        enabled: Boolean(result.enabled),
+        message:
+          typeof result.message === "string"
+            ? result.message
+            : result.enabled
+              ? "Local asset library enabled"
+              : "Local asset library disabled",
+        catalogPath:
+          typeof result.catalog_path === "string" ? result.catalog_path : undefined,
+        libraryRoot:
+          typeof result.library_root === "string" ? result.library_root : undefined,
+        managedCacheRoot:
+          typeof result.managed_cache_root === "string" ? result.managed_cache_root : undefined,
+        assetCount:
+          typeof result.asset_count === "number" ? result.asset_count : undefined,
+        catalogVersion:
+          typeof result.catalog_version === "number" ? result.catalog_version : undefined,
+        raw: result,
+      }
+    }
+
+    return {
+      enabled: false,
+      message: response.message ?? "Local asset library status probe failed",
+      raw: response,
+    }
+  } catch (error) {
+    return {
+      enabled: false,
+      message: error instanceof Error ? error.message : String(error),
+      raw: null,
+    }
+  } finally {
+    await client.close().catch(() => undefined)
+  }
 }
 
 export async function checkMcpConnection() {

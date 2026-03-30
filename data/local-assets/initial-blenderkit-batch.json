@@ -1,0 +1,469 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "source_path": "incoming/blenderkit/footwear/ankle-boots-dark/blenderkit_ankle_boots_dark_a.blend",
+      "curated_path": "props/footwear/ankle-boots/ankle_boots_dark_a.blend",
+      "name": "Ankle Boots Dark A",
+      "category": "footwear",
+      "tags": ["boots", "ankle", "dark", "leather", "interior", "realistic"],
+      "style": "realistic",
+      "description": "Dark ankle boot pair for interior and lifestyle scenes.",
+      "source": "blenderkit",
+      "quality_score": 0.93,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Army  Shoes"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/footwear/ankle-boots-suede/blenderkit_ankle_boots_suede_brown_a.blend",
+      "curated_path": "props/footwear/ankle-boots/ankle_boots_suede_brown_a.blend",
+      "name": "Ankle Boots Suede Brown A",
+      "category": "footwear",
+      "tags": ["boots", "ankle", "suede", "brown", "interior", "realistic"],
+      "style": "realistic",
+      "description": "Brown suede-style ankle boot pair with worn leather character.",
+      "source": "blenderkit",
+      "quality_score": 0.9,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Old, used leather shoes / boots"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/footwear/loafers-black/blenderkit_loafers_black_a.blend",
+      "curated_path": "props/footwear/loafers/loafers_black_a.blend",
+      "name": "Loafers Black A",
+      "category": "footwear",
+      "tags": ["loafers", "black", "leather", "shoes", "interior", "realistic"],
+      "style": "realistic",
+      "description": "Black casual loafers for home entryway and decor scenes.",
+      "source": "blenderkit",
+      "quality_score": 0.9,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Casual Shoes"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/footwear/loafers-black/blenderkit_loafers_black_b.blend",
+      "curated_path": "props/footwear/loafers/loafers_black_b.blend",
+      "name": "Loafers Black B",
+      "category": "footwear",
+      "tags": ["loafers", "black", "shoes", "interior", "realistic"],
+      "style": "realistic",
+      "description": "Secondary black shoe variant for entryway and styling scenes.",
+      "source": "blenderkit",
+      "quality_score": 0.88,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Shoes"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/footwear/sneakers-white/blenderkit_sneakers_white_a.blend",
+      "curated_path": "props/footwear/sneakers/sneakers_white_minimal_a.blend",
+      "name": "Sneakers White Minimal A",
+      "category": "footwear",
+      "tags": ["sneakers", "white", "minimal", "shoes", "interior", "realistic"],
+      "style": "minimal",
+      "description": "Minimal white sneaker pair for modern interiors and product styling.",
+      "source": "blenderkit",
+      "quality_score": 0.89,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Salomon sneakers"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/plants/olive-vase/blenderkit_olive_branch_vase_a.blend",
+      "curated_path": "props/plants/olive-branches/olive_branch_vase_a.blend",
+      "name": "Olive Branch Vase A",
+      "category": "plants",
+      "tags": ["olive", "branches", "vase", "ceramic", "interior", "scandinavian"],
+      "style": "scandinavian",
+      "description": "Olive branch arrangement in a ceramic vase for soft neutral interiors.",
+      "source": "blenderkit",
+      "quality_score": 0.95,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Olive Branches in Ceramic Vase"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/plants/olive-tree-small/blenderkit_olive_tree_small_a.blend",
+      "curated_path": "props/plants/indoor-potted/olive_tree_small_a.blend",
+      "name": "Olive Tree Small A",
+      "category": "plants",
+      "tags": ["olive", "tree", "potted", "indoor", "interior", "scandinavian"],
+      "style": "scandinavian",
+      "description": "Small potted olive tree for calm natural interior scenes.",
+      "source": "blenderkit",
+      "quality_score": 0.92,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Olive Tree"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/plants/eucalyptus-vase/blenderkit_eucalyptus_vase_a.blend",
+      "curated_path": "props/plants/vase-arrangements/eucalyptus_vase_a.blend",
+      "name": "Eucalyptus Vase A",
+      "category": "plants",
+      "tags": ["eucalyptus", "vase", "foliage", "interior", "neutral", "scandinavian"],
+      "style": "scandinavian",
+      "description": "Eucalyptus vase arrangement suited for neutral shelf and table styling.",
+      "source": "blenderkit",
+      "quality_score": 0.9,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Eucalyptus vase"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/plants/monstera-pot/blenderkit_monstera_pot_a.blend",
+      "curated_path": "props/plants/indoor-potted/monstera_pot_a.blend",
+      "name": "Monstera Pot A",
+      "category": "plants",
+      "tags": ["monstera", "plant", "pot", "indoor", "interior", "realistic"],
+      "style": "realistic",
+      "description": "Primary monstera plant in pot for interior scenes.",
+      "source": "blenderkit",
+      "quality_score": 0.92,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Monstera Plant in Pot"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/plants/monstera-pot/blenderkit_monstera_pot_b.blend",
+      "curated_path": "props/plants/indoor-potted/monstera_pot_b.blend",
+      "name": "Monstera Pot B",
+      "category": "plants",
+      "tags": ["monstera", "plant", "pot", "indoor", "variegated", "interior"],
+      "style": "realistic",
+      "description": "Alternate monstera variant for indoor plant styling.",
+      "source": "blenderkit",
+      "quality_score": 0.89,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Monstera Albo"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/baskets/round-handled/blenderkit_basket_round_handles_a.blend",
+      "curated_path": "props/baskets/woven/basket_round_handles_a.blend",
+      "name": "Basket Round Handles A",
+      "category": "baskets",
+      "tags": ["basket", "round", "handles", "fabric", "storage", "interior"],
+      "style": "scandinavian",
+      "description": "Handled basket set candidate for soft storage styling.",
+      "source": "blenderkit",
+      "quality_score": 0.88,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Fabric Basket Set"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/baskets/tall-hamper/blenderkit_basket_tall_hamper_a.blend",
+      "curated_path": "props/baskets/woven/basket_tall_hamper_a.blend",
+      "name": "Basket Tall Hamper A",
+      "category": "baskets",
+      "tags": ["basket", "hamper", "woven", "tall", "storage", "interior"],
+      "style": "scandinavian",
+      "description": "Tall woven hamper basket for storage and entryway scenes.",
+      "source": "blenderkit",
+      "quality_score": 0.91,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Woven Storage Basket"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/baskets/tray-small/blenderkit_basket_tray_small_a.blend",
+      "curated_path": "props/baskets/woven/basket_tray_small_a.blend",
+      "name": "Basket Tray Small A",
+      "category": "baskets",
+      "tags": ["basket", "tray", "small", "storage", "interior", "neutral"],
+      "style": "scandinavian",
+      "description": "Small storage basket candidate for tray and tabletop styling.",
+      "source": "blenderkit",
+      "quality_score": 0.87,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Storage Basket Small"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/baskets/lidded-storage/blenderkit_basket_lidded_storage_a.blend",
+      "curated_path": "props/baskets/woven/basket_lidded_storage_a.blend",
+      "name": "Basket Lidded Storage A",
+      "category": "baskets",
+      "tags": ["basket", "lidded", "woven", "storage", "interior", "neutral"],
+      "style": "scandinavian",
+      "description": "Primary lidded woven storage basket.",
+      "source": "blenderkit",
+      "quality_score": 0.9,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Basket"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/baskets/lidded-storage/blenderkit_basket_lidded_storage_b.blend",
+      "curated_path": "props/baskets/woven/basket_lidded_storage_b.blend",
+      "name": "Basket Lidded Storage B",
+      "category": "baskets",
+      "tags": ["basket", "lidded", "storage", "handmade", "interior", "neutral"],
+      "style": "scandinavian",
+      "description": "Secondary handcrafted lidded basket variant.",
+      "source": "blenderkit",
+      "quality_score": 0.89,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Homemade Artistic Basket"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/lamps/ceramic-linen/blenderkit_lamp_ceramic_linen_a.blend",
+      "curated_path": "props/lamps/table-lamps/lamp_ceramic_linen_a.blend",
+      "name": "Lamp Ceramic Linen A",
+      "category": "lamps",
+      "tags": ["lamp", "ceramic", "linen", "table", "interior", "neutral"],
+      "style": "scandinavian",
+      "description": "White ceramic table lamp with soft neutral shade.",
+      "source": "blenderkit",
+      "quality_score": 0.94,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["White Ceramic Table Lamp"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/lamps/ceramic-linen/blenderkit_lamp_ceramic_linen_b.blend",
+      "curated_path": "props/lamps/table-lamps/lamp_ceramic_linen_b.blend",
+      "name": "Lamp Ceramic Linen B",
+      "category": "lamps",
+      "tags": ["lamp", "ceramic", "shade", "table", "interior", "neutral"],
+      "style": "scandinavian",
+      "description": "Alternate ceramic table lamp with classic shade silhouette.",
+      "source": "blenderkit",
+      "quality_score": 0.91,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Ceramic Table Lamp"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/lamps/stone-table/blenderkit_lamp_stone_table_a.blend",
+      "curated_path": "props/lamps/table-lamps/lamp_stone_table_a.blend",
+      "name": "Lamp Stone Table A",
+      "category": "lamps",
+      "tags": ["lamp", "stone", "table", "neutral", "interior", "realistic"],
+      "style": "scandinavian",
+      "description": "Stone table lamp for natural neutral interiors.",
+      "source": "blenderkit",
+      "quality_score": 0.92,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Stone Table Lamp"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/lamps/stone-table/blenderkit_lamp_stone_table_b.blend",
+      "curated_path": "props/lamps/table-lamps/lamp_stone_table_b.blend",
+      "name": "Lamp Stone Table B",
+      "category": "lamps",
+      "tags": ["lamp", "travertine", "stone", "table", "interior", "neutral"],
+      "style": "scandinavian",
+      "description": "Travertine-inspired table lamp variant.",
+      "source": "blenderkit",
+      "quality_score": 0.9,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Travertine Lamp Table"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/lamps/brass-desk/blenderkit_lamp_brass_desk_a.blend",
+      "curated_path": "props/lamps/table-lamps/lamp_brass_desk_a.blend",
+      "name": "Lamp Brass Desk A",
+      "category": "lamps",
+      "tags": ["lamp", "brass", "desk", "vintage", "interior", "metal"],
+      "style": "vintage",
+      "description": "Swan-neck brass desk lamp for vintage accent scenes.",
+      "source": "blenderkit",
+      "quality_score": 0.93,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["1920s Swan-Neck Brass Desk Lamp"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/lamps/brass-desk/blenderkit_lamp_brass_desk_b.blend",
+      "curated_path": "props/lamps/table-lamps/lamp_brass_desk_b.blend",
+      "name": "Lamp Brass Desk B",
+      "category": "lamps",
+      "tags": ["lamp", "brass", "table", "art-deco", "interior", "metal"],
+      "style": "vintage",
+      "description": "Art deco brass saucer lamp for statement styling.",
+      "source": "blenderkit",
+      "quality_score": 0.91,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Art Deco Brass Saucer Table Lamp"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/lamps/brass-desk/blenderkit_lamp_brass_desk_c.blend",
+      "curated_path": "props/lamps/table-lamps/lamp_brass_desk_c.blend",
+      "name": "Lamp Brass Desk C",
+      "category": "lamps",
+      "tags": ["lamp", "bankers", "desk", "vintage", "interior", "green"],
+      "style": "vintage",
+      "description": "Vintage banker lamp variant for classic desk and shelf scenes.",
+      "source": "blenderkit",
+      "quality_score": 0.89,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Vintage Banker’s Lamp"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/lamps/mushroom/blenderkit_lamp_mushroom_a.blend",
+      "curated_path": "props/lamps/table-lamps/lamp_mushroom_a.blend",
+      "name": "Lamp Mushroom A",
+      "category": "lamps",
+      "tags": ["lamp", "mushroom", "table", "interior", "design", "soft"],
+      "style": "design",
+      "description": "Rounded mushroom table lamp with soft contemporary silhouette.",
+      "source": "blenderkit",
+      "quality_score": 0.9,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Mushroom table lamp"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/lamps/mushroom/blenderkit_lamp_mushroom_b.blend",
+      "curated_path": "props/lamps/table-lamps/lamp_mushroom_b.blend",
+      "name": "Lamp Mushroom B",
+      "category": "lamps",
+      "tags": ["lamp", "glass", "table", "interior", "design", "soft"],
+      "style": "design",
+      "description": "Glass-based table lamp variant for softer accent lighting scenes.",
+      "source": "blenderkit",
+      "quality_score": 0.88,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Table Lamp Andi Glass"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/books/stack-neutral/blenderkit_books_stack_neutral_a.blend",
+      "curated_path": "props/books/stacks/books_stack_neutral_a.blend",
+      "name": "Books Stack Neutral A",
+      "category": "books",
+      "tags": ["books", "stack", "neutral", "hardcover", "interior", "decor"],
+      "style": "scandinavian",
+      "description": "Neutral book stack for table and shelf styling.",
+      "source": "blenderkit",
+      "quality_score": 0.86,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Hack of Book"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/books/stack-neutral/blenderkit_books_stack_neutral_b.blend",
+      "curated_path": "props/books/stacks/books_stack_neutral_b.blend",
+      "name": "Books Stack Neutral B",
+      "category": "books",
+      "tags": ["books", "stack", "neutral", "decor", "interior", "shelf"],
+      "style": "scandinavian",
+      "description": "Alternate neutral book stack for decor styling.",
+      "source": "blenderkit",
+      "quality_score": 0.84,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Books"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/books/stack-blue-gray/blenderkit_books_stack_blue_gray_a.blend",
+      "curated_path": "props/books/stacks/books_stack_blue_gray_a.blend",
+      "name": "Books Stack Blue Gray A",
+      "category": "books",
+      "tags": ["books", "stack", "blue", "gray", "magazines", "interior"],
+      "style": "scandinavian",
+      "description": "Blue-gray magazine and book stack for subtle color variation.",
+      "source": "blenderkit",
+      "quality_score": 0.87,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Stack of magazines Blue Grey"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/books/coffee-table-single/blenderkit_book_coffee_table_single_a.blend",
+      "curated_path": "props/books/stacks/book_coffee_table_single_a.blend",
+      "name": "Book Coffee Table Single A",
+      "category": "books",
+      "tags": ["book", "single", "coffee-table", "brown", "interior", "decor"],
+      "style": "vintage",
+      "description": "Single decorative book for tabletop styling.",
+      "source": "blenderkit",
+      "quality_score": 0.85,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Old Book"]
+      }
+    },
+    {
+      "source_path": "incoming/blenderkit/books/novel-stack-muted/blenderkit_books_stack_novel_muted_a.blend",
+      "curated_path": "props/books/stacks/books_stack_novel_muted_a.blend",
+      "name": "Books Stack Novel Muted A",
+      "category": "books",
+      "tags": ["books", "stack", "novels", "muted", "white", "interior"],
+      "style": "scandinavian",
+      "description": "Muted light-toned novel stack for calm interior styling.",
+      "source": "blenderkit",
+      "quality_score": 0.86,
+      "validated_blender_version": "5.0",
+      "import_spec": {
+        "append_type": "collections",
+        "asset_names": ["Stack of white books"]
+      }
+    }
+  ]
+}

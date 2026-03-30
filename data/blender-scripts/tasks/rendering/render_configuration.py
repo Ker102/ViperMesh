@@ -100,15 +100,21 @@ def configure_eevee(
     transparent_background: bool = False
 ) -> None:
     """
-    Configure EEVEE render engine.
-    NOTE: In Blender 5.0, the engine enum is 'BLENDER_EEVEE' (not 'BLENDER_EEVEE_NEXT').
+    Configure EEVEE render engine for Blender 5.x.
+
+    NOTE:
+    - Blender 5.x uses 'BLENDER_EEVEE' as the engine enum
+    - scene.eevee.taa_render_samples controls final render samples
+    - scene.eevee.taa_samples controls viewport samples
+    - Ambient occlusion distance now lives on the view layer
+    - Bloom uses the compositor, not a scene.eevee.use_bloom toggle
 
     Args:
         scene: Target scene
-        samples: Render samples
-        use_bloom: Enable bloom (built-in post-processing)
-        use_ambient_occlusion: Enable screen-space AO
-        ao_distance: AO sampling distance
+        samples: Final render samples
+        use_bloom: Add a compositor glare node for bloom-like glow
+        use_ambient_occlusion: Configure ambient occlusion distance on the view layer
+        ao_distance: Ambient occlusion distance
         transparent_background: Render with alpha background
 
     Example:
@@ -121,11 +127,48 @@ def configure_eevee(
 
     eevee = scene.eevee
     eevee.taa_render_samples = samples
+    eevee.taa_samples = max(16, samples // 2)
 
-    # Ambient occlusion
-    eevee.use_gtao = use_ambient_occlusion
+    # Ambient occlusion now lives on the view layer in Blender 5.x.
+    view_layer = scene.view_layers[0]
     if use_ambient_occlusion:
-        eevee.gtao_distance = ao_distance
+        view_layer.eevee.ambient_occlusion_distance = ao_distance
+    else:
+        view_layer.eevee.ambient_occlusion_distance = 0.0
+
+    # Bloom now routes through the compositor.
+    if use_bloom:
+        scene.use_nodes = True
+        scene.render.use_compositing = True
+        tree = getattr(scene, 'compositing_node_group', None) or scene.node_tree
+
+        if tree is not None:
+            render_node = None
+            composite_node = None
+            for node in tree.nodes:
+                if node.type == 'R_LAYERS':
+                    render_node = node
+                elif node.type == 'COMPOSITE':
+                    composite_node = node
+
+            if render_node and composite_node:
+                for node in list(tree.nodes):
+                    if node.type == 'GLARE':
+                        tree.nodes.remove(node)
+
+                glare = tree.nodes.new('CompositorNodeGlare')
+                glare.glare_type = 'BLOOM'
+                glare.threshold = 0.8
+                glare.mix = 0.5
+                glare.size = 6
+                glare.location = (render_node.location.x + 300, render_node.location.y)
+
+                for link in list(tree.links):
+                    if link.to_node == composite_node and link.to_socket.name == 'Image':
+                        tree.links.remove(link)
+
+                tree.links.new(render_node.outputs['Image'], glare.inputs['Image'])
+                tree.links.new(glare.outputs['Image'], composite_node.inputs['Image'])
 
     # Transparent background
     if transparent_background:

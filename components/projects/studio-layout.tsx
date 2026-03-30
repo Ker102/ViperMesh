@@ -7,6 +7,7 @@ import { StudioAdvisor } from "./studio-advisor"
 import { WorkflowTimeline, type WorkflowTimelineStep, type StepMonitoringLog, type StepPlanData, type StepCommandResult } from "./workflow-timeline"
 import { StepSessionDrawer } from "./step-session-drawer"
 import type { ToolEntry } from "@/lib/orchestration/tool-catalog"
+import type { AgentStreamEvent } from "@/lib/orchestration/types"
 
 interface StudioLayoutProps {
     projectId: string
@@ -184,7 +185,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
     )
 
     const appendAgentEvent = useCallback(
-        (stepId: string, event: { type: string; [key: string]: unknown }) => {
+        (stepId: string, event: AgentStreamEvent) => {
             setWorkflowSteps((prev) =>
                 prev.map((s) =>
                     s.id === stepId
@@ -378,9 +379,9 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                                                     })
                                                 }
                                                 // Also push to agentEvents for AgentActivity component
-                                                appendAgentEvent(stepId, event as { type: string; [key: string]: unknown })
+                                                appendAgentEvent(stepId, event as unknown as AgentStreamEvent)
                                             } else if (eventType === "agent:planning_start") {
-                                                appendAgentEvent(stepId, event as { type: string; [key: string]: unknown })
+                                                appendAgentEvent(stepId, event as unknown as AgentStreamEvent)
                                             }
                                         }
                                         break

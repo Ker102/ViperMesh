@@ -71,11 +71,17 @@ import bpy
 
 
 # --- 5. Compositor Node Tree Access Changed ---
-# OLD: scene.node_tree  (removed in 5.0)
-# NEW: scene.compositing_node_group
+# OLD (pre-5.0): scene.node_tree
+# NEW (5.0+):    scene.compositing_node_group
 #
-# OLD: scene.use_nodes = True
-# NEW: scene.use_nodes is deprecated (always True)
+# SAFE cross-version pattern:
+#   tree = getattr(scene, "compositing_node_group", None)
+#   if tree is None:
+#       tree = scene.node_tree
+#
+# scene.use_nodes is deprecated in 5.0, always returns True,
+# and setting it has no effect. Use scene.render.use_compositing
+# to enable or disable compositor processing.
 
 
 # --- 6. Grease Pencil / Annotations Renamed ---
@@ -355,23 +361,28 @@ def set_coat_safe(bsdf, weight=1.0, roughness=0.1):
 #   # Do NOT set mat.shadow_method — it does not exist
 
 
-# --- 20. EEVEE Removed Properties (5.0) ---
-# The following SceneEEVEE properties are ALL REMOVED in Blender 5.x:
-#   - eevee.use_ssr                      → Reflections are automatic
-#   - eevee.use_ssr_refraction           → Reflections are automatic
-#   - eevee.use_screen_space_reflections → Reflections are automatic
-#   - eevee.use_gtao                     → AO is automatic
-#   - eevee.use_bloom                    → Use compositor Glare node
-#   - eevee.shadow_cascade_size          → Removed
-#   - eevee.taa_render_samples           → Use eevee.taa_samples instead
+# --- 20. Legacy EEVEE Properties Replaced or Removed (5.0+) ---
+# Blender 5.x keeps the split between viewport samples and final render samples:
+#   - eevee.taa_samples        → viewport sampling
+#   - eevee.taa_render_samples → final render sampling
 #
-# For bloom in EEVEE 5.x, use the compositor:
-#   scene.use_nodes = True
-#   tree = scene.compositing_node_group
-#   glare = tree.nodes.new('CompositorNodeGlare')
-#   glare.glare_type = 'FOG_GLOW'
-#   glare.quality = 'HIGH'
-#   glare.size = 7
+# The following legacy properties are removed or moved in Blender 5.x:
+#   - eevee.use_ssr
+#   - eevee.use_ssr_refraction
+#   - eevee.use_screen_space_reflections
+#   - eevee.use_gtao
+#   - eevee.gtao_distance
+#   - eevee.gtao_quality
+#   - eevee.use_bloom
+#   - eevee.shadow_cascade_size
+#
+# Current Blender 5.x guidance:
+#   - Use scene.eevee.use_raytracing and scene.eevee.ray_tracing_options
+#     for current EEVEE reflection / tracing configuration
+#   - Use view_layer.eevee.ambient_occlusion_distance for AO distance
+#   - Use compositor glare/bloom setup instead of scene.eevee.use_bloom
+#   - Use scene.eevee.shadow_resolution_scale and current shadow ray/step
+#     settings instead of cascade-specific controls
 
 
 # --- 21. Correct Transparent Material Setup (5.0) ---

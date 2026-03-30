@@ -1,6 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
+import type { AgentStreamEvent } from "@/lib/orchestration/types"
 
 // ============================================================================
 // Types
@@ -70,7 +71,7 @@ export interface WorkflowTimelineStep {
     /** Error message if failed */
     error?: string
     /** Agent stream events (tool calls, etc.) for live activity display */
-    agentEvents?: Array<{ type: string; [key: string]: unknown }>
+    agentEvents?: AgentStreamEvent[]
 }
 
 // ============================================================================

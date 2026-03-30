@@ -1477,41 +1477,8 @@ export function ProjectChat({
               </div>
             )}
 
-            {/* Agent inline status — Thinking indicator (only when NOT executing a tool) */}
-            {(() => {
-              // Derive whether a tool call is currently in-flight
-              const startedTools = new Set<string>()
-              for (const evt of agentEvents) {
-                if (evt.type === "agent:tool_call") {
-                  const tc = evt as unknown as { toolName: string; status: string }
-                  if (tc.status === "started") startedTools.add(tc.toolName)
-                  else startedTools.delete(tc.toolName)
-                }
-              }
-              const hasActiveTool = startedTools.size > 0
-              const isThinking = agentActive && !hasActiveTool
-
-              return isThinking ? (
-                <div className="flex items-center gap-2 mb-3 px-1">
-                  <svg
-                    className="w-4 h-4 animate-spin shrink-0"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="hsl(var(--forge-accent))"
-                    strokeWidth="2"
-                  >
-                    <circle cx="12" cy="12" r="10" opacity="0.25" />
-                    <path d="M12 2a10 10 0 0 1 10 10" />
-                  </svg>
-                  <span
-                    className="text-xs font-medium"
-                    style={{ color: "hsl(var(--forge-accent))" }}
-                  >
-                    Thinking…
-                  </span>
-                </div>
-              ) : null
-            })()}
+            {/* Agent inline status — removed redundant "Thinking..." indicator.
+                "Agent is processing..." in the pipeline monitor already covers this. */}
             <AgentActivity events={agentEvents} isActive={agentActive} />
 
             <form onSubmit={handleSend} className="space-y-3">

@@ -445,6 +445,107 @@ their relative positions, proportions, and the overall atmosphere correct.
 
 ---
 
+
+### Test 19: Image Reference — Desk Workspace with Pendant Lamp (Vision + Lighting Geometry)
+
+**Tests:** Vision analysis, spatial layout, AND correct lighting geometry (open shade / downward-facing pendant). This test specifically validates the agent's understanding of light-emitting geometry: the pendant lamp shade must be **open at the bottom** so light shines downward onto the desk.
+
+**Reference image:** `docs/test19-desk-workspace-reference.png`
+
+**Before running this test:** attach `docs/test19-desk-workspace-reference.png` to the chat input.
+
+```text
+Look at the attached reference image carefully. Recreate this desk workspace scene
+in Blender as accurately as you can using basic shapes:
+
+- A wooden desk against a wall
+- A modern pendant lamp hanging above the desk, casting warm light downward
+- On the desk: a closed laptop, a coffee mug, a small potted succulent, and stacked books
+- A modern office chair pushed in at the desk
+- Match the warm lighting mood from the pendant lamp
+- Position a camera to match approximately the same viewing angle
+- Take a viewport screenshot to verify your work before rendering
+```
+
+**What to verify (vision + lighting geometry):**
+- Agent should analyze the reference and identify all major objects
+- Pendant lamp shade is **open at the bottom** (not a closed sphere/cylinder trapping light)
+- Point light is placed **inside the shade** and light visibly illuminates the desk surface
+- Desk, chair, laptop, mug, plant, and books are all present and roughly positioned correctly
+- Materials approximate the reference: wood for desk, dark for laptop, green for plant
+- Agent calls `get_viewport_screenshot` at least once to visually verify the scene
+- **Lighting is the primary pass/fail criterion**: if the lamp doesn't illuminate the desk, the test fails
+- **Timing target:** < 180 seconds
+
+---
+
+### Test 20: Image Reference — Entryway Console with Round Mirror (Wall Alignment + Surface Reasoning)
+
+**Tests:** Vision analysis, wall-relative placement, centering/alignment, object-on-surface reasoning, and under-table clearance. This is a **Studio-mode-only** image-context test intended for manual Electron app validation.
+
+**Reference image:** generate one using the prompt below, then attach it to the Studio chat input before running the Blender agent prompt.
+
+**Image generation prompt:**
+
+```text
+Create a clean, realistic interior reference image for a 3D scene recreation test.
+
+Scene:
+- A Scandinavian-style entryway against a plain light beige wall
+- A slim wooden console table centered against the wall
+- A large round mirror centered on the wall above the console table
+- On top of the table: a small table lamp on the left, a ceramic vase with olive branches near the center-right, and two stacked books
+- Under the console table: a woven basket slightly to the right and a pair of ankle boots slightly to the left
+- A narrow runner rug on the floor extending toward the camera
+- Warm natural daylight from the left side, with soft shadows
+
+Composition:
+- Straight-on front view with a slight rightward camera offset, about eye level
+- Entire console table, mirror, and floor styling visible
+- Clear object separation and readable silhouettes
+- Minimal clutter, no people, no text, no wall art besides the round mirror
+
+Style:
+- Realistic interior photography
+- Clean, calm, high-end home decor aesthetic
+- Simple shapes and readable forms that can be approximated in Blender with basic geometry
+```
+
+**Before running this test:** attach the generated image to the Studio chat input.
+
+**Studio Blender agent prompt:**
+
+```text
+Look at the attached reference image carefully and recreate this entryway scene in Blender as accurately as you can using simple geometry and clean materials.
+
+Focus on:
+- Matching the overall layout and proportions of the scene
+- Centering the console table against the wall
+- Positioning the round mirror correctly above the console table
+- Recreating the major objects on top of the table and underneath it
+- Matching the warm natural lighting mood from the left side
+- Positioning a camera to roughly match the same viewing angle
+
+Use basic shapes where appropriate. Do not chase tiny decorative detail.
+The main goal is to get the spatial relationships, alignment, scale, and lighting direction correct.
+
+Before rendering, take a viewport screenshot so you can visually check whether the composition matches the reference.
+Then render a preview image.
+```
+
+**What to verify (vision + spatial fidelity):**
+- Console table is centered against the wall and reads as a narrow entryway table, not a desk or dining table
+- Round mirror is centered above the table and vertically separated from it with realistic spacing
+- Lamp, vase/branches, and books are placed ON the table surface, not floating or intersecting
+- Basket and boots are UNDER the table with believable clearance and spacing
+- Runner rug sits on the floor and extends toward the camera
+- Lighting direction reads from the left side with soft warm shadows
+- Agent calls `get_viewport_screenshot` at least once before final render
+- **Primary pass/fail criterion:** the mirror/table alignment and under-table object placement must read correctly at a glance
+- **Timing target:** < 180 seconds
+
+---
+
 ## AI Model Availability Analysis
 
 The table below shows which tool categories currently have or could benefit from
