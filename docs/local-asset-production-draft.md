@@ -6,6 +6,10 @@
 > It is intentionally separate from `docs/future-plans.md` and should not be treated as final.
 > Other product features may change the final production shape.
 
+Companion migration note:
+
+- [local-asset-production-stages.md](C:/Users/krist/Desktop/Cursor-Projects/Projects/modelforge/ModelForge/docs/local-asset-production-stages.md)
+
 ## Why This Exists
 
 The current local asset flow is correct for development:

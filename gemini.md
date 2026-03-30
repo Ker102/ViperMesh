@@ -1,5 +1,28 @@
 # ViperMesh — Current Progress
 
+## Last Session: 2026-03-30 (Local Asset Production Migration Stages Saved)
+
+### What Was Done
+1. **Added a separate migration-sequence note for the future asset system:**
+   - Added `docs/local-asset-production-stages.md`
+   - This stays separate from both `docs/future-plans.md` and the broader production draft
+
+2. **Defined the staged path from current local-disk behavior to a more production-capable asset system:**
+   - Stage 0: current dev baseline
+   - Stage 1: managed local defaults
+   - Stage 2: previews and human browsing
+   - Stage 3: cloud catalog with local files still primary
+   - Stage 4: managed download and local cache
+   - Stage 5: multi-source managed + BYO model
+   - Stage 6: optional product-layer UX additions
+
+3. **Linked the stages note from the existing production draft:**
+   - Updated `docs/local-asset-production-draft.md`
+
+### Notes
+- This is intentionally a pragmatic migration path, not a fixed product roadmap.
+- The current recommendation in the doc is to start with Stage 1 when production work begins.
+
 ## Last Session: 2026-03-30 (Long-Term Managed Asset Delivery Draft Saved)
 
 ### What Was Done
