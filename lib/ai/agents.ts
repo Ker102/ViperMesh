@@ -988,6 +988,7 @@ function createDedupMiddleware(onStreamEvent?: (event: AgentStreamEvent) => void
   const lastCalls = new Map<string, { result: unknown; failed: boolean }>()
   // In-flight calls: key = "toolName:argsHash" → promise of result
   const inFlight = new Map<string, Promise<unknown>>()
+  let renderFailedThisRun = false
 
   return createMiddleware({
     name: "DedupMiddleware",
@@ -995,6 +996,27 @@ function createDedupMiddleware(onStreamEvent?: (event: AgentStreamEvent) => void
       const toolName = request.toolCall.name
       const argsHash = stableHash((request.toolCall.args as Record<string, unknown>) ?? {})
       const flightKey = `${toolName}:${argsHash}`
+
+      if (toolName === "render_image" && renderFailedThisRun) {
+        console.log("[Dedup] Blocking additional render attempt after prior render failure")
+        onStreamEvent?.({
+          type: "agent:tool_call",
+          toolName,
+          status: "skipped",
+          timestamp: new Date().toISOString(),
+          toolCallId: request.toolCall.id ?? "unknown",
+          args: (request.toolCall.args as Record<string, unknown>) ?? {},
+        })
+        const { ToolMessage: TM } = await import("@langchain/core/messages")
+        return new TM({
+          content: JSON.stringify({
+            _skipped_render_retry: true,
+            _message:
+              "render_image already failed once in this run. Do not retry render_image again until the user confirms a follow-up render pass.",
+          }),
+          tool_call_id: request.toolCall.id ?? "unknown",
+        })
+      }
 
       // Check 1: Sequential duplicate — same tool+args already succeeded
       const lastCall = lastCalls.get(flightKey)
@@ -1052,8 +1074,14 @@ function createDedupMiddleware(onStreamEvent?: (event: AgentStreamEvent) => void
       try {
         result = await handler(request)
         failed = getToolResultError(result) !== null
+        if (toolName === "render_image" && failed) {
+          renderFailedThisRun = true
+        }
       } catch (error) {
         failed = true
+        if (toolName === "render_image") {
+          renderFailedThisRun = true
+        }
         throw error
       } finally {
         // Cache result and clear in-flight
@@ -1075,7 +1103,7 @@ function getToolResultContent(result: unknown): string {
 
 function getToolResultError(result: unknown): string | null {
   const content = getToolResultContent(result)
-  if (!content || content.includes("_skipped_duplicate")) {
+  if (!content || content.includes("_skipped_duplicate") || content.includes("_skipped_render_retry")) {
     return null
   }
 
@@ -1113,7 +1141,7 @@ function createStreamingMiddleware(onStreamEvent?: (event: AgentStreamEvent) => 
 
         // Check if the result indicates a skipped duplicate
         const content = getToolResultContent(result)
-        if (content.includes("_skipped_duplicate")) {
+        if (content.includes("_skipped_duplicate") || content.includes("_skipped_render_retry")) {
           // Don't emit completed for skipped duplicates
           return result
         }

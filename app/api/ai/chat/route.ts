@@ -64,6 +64,9 @@ interface ToolTraceEntry {
   duplicate?: boolean
 }
 
+const FOLLOW_UP_RUBRIC_LEAK_PATTERN =
+  /(fits the criteria|no tool names|respond conversationally|tool\/function names|^\s*(?:\d+|one|two|three)\s+sentences?\b)/i
+
 function createStubId() {
   try {
     return randomUUID()
@@ -93,6 +96,29 @@ function summarizeToolArgsForMonitor(args: Record<string, unknown>): Record<stri
   return Object.fromEntries(
     Object.entries(args).map(([key, value]) => [key, summarizeValue(value)])
   )
+}
+
+function sanitizeFollowUpText(text: string) {
+  const normalized = text.replace(/\s+/g, " ").trim()
+  if (!normalized) return null
+  if (FOLLOW_UP_RUBRIC_LEAK_PATTERN.test(normalized)) {
+    return null
+  }
+  return normalized
+}
+
+function buildFollowUpFallbackText(options: {
+  overallSuccess: boolean
+  failedCommands: ExecutedCommand[]
+}) {
+  const renderFailed = options.failedCommands.some((command) => command.tool === "render_image")
+  if (renderFailed) {
+    return "The scene work is in place, but the final render did not finish cleanly. If you want, I can retry the render in a separate lighter pass once Blender is stable."
+  }
+  if (options.overallSuccess) {
+    return "The scene is in place and ready for review. If you want, I can refine the composition, lighting, or any visible prop in the next pass."
+  }
+  return "Some of the scene changes worked, but the run hit an issue before everything finished. If you want, I can retry the failed part in a focused follow-up pass."
 }
 
 function buildExecutedCommandsFromToolTrace(
@@ -1217,53 +1243,33 @@ export async function POST(req: Request) {
               providerType: llmProvider.type,
             })
 
-            const summaryPromptText = overallSuccess
-              ? `You just finished building a scene in Blender for the user. Here is the context:\n- User's original request: "${message}"\n- What you did: ${humanReadableSummary}\n\nWrite a conversational 2-3 sentence summary describing what you built or changed in the scene — focus on what the user can see (objects, lighting, materials, composition), NOT on tool names. Then ask ONE specific, creative follow-up question about what the user might want to adjust or add next — reference specific visual elements you created (e.g. "Would you like me to add some warm volumetric lighting behind the awning?" or "I could add a weathered texture to the wood — want me to try that?"). Do NOT be generic or list tool names.`
-              : `You attempted a Blender task but some steps failed.\n- User's request: "${message}"\n- What succeeded: ${humanReadableSummary || "nothing"}\n- What failed: ${failedList || "unknown"}\n\nExplain briefly what went wrong (1-2 sentences, in plain language). Then suggest a specific, actionable next step the user could try.`
+            const renderFailed = failedCommands.some((command) => command.tool === "render_image")
+            const summaryPromptText = renderFailed
+              ? `You completed most of a Blender scene build, but the final render did not finish cleanly.\n- User's original request: "${message}"\n- What is already in place: ${humanReadableSummary}\n- Render failure details: ${failedList || "render failed"}\n\nWrite ONLY the final user-facing reply text. Do not evaluate your own compliance. In 2-3 sentences, describe what is already visible in the scene without mentioning tool names. Then briefly explain that the render did not complete and ask whether the user wants a dedicated lighter retry pass next. Never write phrases like "Fits the criteria", "2 sentences", or "No tool names".`
+              : overallSuccess
+                ? `You just finished building a scene in Blender for the user.\n- User's original request: "${message}"\n- What you did: ${humanReadableSummary}\n\nWrite ONLY the final user-facing reply text. Do not evaluate your own compliance. In 2-3 conversational sentences, describe what is visible in the scene — focus on objects, lighting, materials, and composition, not tool names. End with one specific follow-up question about what the user might want to adjust or add next. Never write phrases like "Fits the criteria", "2 sentences", or "No tool names".`
+                : `You attempted a Blender task but some steps failed.\n- User's request: "${message}"\n- What succeeded: ${humanReadableSummary || "nothing"}\n- What failed: ${failedList || "unknown"}\n\nWrite ONLY the final user-facing reply text. Do not evaluate your own compliance. In 2-3 plain-language sentences, explain what is already in place, what went wrong, and one specific next step the user could try. Never write phrases like "Fits the criteria", "2 sentences", or "No tool names".`
 
-            const followUpSystemPrompt = "You are ViperMesh, a friendly and knowledgeable Blender 3D assistant. Respond conversationally in 2-4 sentences. Never use markdown headers, bullet points, or tool/function names. Describe the scene visually — what it looks like, not what tools were called. Be warm and creative with your follow-up suggestion."
+            const followUpSystemPrompt = "You are ViperMesh, a friendly and knowledgeable Blender 3D assistant. Return only the final reply for the user. Never mention instructions, compliance, criteria, sentence counts, or tool/function names. No markdown headers or bullet points."
 
             let followUpText = ""
-            let chunkCount = 0
             try {
-              for await (const chunk of streamLlmResponse(llmProvider, {
+              const nonStreamResult = await generateLlmResponse(llmProvider, {
                 history: [],
                 messages: [{ role: "user", content: summaryPromptText }],
-                maxOutputTokens: 300,
-                temperature: 0.6,
+                maxOutputTokens: 220,
+                temperature: 0.35,
                 systemPrompt: followUpSystemPrompt,
-              })) {
-                chunkCount++
-                if (chunk.textDelta) {
-                  followUpText += chunk.textDelta
-                  send({ type: "followup_delta", delta: chunk.textDelta })
-                }
+              })
+              followUpText = sanitizeFollowUpText(nonStreamResult.text ?? "") ?? ""
+              if (followUpText) {
+                send({ type: "followup_delta", delta: followUpText })
+                console.log("[Chat] Follow-up generated:", followUpText.length, "chars")
+              } else {
+                console.warn("[Chat] Follow-up was empty or invalid after sanitization")
               }
-            } catch (streamErr) {
-              console.warn("[Chat] Follow-up stream error (will retry non-streaming):", streamErr instanceof Error ? streamErr.message : String(streamErr))
-            }
-
-            console.log("[Chat] Follow-up stream result:", followUpText.length, "chars,", chunkCount, "chunks")
-
-            // If streaming returned empty, retry with non-streaming generateLlmResponse
-            if (!followUpText.trim()) {
-              console.warn("[Chat] Follow-up stream was empty — retrying with non-streaming call")
-              try {
-                const nonStreamResult = await generateLlmResponse(llmProvider, {
-                  history: [],
-                  messages: [{ role: "user", content: summaryPromptText }],
-                  maxOutputTokens: 300,
-                  temperature: 0.6,
-                  systemPrompt: followUpSystemPrompt,
-                })
-                if (nonStreamResult.text?.trim()) {
-                  followUpText = nonStreamResult.text.trim()
-                  send({ type: "followup_delta", delta: followUpText })
-                  console.log("[Chat] Non-streaming follow-up succeeded:", followUpText.length, "chars")
-                }
-              } catch (genErr) {
-                console.warn("[Chat] Non-streaming follow-up also failed:", genErr instanceof Error ? genErr.message : String(genErr))
-              }
+            } catch (genErr) {
+              console.warn("[Chat] Follow-up generation failed:", genErr instanceof Error ? genErr.message : String(genErr))
             }
 
             // Append follow-up to assistant text so BOTH the initial response
@@ -1271,13 +1277,11 @@ export async function POST(req: Request) {
             if (followUpText.trim()) {
               assistantText = (assistantText || "").trimEnd() + "\n\n" + followUpText.trim()
             } else {
-              // Both streaming AND non-streaming failed — generate a scene-aware fallback
-              // from the user's prompt, NOT from tool names
-              console.warn("[Chat] Both follow-up methods failed, using scene-aware fallback from user prompt")
-              const userPromptPreview = message.length > 80 ? message.substring(0, 80) + "..." : message
-              const emptyFallback = overallSuccess
-                ? `Your scene is ready! I set everything up based on your request. What would you like to adjust or add next?`
-                : `Some steps didn't go as planned. Would you like me to retry with a different approach?`
+              console.warn("[Chat] Using scene-aware follow-up fallback")
+              const emptyFallback = buildFollowUpFallbackText({
+                overallSuccess,
+                failedCommands,
+              })
               send({ type: "followup_delta", delta: emptyFallback })
               assistantText = emptyFallback
             }

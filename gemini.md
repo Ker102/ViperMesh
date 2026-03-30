@@ -784,3 +784,8 @@
    - Bumped the Blender addon metadata version from `1.1.0` to `1.2.0` in both distributed addon copies
    - Updated the Add-ons panel description to mention the Studio agent and managed asset-source support
    - Added a visible `Addon v1.2.0` label inside the ViperMesh sidebar so stale Blender installs are easier to identify without opening Blender preferences
+5. **Render Policy + Follow-up Response Hardening**:
+   - Updated the live Blender system prompt and `render-guide.md` to enforce an active camera before `render_image`, prefer lightweight preview renders by default, and stop repeated same-run render retries after the first render failure
+   - Added a middleware guard that blocks additional `render_image` calls after one render failure in the same agent run
+   - Reworked post-execution follow-up generation in `app/api/ai/chat/route.ts` to use a guarded non-streaming response, reject rubric/instruction leak text like `Fits the criteria. 2 sentences. No tool names`, and fall back to a scene-aware user-facing message
+   - Render-failure follow-ups now explicitly suggest a dedicated lighter retry pass in the next run instead of silently retrying renders during the same run

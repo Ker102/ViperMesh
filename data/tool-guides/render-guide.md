@@ -51,6 +51,24 @@ When the render is only for agent-side validation or user preview during an acti
 
 **Rule:** Do not spend interactive tool budget on near-final Cycles settings unless the user explicitly asks for final render quality.
 
+## CAMERA PRECONDITION
+
+Before `render_image`:
+- ensure the scene has an active camera
+- if you created a camera this run, explicitly set it active before rendering
+- do not assume a newly added camera becomes active automatically in every workflow
+
+**Rule:** If no active camera is confirmed, do not call `render_image` yet.
+
+## RENDER FAILURE POLICY
+
+If a preview or final render fails once during the current run:
+- do not keep retrying renders repeatedly in the same run
+- fix obvious non-render issues only if they are cheap and certain
+- otherwise stop at the failed render, explain the issue to the user, and ask whether to retry in a separate follow-up run
+
+**Rule:** One failed render should not consume the rest of the interactive execution budget.
+
 ## RESOLUTION PRESETS
 
 | Name | Width × Height | Aspect | Use Case |
