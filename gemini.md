@@ -789,3 +789,13 @@
    - Added a middleware guard that blocks additional `render_image` calls after one render failure in the same agent run
    - Reworked post-execution follow-up generation in `app/api/ai/chat/route.ts` to use a guarded non-streaming response, reject rubric/instruction leak text like `Fits the criteria. 2 sentences. No tool names`, and fall back to a scene-aware user-facing message
    - Render-failure follow-ups now explicitly suggest a dedicated lighter retry pass in the next run instead of silently retrying renders during the same run
+6. **Generation Viewer MVP Direction Started**:
+   - Updated the local `origin` remote to the renamed GitHub repository URL (`Ker102/ViperMesh`) so the new feature branch no longer relies on GitHub redirects
+   - Verified the current viewer research and roadmap direction: `<model-viewer>` remains the intended MVP stack for the first in-browser 3D preview milestone, while editing-heavy features like the AI texture brush stay deferred to later phases
+   - Added `@google/model-viewer` and aligned `three` / `@types/three` to `0.182.0` to match the package peer dependency cleanly with the repo's existing React 19 setup
+   - Replaced the old `@react-three/fiber`-based `components/generation/ModelViewer.tsx` implementation with a client-only `<model-viewer>` wrapper that keeps the same `url` prop contract, supports load/error states, safer URL validation, camera controls, and a reset-view action
+   - Added app-level React 19 JSX typing for the custom `<model-viewer>` element in `lib/types/model-viewer.d.ts`
+
+### Validation
+- `npx tsc --noEmit`
+- `npm run lint` (passes; only the existing `baseline-browser-mapping` age notice remains)
