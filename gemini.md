@@ -780,3 +780,7 @@
    - Extended `/api/mcp/status` to include local asset runtime status, not just raw TCP reachability
    - Serialized MCP command execution in the app and added small retries for transient transport errors so Gemini tool bursts do not open a storm of parallel Blender TCP connections
    - This should prevent the exact failure mode where local asset tools are advertised while Blender is still on stale addon state, and reduce `ECONNREFUSED` churn during material batches
+4. **Addon Version Visibility**:
+   - Bumped the Blender addon metadata version from `1.1.0` to `1.2.0` in both distributed addon copies
+   - Updated the Add-ons panel description to mention the Studio agent and managed asset-source support
+   - Added a visible `Addon v1.2.0` label inside the ViperMesh sidebar so stale Blender installs are easier to identify without opening Blender preferences

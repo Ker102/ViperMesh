@@ -18,13 +18,16 @@ from bpy.props import StringProperty, IntProperty, BoolProperty, EnumProperty
 import io
 from contextlib import redirect_stdout, suppress
 
+ADDON_VERSION = (1, 2, 0)
+ADDON_VERSION_LABEL = ".".join(str(part) for part in ADDON_VERSION)
+
 bl_info = {
     "name": "ViperMesh Blender",
     "author": "ViperMesh Team",
-    "version": (1, 1, 0),
+    "version": ADDON_VERSION,
     "blender": (3, 0, 0),
     "location": "View3D > Sidebar > ViperMesh",
-    "description": "Connect Blender to ViperMesh AI Assistant",
+    "description": "Connect Blender to the ViperMesh Studio agent with managed asset-source support",
     "category": "Interface",
     "doc_url": "https://github.com/Ker102/ViperMesh",
 }
@@ -3013,6 +3016,12 @@ class VIPERMESH_PT_Panel(bpy.types.Panel):
         )
         if scene.blendermcp_server_running != actually_running:
             scene.blendermcp_server_running = actually_running
+
+        version_row = layout.row()
+        version_row.enabled = False
+        version_row.label(text=f"Addon v{ADDON_VERSION_LABEL}")
+
+        layout.separator()
 
         # Header with status
         box = layout.box()
