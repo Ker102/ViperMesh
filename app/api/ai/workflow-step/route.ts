@@ -14,6 +14,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { createBlenderAgentV2 } from "@/lib/ai/agents"
 import { createMcpClient } from "@/lib/mcp"
+import { getLocalAssetLibraryStatus } from "@/lib/mcp/client"
 import type { WorkflowStepResult } from "@/lib/orchestration/workflow-types"
 import { z } from "zod"
 
@@ -121,12 +122,20 @@ async function executeBlenderAgentStep(
         const focusedRequest = `${step.description}. Context: the user is working on "${userRequest}". Focus only on this specific task: ${step.title}.`
 
         console.log(`[WorkflowStep] Executing blender agent step: "${step.title}"`)
+        const localAssetRuntime = await getLocalAssetLibraryStatus()
+        console.log("[WorkflowStep] Local asset runtime status:", {
+            enabled: localAssetRuntime.enabled,
+            message: localAssetRuntime.message,
+            catalogPath: localAssetRuntime.catalogPath,
+            assetCount: localAssetRuntime.assetCount,
+        })
 
         // Call the v2 LangGraph agent directly — it has:
         // - RAG middleware (injects relevant tool-guides from vectorstore)
         // - Updated system prompt with all direct MCP tools
         // - ReAct loop for autonomous tool selection
         const agent = createBlenderAgentV2({
+            allowLocalAssets: Boolean(localAssetRuntime.enabled),
             allowPolyHaven: true,
             allowSketchfab: false,
             allowHyper3d: false,

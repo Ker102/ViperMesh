@@ -1,15 +1,19 @@
 import { NextResponse } from "next/server"
 import { getMcpConfig } from "@/lib/mcp"
-import { checkMcpConnection } from "@/lib/mcp/client"
+import { checkMcpConnection, getLocalAssetLibraryStatus } from "@/lib/mcp/client"
 
 export async function GET() {
   try {
     const config = getMcpConfig()
-    const status = await checkMcpConnection()
+    const [status, localAssets] = await Promise.all([
+      checkMcpConnection(),
+      getLocalAssetLibraryStatus(),
+    ])
 
     return NextResponse.json({
       config,
       status,
+      localAssets,
     })
   } catch (error) {
     console.error("MCP status check failed:", error)

@@ -774,3 +774,9 @@
 2. **Gemini Tool Schema Compatibility Fix**:
    - Fixed a Studio startup failure where Gemini rejected the `search_local_assets` tool schema because `limit` used a strict positive Zod constraint that serialized to JSON Schema `exclusiveMinimum`
    - Replaced that tool parameter constraint with a Gemini-safe integer range using `min(1)` and `max(25)`
+3. **Studio Runtime Hardening for Local Assets + MCP Transport**:
+   - Investigated Test 20 run `60874546-2f70-4a50-9f07-80fda1892f84`: local asset search failed once with `Local asset catalog path is not configured`, while 17 material calls failed with `ECONNREFUSED 127.0.0.1:9876`
+   - Added a Blender-side local asset status probe to the live chat route and Studio workflow-step route, and now only expose `search_local_assets` / `import_local_asset` to the agent when Blender reports the local library as enabled and ready
+   - Extended `/api/mcp/status` to include local asset runtime status, not just raw TCP reachability
+   - Serialized MCP command execution in the app and added small retries for transient transport errors so Gemini tool bursts do not open a storm of parallel Blender TCP connections
+   - This should prevent the exact failure mode where local asset tools are advertised while Blender is still on stale addon state, and reduce `ECONNREFUSED` churn during material batches

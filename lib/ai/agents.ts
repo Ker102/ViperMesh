@@ -113,37 +113,70 @@ function withGuide(toolName: string, baseDescription: string): string {
  * Includes the applied parameters in the response so the agent can verify
  * what was configured without needing to call get_scene_info.
  */
+const MCP_RETRYABLE_ERROR_PATTERN = /(ECONNREFUSED|ECONNRESET|socket hang up|timed out|write after end|EPIPE)/i
+let mcpCommandQueue: Promise<void> = Promise.resolve()
+
+function isRetryableMcpTransportError(message: string) {
+  return MCP_RETRYABLE_ERROR_PATTERN.test(message)
+}
+
+function enqueueMcpCommand<T>(task: () => Promise<T>) {
+  const run = mcpCommandQueue.catch(() => undefined).then(task)
+  mcpCommandQueue = run.then(() => undefined, () => undefined)
+  return run
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 export async function executeMcpCommand(
   commandType: string,
   params: Record<string, unknown> = {}
 ): Promise<string> {
-  const client = createMcpClient()
-  try {
-    const response: McpResponse = await client.execute({
-      type: commandType,
-      params,
-    })
-    if (response.status === "error") {
-      return JSON.stringify({ error: response.message ?? "MCP command failed" })
+  return enqueueMcpCommand(async () => {
+    const maxAttempts = 3
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const client = createMcpClient()
+      try {
+        const response: McpResponse = await client.execute({
+          type: commandType,
+          params,
+        })
+        if (response.status === "error") {
+          const message = response.message ?? "MCP command failed"
+          if (attempt < maxAttempts && isRetryableMcpTransportError(message)) {
+            await sleep(150 * attempt)
+            continue
+          }
+          return JSON.stringify({ error: message })
+        }
+        // Blender executes commands on its main thread, so serializing
+        // MCP traffic avoids connection churn from parallel tool bursts.
+        const result = response.result ?? response.raw ?? { status: "ok" }
+        const appliedParams = Object.fromEntries(
+          Object.entries(params).filter(([, v]) => v !== undefined && v !== null)
+        )
+        return JSON.stringify({
+          ...(typeof result === "object" ? result : { status: result }),
+          _applied: appliedParams,
+          _command: commandType,
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        if (attempt < maxAttempts && isRetryableMcpTransportError(message)) {
+          await sleep(150 * attempt)
+          continue
+        }
+        return JSON.stringify({ error: message })
+      } finally {
+        await client.close().catch(() => undefined)
+      }
     }
-    // Include the applied parameters in the result so the agent
-    // knows exactly what was set without re-querying the scene
-    const result = response.result ?? response.raw ?? { status: "ok" }
-    const appliedParams = Object.fromEntries(
-      Object.entries(params).filter(([, v]) => v !== undefined && v !== null)
-    )
-    return JSON.stringify({
-      ...( typeof result === "object" ? result : { status: result }),
-      _applied: appliedParams,
-      _command: commandType,
-    })
-  } catch (error) {
-    return JSON.stringify({
-      error: error instanceof Error ? error.message : String(error),
-    })
-  } finally {
-    await client.close().catch(() => undefined)
-  }
+
+    return JSON.stringify({ error: "MCP command failed after retries" })
+  })
 }
 
 // ---------- Core Tools ---------
@@ -848,6 +881,7 @@ const POLYHAVEN_TOOL_NAMES = new Set([
   "download_polyhaven_asset",
   "set_texture",
 ])
+const LOCAL_ASSET_TOOL_NAMES = new Set(["search_local_assets", "import_local_asset"])
 const HYPER3D_TOOL_NAMES = new Set([
   "get_hyper3d_status",
   "create_rodin_job",
@@ -1302,6 +1336,8 @@ function createRAGMiddleware() {
 // ============================================================================
 
 export interface BlenderAgentV2Options {
+  /** Allow curated ViperMesh local assets */
+  allowLocalAssets?: boolean
   /** Allow PolyHaven assets */
   allowPolyHaven?: boolean
   /** Allow Sketchfab assets */
@@ -1333,6 +1369,7 @@ export interface BlenderAgentV2Options {
  */
 export function createBlenderAgentV2(options: BlenderAgentV2Options = {}) {
   const {
+    allowLocalAssets = true,
     allowPolyHaven = true,
     allowSketchfab = false,
     allowHyper3d = false,
@@ -1344,6 +1381,7 @@ export function createBlenderAgentV2(options: BlenderAgentV2Options = {}) {
 
   // Filter tools based on config
   const tools = ALL_TOOLS.filter((t) => {
+    if (!allowLocalAssets && LOCAL_ASSET_TOOL_NAMES.has(t.name)) return false
     if (!allowSketchfab && SKETCHFAB_TOOL_NAMES.has(t.name)) return false
     if (!allowPolyHaven && POLYHAVEN_TOOL_NAMES.has(t.name)) return false
     if (!allowHyper3d && HYPER3D_TOOL_NAMES.has(t.name)) return false

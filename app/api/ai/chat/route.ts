@@ -11,6 +11,7 @@ import {
 import { streamLlmResponse, generateLlmResponse, type LlmProviderSpec } from "@/lib/llm"
 import type { GeminiMessage } from "@/lib/gemini"
 import { createMcpClient } from "@/lib/mcp"
+import { getLocalAssetLibraryStatus } from "@/lib/mcp/client"
 // Legacy planner/executor removed — v2 agent handles tool selection directly
 import type {
   AgentStreamEvent,
@@ -221,6 +222,19 @@ async function fetchSceneSummary(): Promise<{ summary: string | null; raw: unkno
     }
   } finally {
     await client.close().catch(() => undefined)
+  }
+}
+
+async function fetchRuntimeLocalAssetStatus() {
+  const status = await getLocalAssetLibraryStatus()
+  return {
+    enabled: Boolean(status.enabled),
+    message: status.message ?? "Local asset library unavailable",
+    catalogPath: status.catalogPath,
+    libraryRoot: status.libraryRoot,
+    assetCount: status.assetCount,
+    managedCacheRoot: status.managedCacheRoot,
+    raw: status.raw,
   }
 }
 
@@ -898,7 +912,22 @@ export async function POST(req: Request) {
                 }
                 send(event)
               }
+              const localAssetRuntime = await fetchRuntimeLocalAssetStatus()
+              monitor.info(
+                "agent",
+                localAssetRuntime.enabled
+                  ? "Local asset library available at runtime"
+                  : `Local asset library unavailable at runtime: ${localAssetRuntime.message}`,
+                {
+                  enabled: localAssetRuntime.enabled,
+                  catalogPath: localAssetRuntime.catalogPath,
+                  libraryRoot: localAssetRuntime.libraryRoot,
+                  assetCount: localAssetRuntime.assetCount,
+                  managedCacheRoot: localAssetRuntime.managedCacheRoot,
+                }
+              )
               const agent = createBlenderAgentV2({
+                allowLocalAssets: localAssetRuntime.enabled,
                 allowPolyHaven: assetConfig.allowPolyHaven,
                 allowSketchfab: assetConfig.allowSketchfab,
                 allowHyper3d: assetConfig.allowHyper3d,
