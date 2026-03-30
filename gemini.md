@@ -1,5 +1,30 @@
 # ViperMesh — Current Progress
 
+## Last Session: 2026-03-30 (Long-Term Managed Asset Delivery Draft Saved)
+
+### What Was Done
+1. **Saved a separate draft architecture note for future managed asset delivery:**
+   - Added `docs/local-asset-production-draft.md`
+   - This document is explicitly marked as a draft and intentionally kept separate from `docs/future-plans.md`
+
+2. **Captured the current preferred long-term direction without locking the product into a final implementation:**
+   - cloud catalog for metadata and search
+   - object storage / CDN for binary assets and previews
+   - managed local cache on the user machine for Blender imports
+   - optional BYO asset library override for private user assets
+
+3. **Clarified an important production constraint:**
+   - Blender still needs real local files at import time
+   - the agent can choose assets, but the Blender addon still imports them from disk
+   - so a cloud database alone is not enough without a local cache or download step
+
+4. **Stored the same direction in Graphiti memory:**
+   - Saved under group `modelforge` as `ModelForge long-term managed asset delivery draft`
+
+### Notes
+- This is intentionally a working architecture note, not a committed final production design.
+- Other upcoming product features may still change the final shape of the managed asset system.
+
 ## Last Session: 2026-03-29 (Selective ViperMesh Asset Usage Clarified)
 
 ### What Was Done
