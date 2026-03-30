@@ -23,6 +23,24 @@ C:\Users\krist\Documents\ViperMeshAssets\
     assets.json
 ```
 
+## Managed Defaults
+
+The desktop app now bootstraps a managed local asset root automatically on startup.
+
+Current default locations:
+
+- managed library root: `Documents/ViperMeshAssets`
+- managed catalog: `Documents/ViperMeshAssets/catalog/assets.json`
+- reserved cache root: `Documents/ViperMeshAssets/cache`
+
+The Blender addon now auto-discovers the same managed catalog and library root by default. That means:
+
+- `Catalog JSON` no longer needs to be typed manually for the managed library
+- `Library Root` can usually stay blank unless you want an explicit override
+- users can still point the addon at a BYO catalog/root later
+
+This is only a managed local baseline. The reserved cache path exists now so the production on-demand asset model has a stable home later, but the current runtime still imports from local files directly.
+
 ## Safe Places To Gather Models
 
 Start with sources that are legally clean and operationally stable:

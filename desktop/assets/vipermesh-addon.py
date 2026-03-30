@@ -2074,11 +2074,34 @@ class BlenderMCPServer:
 
     #region Local Asset Library
     @staticmethod
+    def _default_managed_asset_library_root():
+        documents_root = os.path.abspath(os.path.expanduser("~/Documents"))
+        if os.path.isdir(documents_root):
+            return os.path.join(documents_root, "ViperMeshAssets")
+        return os.path.join(os.path.abspath(os.path.expanduser("~")), "ViperMeshAssets")
+
+    @staticmethod
+    def _default_managed_asset_catalog_path():
+        return os.path.join(
+            BlenderMCPServer._default_managed_asset_library_root(),
+            "catalog",
+            "assets.json"
+        )
+
+    @staticmethod
+    def _default_managed_asset_cache_root():
+        return os.path.join(
+            BlenderMCPServer._default_managed_asset_library_root(),
+            "cache"
+        )
+
+    @staticmethod
     def _resolve_local_asset_catalog_path():
         scene = bpy.context.scene
         raw_path = (
             getattr(scene, "blendermcp_local_asset_catalog_path", "")
             or os.environ.get("VIPERMESH_LOCAL_ASSET_CATALOG", "")
+            or BlenderMCPServer._default_managed_asset_catalog_path()
         )
         if not raw_path:
             return None
@@ -2090,6 +2113,7 @@ class BlenderMCPServer:
         raw_root = (
             getattr(scene, "blendermcp_local_asset_library_root", "")
             or os.environ.get("VIPERMESH_LOCAL_ASSET_LIBRARY_ROOT", "")
+            or BlenderMCPServer._default_managed_asset_library_root()
         )
         if raw_root:
             return os.path.abspath(os.path.expanduser(raw_root))
@@ -2188,10 +2212,11 @@ class BlenderMCPServer:
                 "message": """ViperMesh Assets are currently disabled. To enable them:
                             1. In the 3D Viewport, find the ViperMesh panel in the sidebar (press N if hidden)
                             2. Check the 'ViperMesh Assets' checkbox
-                            3. Set the catalog JSON path and optional library root
+                            3. Keep the managed defaults, or override them with your own catalog and library root
                             4. Restart the connection to ViperMesh""",
                 "catalog_path": catalog_path,
                 "library_root": library_root,
+                "managed_cache_root": self._default_managed_asset_cache_root(),
             }
 
         if error:
@@ -2200,6 +2225,7 @@ class BlenderMCPServer:
                 "message": error,
                 "catalog_path": catalog_path,
                 "library_root": library_root,
+                "managed_cache_root": self._default_managed_asset_cache_root(),
             }
 
         return {
@@ -2207,6 +2233,7 @@ class BlenderMCPServer:
             "message": "ViperMesh Assets are enabled and ready to use.",
             "catalog_path": catalog_path,
             "library_root": library_root,
+            "managed_cache_root": self._default_managed_asset_cache_root(),
             "asset_count": len(catalog.get("assets", [])),
             "catalog_version": catalog.get("version"),
         }
@@ -3119,14 +3146,20 @@ def register():
     bpy.types.Scene.blendermcp_local_asset_catalog_path = bpy.props.StringProperty(
         name="Local Asset Catalog",
         description="Path to the ViperMesh local asset catalog JSON manifest",
-        default=os.environ.get("VIPERMESH_LOCAL_ASSET_CATALOG", ""),
+        default=(
+            os.environ.get("VIPERMESH_LOCAL_ASSET_CATALOG", "")
+            or BlenderMCPServer._default_managed_asset_catalog_path()
+        ),
         subtype="FILE_PATH"
     )
 
     bpy.types.Scene.blendermcp_local_asset_library_root = bpy.props.StringProperty(
         name="Local Asset Library Root",
         description="Optional root folder used to resolve relative asset paths from the catalog",
-        default=os.environ.get("VIPERMESH_LOCAL_ASSET_LIBRARY_ROOT", ""),
+        default=(
+            os.environ.get("VIPERMESH_LOCAL_ASSET_LIBRARY_ROOT", "")
+            or BlenderMCPServer._default_managed_asset_library_root()
+        ),
         subtype="DIR_PATH"
     )
 

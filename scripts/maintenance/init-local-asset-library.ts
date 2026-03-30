@@ -7,6 +7,8 @@ interface CliOptions {
 
 const SEED_DIRECTORIES = [
   "catalog",
+  "cache",
+  "cache/downloads",
   "incoming/a23d",
   "incoming/blenderkit",
   "incoming/polyhaven",
@@ -122,6 +124,15 @@ function ensureFile(filePath: string, content: string) {
   writeFileSync(filePath, content, "utf-8")
 }
 
+function buildEmptyCatalog(root: string) {
+  return `${JSON.stringify({
+    version: 1,
+    generated_at: new Date().toISOString(),
+    library_root: root,
+    assets: [],
+  }, null, 2)}\n`
+}
+
 function main() {
   const { root } = parseArgs(process.argv.slice(2))
   mkdirSync(root, { recursive: true })
@@ -131,6 +142,7 @@ function main() {
   }
 
   ensureFile(path.join(root, "README.md"), README_CONTENT)
+  ensureFile(path.join(root, "catalog", "assets.json"), buildEmptyCatalog(root))
   ensureFile(path.join(root, "catalog", "taxonomy.json"), `${JSON.stringify(TAXONOMY_CONTENT, null, 2)}\n`)
 
   console.log(`[LocalAssets] Seeded library structure at ${root}`)

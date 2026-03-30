@@ -757,3 +757,17 @@
 > See `docs/architecture.md` — the canonical architecture reference (current vs legacy)
 - Added glassmorphism floating pill navbar with magnetic hover pills and spring CTA animations.
 - Added LineShadowText component (Magic UI) to '3D Models' hero text with teal shadow.
+
+## Current Session: 2026-03-30
+
+### What Was Done
+1. **Managed Local Asset Defaults**:
+   - Desktop app now bootstraps a managed local asset root automatically on startup at `Documents/ViperMeshAssets`
+   - Added default managed catalog creation at `catalog/assets.json` and reserved cache directory at `cache/`
+   - Blender addon now auto-discovers the same managed catalog/root by default while keeping manual override fields for BYO libraries
+   - Desktop setup page now shows the managed library root, catalog path, cache root, and includes an "Open Managed Asset Folder" action
+   - `assets:init` now seeds the same `cache/` structure and writes an empty `catalog/assets.json`
+
+### Notes
+- The reserved cache path is only a stable location for future managed downloads. The current runtime still imports local files directly.
+- Manual `Catalog JSON` and `Library Root` overrides remain intact for advanced users and BYO asset libraries.

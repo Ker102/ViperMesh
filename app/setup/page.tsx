@@ -9,6 +9,17 @@ interface SetupStep {
     action?: "open-folder"
 }
 
+interface ManagedAssetConfig {
+    libraryRoot: string
+    catalogPath: string
+    cacheRoot: string
+    catalogExists: boolean
+    assetCount: number
+    usingEnvCatalogOverride: boolean
+    usingEnvLibraryRootOverride: boolean
+    usingEnvCacheOverride: boolean
+}
+
 const SETUP_STEPS: SetupStep[] = [
     {
         step: 1,
@@ -46,6 +57,8 @@ export default function SetupPage() {
     const [addonPath, setAddonPath] = useState<string>("")
     const [platform, setPlatform] = useState<string>("unknown")
     const [folderOpened, setFolderOpened] = useState(false)
+    const [managedAssetFolderOpened, setManagedAssetFolderOpened] = useState(false)
+    const [managedAssets, setManagedAssets] = useState<ManagedAssetConfig | null>(null)
     const isDesktop = useSyncExternalStore(
         subscribeToDesktopBridge,
         () => Boolean(window.vipermesh),
@@ -60,10 +73,12 @@ export default function SetupPage() {
         void Promise.all([
             window.vipermesh.getAddonPath(),
             window.vipermesh.getAppInfo(),
-        ]).then(([addonResult, info]) => {
+            window.vipermesh.getManagedAssetConfig(),
+        ]).then(([addonResult, info, managedAssetConfig]) => {
             if (cancelled) return
             setAddonPath(addonResult.path)
             setPlatform(info.platform)
+            setManagedAssets(managedAssetConfig)
         })
 
         return () => {
@@ -75,6 +90,13 @@ export default function SetupPage() {
         if (window.vipermesh) {
             await window.vipermesh.openAddonFolder()
             setFolderOpened(true)
+        }
+    }
+
+    const handleOpenManagedAssetFolder = async () => {
+        if (window.vipermesh) {
+            await window.vipermesh.openManagedAssetFolder()
+            setManagedAssetFolderOpened(true)
         }
     }
 
@@ -114,6 +136,53 @@ export default function SetupPage() {
                                 Addon location: {addonPath}
                             </p>
                         )}
+                    </div>
+                )}
+
+                {isDesktop && managedAssets && (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-8">
+                        <div className="flex items-center gap-2 mb-3">
+                            <span className="text-black font-medium">Managed ViperMesh Assets</span>
+                            <span className="text-sm text-gray-500">
+                                {managedAssets.assetCount} curated assets indexed
+                            </span>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-3">
+                            The desktop app now creates a default managed asset library automatically. In Blender, you can keep the managed defaults or override them with your own catalog and library root.
+                        </p>
+                        <div className="space-y-2 text-sm">
+                            <p className="text-gray-500">
+                                Library root:
+                                <span className="block font-mono text-gray-700 break-all mt-1">
+                                    {managedAssets.libraryRoot}
+                                </span>
+                            </p>
+                            <p className="text-gray-500">
+                                Catalog JSON:
+                                <span className="block font-mono text-gray-700 break-all mt-1">
+                                    {managedAssets.catalogPath}
+                                </span>
+                            </p>
+                            <p className="text-gray-500">
+                                Reserved cache root:
+                                <span className="block font-mono text-gray-700 break-all mt-1">
+                                    {managedAssets.cacheRoot}
+                                </span>
+                            </p>
+                        </div>
+                        <div className="mt-4 flex flex-wrap gap-3">
+                            <button
+                                onClick={handleOpenManagedAssetFolder}
+                                className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors"
+                            >
+                                {managedAssetFolderOpened ? "✓ Asset Folder Opened" : "Open Managed Asset Folder"}
+                            </button>
+                            {(managedAssets.usingEnvCatalogOverride || managedAssets.usingEnvLibraryRootOverride) && (
+                                <p className="text-xs text-gray-500 self-center">
+                                    Managed asset defaults are currently overridden by environment variables.
+                                </p>
+                            )}
+                        </div>
                     </div>
                 )}
 
