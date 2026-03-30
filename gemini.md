@@ -795,6 +795,11 @@
    - Added `@google/model-viewer` and aligned `three` / `@types/three` to `0.182.0` to match the package peer dependency cleanly with the repo's existing React 19 setup
    - Replaced the old `@react-three/fiber`-based `components/generation/ModelViewer.tsx` implementation with a client-only `<model-viewer>` wrapper that keeps the same `url` prop contract, supports load/error states, safer URL validation, camera controls, and a reset-view action
    - Added app-level React 19 JSX typing for the custom `<model-viewer>` element in `lib/types/model-viewer.d.ts`
+7. **Viewer Test Samples (No Generation Cost)**:
+   - Added `lib/generation/sample-models.ts` to discover local `.glb` files from the existing dev-only sample locations under `tmp/neural-output` and `tmp/local-assets-test/props`
+   - Added authenticated route `app/api/generate/3d/samples/route.ts` that lists available local sample models and streams a selected `.glb` back to the browser
+   - Extended `components/generation/GenerationPanel.tsx` with a "Viewer Test Models" section so the model viewer can be exercised with existing local GLBs instead of calling Replicate or fal
+   - This keeps `/generate` useful as a viewer sandbox while the real long-term viewer integration still targets the in-project Studio workflow after neural stages succeed
 
 ### Validation
 - `npx tsc --noEmit`
