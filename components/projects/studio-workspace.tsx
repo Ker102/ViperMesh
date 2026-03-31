@@ -177,7 +177,7 @@ function ToolDetailView({
     }
 
     return (
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 xl:p-8">
             {/* Back button */}
             <button
                 onClick={onBack}
@@ -199,7 +199,7 @@ function ToolDetailView({
                 Back to tools
             </button>
 
-            <div className="max-w-2xl">
+            <div className="max-w-[68rem]">
                 {/* Header */}
                 <div className="mb-6">
                     <div className="flex items-center gap-3 flex-wrap mb-2">
@@ -599,7 +599,7 @@ export function StudioWorkspace({
 
     // ── Grid view ──
     return (
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 xl:p-8">
             <div className="mb-6">
                 <h2
                     className="text-2xl font-bold"
@@ -621,7 +621,7 @@ export function StudioWorkspace({
                 </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {tools.map((tool: ToolEntry) => (
                     <ToolCardCompact
                         key={tool.id}

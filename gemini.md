@@ -804,6 +804,11 @@
    - Diagnosed the sample-model runtime failure: the sandbox route was exposing tiny placeholder `.glb` files (`13` bytes and `772` bytes) that were not valid renderable scene assets
    - Updated `lib/generation/sample-models.ts` to only surface usable GLBs by checking the file header for `glTF` magic bytes and enforcing a minimum sample size threshold
    - The viewer sandbox now only lists the two valid neural-output GLBs, avoiding malformed sample files that caused `<model-viewer>` to fail with `this[$preparedGLTF] is undefined`
+9. **Desktop Studio Workspace Expansion**:
+   - Widened the project page shell from the old `container` + `max-w-5xl` layout to a desktop-friendly `max-w-[1760px]` workspace so Studio has enough room for future model viewer and richer tool panels
+   - Kept the page responsive by using wider desktop padding and moving the lower "Connect to Blender" and "Conversation History" sections into a responsive grid rather than leaving the whole project page cramped
+   - Increased the Studio frame height on desktop and removed the inner `max-w-2xl` cap inside `StudioWorkspace` detail view so larger forms, prompts, and future model previews can breathe
+   - Expanded Studio tool grids to allow a fourth column on very wide displays while leaving tablet/mobile breakpoints intact
 
 ### Validation
 - `npx tsc --noEmit`

@@ -141,9 +141,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime())
 
   return (
-    <div className="container py-8">
-      <div className="max-w-5xl mx-auto space-y-8">
-        <div>
+    <div className="px-4 py-8 sm:px-6 xl:px-8 2xl:px-12">
+      <div className="mx-auto flex w-full max-w-[1760px] flex-col gap-8">
+        <div className="max-w-3xl">
           <h1 className="text-3xl font-bold">{project.name}</h1>
           {project.description && (
             <p className="text-muted-foreground mt-2">{project.description}</p>
@@ -171,68 +171,70 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           localProvider={localProvider}
         />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Connect to Blender</CardTitle>
-            <CardDescription>
-              Use the desktop add-on for viewport awareness and direct MCP command execution.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-lg border p-4 space-y-2">
-                <h3 className="font-semibold">Web experience</h3>
-                <p className="text-sm text-muted-foreground">
-                  Chat with ViperMesh directly in the browser. Great for planning scenes,
-                  drafting scripts, or reviewing AI suggestions on the go.
-                </p>
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
+          <Card>
+            <CardHeader>
+              <CardTitle>Connect to Blender</CardTitle>
+              <CardDescription>
+                Use the desktop add-on for viewport awareness and direct MCP command execution.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-lg border p-4 space-y-2">
+                  <h3 className="font-semibold">Web experience</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Chat with ViperMesh directly in the browser. Great for planning scenes,
+                    drafting scripts, or reviewing AI suggestions on the go.
+                  </p>
+                </div>
+                <div className="rounded-lg border p-4 space-y-2 bg-muted/40">
+                  <h3 className="font-semibold">Blender integration (recommended)</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Install the ViperMesh desktop app and Blender MCP extension for real-time viewport
+                    snapshots and one-click command execution inside Blender.
+                  </p>
+                </div>
               </div>
-              <div className="rounded-lg border p-4 space-y-2 bg-muted/40">
-                <h3 className="font-semibold">Blender integration (recommended)</h3>
-                <p className="text-sm text-muted-foreground">
-                  Install the ViperMesh desktop app and Blender MCP extension for real-time viewport
-                  snapshots and one-click command execution inside Blender.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Conversation History</CardTitle>
-            <CardDescription>
-              Once you close a session, it appears here so you can revisit or continue later.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {project.conversations.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No conversations yet. Start chatting with ViperMesh to build your history.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {(previousConversations.length > 0 ? previousConversations : [activeConversation])
-                  .filter(Boolean)
-                  .map((conversation) => (
-                    <div
-                      key={(conversation as Conversation).id}
-                      className="border-l-2 border-primary pl-4"
-                    >
-                      <p className="text-sm text-muted-foreground">
-                        {formatDateTime((conversation as Conversation).lastMessageAt)}
-                      </p>
-                      {(conversation as Conversation & { messages: Message[] }).messages[0] && (
-                        <p className="text-sm mt-1 line-clamp-2">
-                          {(conversation as Conversation & { messages: Message[] }).messages[0].content}
+          <Card>
+            <CardHeader>
+              <CardTitle>Conversation History</CardTitle>
+              <CardDescription>
+                Once you close a session, it appears here so you can revisit or continue later.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {project.conversations.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No conversations yet. Start chatting with ViperMesh to build your history.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {(previousConversations.length > 0 ? previousConversations : [activeConversation])
+                    .filter(Boolean)
+                    .map((conversation) => (
+                      <div
+                        key={(conversation as Conversation).id}
+                        className="border-l-2 border-primary pl-4"
+                      >
+                        <p className="text-sm text-muted-foreground">
+                          {formatDateTime((conversation as Conversation).lastMessageAt)}
                         </p>
-                      )}
-                    </div>
-                  ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                        {(conversation as Conversation & { messages: Message[] }).messages[0] && (
+                          <p className="text-sm mt-1 line-clamp-2">
+                            {(conversation as Conversation & { messages: Message[] }).messages[0].content}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )

@@ -519,12 +519,11 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
 
     return (
         <div
-            className="flex flex-col rounded-2xl border overflow-hidden"
+            className="flex min-h-[560px] flex-col overflow-hidden rounded-[28px] border xl:min-h-[720px]"
             style={{
                 borderColor: "hsl(var(--forge-border))",
                 backgroundColor: "hsl(var(--forge-surface))",
-                height: "calc(100vh - 200px)",
-                minHeight: "500px",
+                height: "clamp(560px, calc(100vh - 180px), 980px)",
             }}
         >
             {/* Main content area — relative for drawer overlay */}
