@@ -953,6 +953,11 @@
    - Each asset card can reopen the original pipeline step in the viewer, and geometry outputs from shape tools can be pushed directly into `Hunyuan3D Paint` from the shelf using the saved mesh URL plus the carried reference image when available
    - Added an explicit generated-assets sidebar button with a count badge, while keeping this first version project-scoped and step-backed rather than introducing a separate user asset table before the UX is validated
    - Added a lightweight external-tool launch path in `StudioWorkspace`, so shelf-driven handoffs can open downstream tool forms with prefilled `meshUrl` inputs without spawning duplicate pipeline tabs
+19. **Generated Asset Picker Planning + Shared Setup**:
+   - Added the next-batch implementation plan at `docs/plans/2026-03-31-generated-assets-picker-and-library.md`, covering the shared picker for all `meshUrl` tools, richer visual attachment cards, and the later saved-user-library DB phase
+   - Kept the DB/storage phase explicitly separate from the immediate picker work because the next UX slice can be built entirely on top of the already-persisted `studio_sessions.steps` JSON
+   - Extracted the generated-asset domain logic into `components/projects/generated-assets.ts`, creating a shared `GeneratedAssetItem` model plus `extractGeneratedAssets()` so the sidebar shelf and the future inline picker do not diverge
+   - Updated `StudioLayout` and `GeneratedAssetsShelf` to use that shared helper as the source of truth, which is the first low-risk setup slice before wiring `Attach from Generated Assets` into every `mesh` input
 
 ### Validation
 - `npx tsc --noEmit`

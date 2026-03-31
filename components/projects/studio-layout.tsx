@@ -6,7 +6,8 @@ import { StudioWorkspace } from "./studio-workspace"
 import { StudioAdvisor } from "./studio-advisor"
 import { WorkflowTimeline, type WorkflowTimelineStep, type StepMonitoringLog, type StepPlanData, type StepCommandResult } from "./workflow-timeline"
 import { StepSessionDrawer } from "./step-session-drawer"
-import { GeneratedAssetsShelf, type GeneratedAssetItem } from "./generated-assets-shelf"
+import { GeneratedAssetsShelf } from "./generated-assets-shelf"
+import { extractGeneratedAssets, type GeneratedAssetItem } from "./generated-assets"
 import type { ToolEntry } from "@/lib/orchestration/tool-catalog"
 import { getToolById } from "@/lib/orchestration/tool-catalog"
 import type { AgentStreamEvent } from "@/lib/orchestration/types"
@@ -153,29 +154,10 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         }
     }, [selectedStepId, selectedStepStorageKey])
 
-    const generatedAssets = useMemo<GeneratedAssetItem[]>(() => {
-        return workflowSteps
-            .flatMap((step) => {
-                const neuralState = step.neuralState
-                if (!neuralState?.viewerUrl || neuralState.viewerSource !== "generated") {
-                    return []
-                }
-
-                const tool = getToolById(step.toolName)
-                return [{
-                    id: `${step.id}:${neuralState.viewerUrl}`,
-                    stepId: step.id,
-                    title: step.title,
-                    toolName: step.toolName,
-                    toolLabel: tool?.name ?? step.title,
-                    viewerUrl: neuralState.viewerUrl,
-                    viewerLabel: neuralState.viewerLabel,
-                    canContinueToPaint: tool?.category === "shape",
-                    referenceImage: step.inputs?.imageUrl ?? step.inputs?.referenceImage,
-                }]
-            })
-            .reverse()
-    }, [workflowSteps])
+    const generatedAssets = useMemo<GeneratedAssetItem[]>(
+        () => extractGeneratedAssets(workflowSteps),
+        [workflowSteps]
+    )
 
     // ── Helpers ──────────────────────────────────────────────────
 

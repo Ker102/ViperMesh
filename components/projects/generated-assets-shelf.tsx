@@ -1,18 +1,7 @@
 "use client"
 
 import { getToolById } from "@/lib/orchestration/tool-catalog"
-
-export interface GeneratedAssetItem {
-    id: string
-    stepId: string
-    title: string
-    toolName: string
-    toolLabel: string
-    viewerUrl: string
-    viewerLabel?: string
-    canContinueToPaint: boolean
-    referenceImage?: string
-}
+import type { GeneratedAssetItem } from "./generated-assets"
 
 interface GeneratedAssetsShelfProps {
     open: boolean
