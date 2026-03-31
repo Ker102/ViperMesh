@@ -31,6 +31,8 @@ interface ActiveNeuralRun {
     status: NeuralRunStatus
     dockMode: NeuralDockMode
     viewerUrl: string | null
+    viewerLabel?: string
+    viewerSource?: "generated" | "demo"
     error?: string
     generationTimeMs?: number
 }
@@ -40,6 +42,13 @@ interface NeuralRunResponse {
     viewerUrl?: string | null
     generationTimeMs?: number
     error?: string
+}
+
+interface ViewerSample {
+    id: string
+    name: string
+    source: string
+    url: string
 }
 
 function resolveInputDisplayValue(input: ToolInput, inputs: Record<string, string>): string {
@@ -641,28 +650,34 @@ function NeuralViewerStage({
     title,
     status,
     viewerUrl,
+    viewerLabel,
+    viewerSource,
     error,
     generationTimeMs,
 }: {
     title: string
     status: NeuralRunStatus
     viewerUrl: string | null
+    viewerLabel?: string
+    viewerSource?: "generated" | "demo"
     error?: string
     generationTimeMs?: number
 }) {
     return (
-        <div className="relative flex min-h-0 flex-1 overflow-hidden rounded-[26px] border" style={{
-            borderColor: "hsl(var(--forge-border))",
-            backgroundColor: "hsl(var(--forge-surface-dim))",
-        }}>
+        <div
+            className="relative flex min-h-0 flex-1 overflow-hidden"
+            style={{
+                backgroundColor: "hsl(var(--forge-surface-dim))",
+            }}
+        >
             {viewerUrl ? (
                 <ModelViewer
                     url={viewerUrl}
-                    className="h-full min-h-[560px] rounded-[26px] border-0"
+                    className="h-full min-h-0 rounded-none border-0"
                 />
             ) : (
                 <div
-                    className="flex min-h-[560px] flex-1 items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(45,212,191,0.08),_rgba(255,255,255,0.96)_58%)] px-8 text-center"
+                    className="flex h-full min-h-0 flex-1 items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(45,212,191,0.08),_rgba(255,255,255,0.96)_58%)] px-8 text-center"
                 >
                     <div className="max-w-md space-y-3">
                         {status === "running" && (
@@ -696,6 +711,18 @@ function NeuralViewerStage({
                     <h3 className="text-2xl font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
                         {title}
                     </h3>
+                    {viewerLabel && (
+                        <div className="pointer-events-auto mt-3 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium" style={{
+                            borderColor: "hsl(var(--forge-border))",
+                            backgroundColor: "rgba(255,255,255,0.78)",
+                            color: "hsl(var(--forge-text-muted))",
+                        }}>
+                            <span className="h-2 w-2 rounded-full" style={{
+                                backgroundColor: viewerSource === "demo" ? "hsl(var(--forge-accent))" : "hsl(153 60% 40%)",
+                            }} />
+                            {viewerSource === "demo" ? `Demo model: ${viewerLabel}` : viewerLabel}
+                        </div>
+                    )}
                 </div>
                 <div className="flex items-center gap-2">
                     {typeof generationTimeMs === "number" && generationTimeMs > 0 && (
@@ -717,6 +744,8 @@ function NeuralViewerStage({
 function NeuralRunOverlay({
     run,
     referenceImage,
+    viewerSamples,
+    onLoadDemo,
     onCollapse,
     onToggleFocus,
     onStop,
@@ -724,6 +753,8 @@ function NeuralRunOverlay({
 }: {
     run: ActiveNeuralRun
     referenceImage?: string
+    viewerSamples: ViewerSample[]
+    onLoadDemo: (sample: ViewerSample) => void
     onCollapse: () => void
     onToggleFocus: () => void
     onStop: () => void
@@ -735,7 +766,9 @@ function NeuralRunOverlay({
         <aside
             className={cn(
                 "absolute inset-y-5 left-5 z-20 flex flex-col overflow-hidden rounded-[26px] border shadow-[0_28px_80px_rgba(15,23,42,0.18)] backdrop-blur-xl transition-all duration-300",
-                isFocus ? "right-5 w-auto max-w-none" : "w-[min(430px,calc(100%-2.5rem))] max-w-[430px]"
+                isFocus
+                    ? "w-[min(760px,calc(100%-2.5rem))]"
+                    : "w-[min(440px,calc(100%-2.5rem))]"
             )}
             style={{
                 borderColor: "hsl(var(--forge-border))",
@@ -788,6 +821,68 @@ function NeuralRunOverlay({
             </div>
 
             <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-5">
+                {viewerSamples.length > 0 && (
+                    <div
+                        className="rounded-2xl border p-4"
+                        style={{
+                            borderColor: "hsl(var(--forge-border))",
+                            backgroundColor: "rgba(255,255,255,0.78)",
+                        }}
+                    >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="space-y-1">
+                                <p
+                                    className="text-xs font-semibold uppercase tracking-[0.18em]"
+                                    style={{ color: "hsl(var(--forge-text-subtle))" }}
+                                >
+                                    Viewer demo
+                                </p>
+                                <p
+                                    className="text-sm"
+                                    style={{ color: "hsl(var(--forge-text-muted))" }}
+                                >
+                                    Preview the workspace with a local GLB before a real neural result arrives.
+                                </p>
+                            </div>
+                            {run.viewerSource === "demo" && run.viewerLabel && (
+                                <span
+                                    className="rounded-full border px-3 py-1 text-xs font-medium"
+                                    style={{
+                                        borderColor: "hsl(var(--forge-border))",
+                                        color: "hsl(var(--forge-accent))",
+                                        backgroundColor: "hsl(var(--forge-accent-subtle))",
+                                    }}
+                                >
+                                    Loaded: {run.viewerLabel}
+                                </span>
+                            )}
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            {viewerSamples.slice(0, 3).map((sample) => (
+                                <button
+                                    key={sample.id}
+                                    type="button"
+                                    onClick={() => onLoadDemo(sample)}
+                                    className="rounded-full border px-3 py-1.5 text-xs font-medium transition hover:opacity-90"
+                                    style={{
+                                        borderColor: "hsl(var(--forge-border))",
+                                        backgroundColor:
+                                            run.viewerLabel === sample.name && run.viewerSource === "demo"
+                                                ? "hsl(var(--forge-accent-subtle))"
+                                                : "rgba(255,255,255,0.9)",
+                                        color:
+                                            run.viewerLabel === sample.name && run.viewerSource === "demo"
+                                                ? "hsl(var(--forge-accent))"
+                                                : "hsl(var(--forge-text))",
+                                    }}
+                                >
+                                    {sample.name}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 <div
                     className="rounded-2xl border p-4"
                     style={{
@@ -798,6 +893,32 @@ function NeuralRunOverlay({
                     <p className="text-sm leading-relaxed" style={{ color: "hsl(var(--forge-text-muted))" }}>
                         {run.tool.description}
                     </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-4 rounded-2xl border px-4 py-3" style={{
+                    borderColor: "hsl(var(--forge-border))",
+                    backgroundColor: "rgba(255,255,255,0.72)",
+                }}>
+                    {run.tool.estimatedTime && (
+                        <div className="flex items-center gap-2 text-sm" style={{ color: "hsl(var(--forge-text-muted))" }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <circle cx="12" cy="12" r="10" />
+                                <polyline points="12 6 12 12 16 14" />
+                            </svg>
+                            {run.tool.estimatedTime}
+                        </div>
+                    )}
+                    {run.tool.cost && (
+                        <div className="flex items-center gap-2 text-sm font-medium" style={{ color: "hsl(var(--forge-text-muted))" }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="12" y1="1" x2="12" y2="23" />
+                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                            </svg>
+                            {run.tool.cost}
+                        </div>
+                    )}
+                    <DifficultyBadge level={run.tool.difficulty} />
+                    <ToolTypeBadge type={run.tool.type} />
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -946,6 +1067,7 @@ export function StudioWorkspace({
     const [selectedTool, setSelectedTool] = useState<ToolEntry | null>(null)
     const [toolDrafts, setToolDrafts] = useState<Record<string, Record<string, string>>>({})
     const [neuralRun, setNeuralRun] = useState<ActiveNeuralRun | null>(null)
+    const [viewerSamples, setViewerSamples] = useState<ViewerSample[]>([])
     const neuralAbortRef = useRef<AbortController | null>(null)
     const category = CATEGORIES.find(
         (c: CategoryMeta) => c.id === activeCategory
@@ -962,6 +1084,30 @@ export function StudioWorkspace({
     useEffect(() => {
         return () => {
             neuralAbortRef.current?.abort()
+        }
+    }, [])
+
+    useEffect(() => {
+        let cancelled = false
+
+        fetch("/api/generate/3d/samples")
+            .then(async (response) => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`)
+                }
+                return response.json() as Promise<{ samples?: ViewerSample[] }>
+            })
+            .then((data) => {
+                if (cancelled) return
+                setViewerSamples(Array.isArray(data.samples) ? data.samples : [])
+            })
+            .catch((error) => {
+                if (cancelled) return
+                console.warn("Failed to load Studio viewer samples", error)
+            })
+
+        return () => {
+            cancelled = true
         }
     }, [])
 
@@ -987,6 +1133,8 @@ export function StudioWorkspace({
             status: "running",
             dockMode: "docked",
             viewerUrl: null,
+            viewerLabel: undefined,
+            viewerSource: undefined,
         })
 
         try {
@@ -1013,6 +1161,8 @@ export function StudioWorkspace({
                     ...current,
                     status: "ready",
                     viewerUrl: data.viewerUrl ?? null,
+                    viewerLabel: current.viewerSource === "demo" ? current.viewerLabel : `${current.tool.name} result`,
+                    viewerSource: "generated",
                     error: undefined,
                     generationTimeMs: data.generationTimeMs,
                 }
@@ -1065,7 +1215,7 @@ export function StudioWorkspace({
     const handleRestoreNeuralPanel = () => {
         setNeuralRun((current) => {
             if (!current) return current
-            return { ...current, dockMode: "docked" }
+            return { ...current, dockMode: "focus" }
         })
     }
 
@@ -1092,6 +1242,18 @@ export function StudioWorkspace({
         setToolDrafts((prev) => ({ ...prev, [nextTool.id]: neuralRun.inputs }))
         setNeuralRun(null)
         setSelectedTool(nextTool)
+    }
+
+    const handleLoadDemoSample = (sample: ViewerSample) => {
+        setNeuralRun((current) => {
+            if (!current) return current
+            return {
+                ...current,
+                viewerUrl: sample.url,
+                viewerLabel: sample.name,
+                viewerSource: "demo",
+            }
+        })
     }
 
     // ── Detail view ──
@@ -1122,6 +1284,8 @@ export function StudioWorkspace({
                     <NeuralRunOverlay
                         run={neuralRun}
                         referenceImage={referenceImage}
+                        viewerSamples={viewerSamples}
+                        onLoadDemo={handleLoadDemoSample}
                         onCollapse={handleCollapseNeuralPanel}
                         onToggleFocus={handleToggleNeuralFocus}
                         onStop={handleStopNeuralRun}
@@ -1129,11 +1293,13 @@ export function StudioWorkspace({
                     />
                 )}
 
-                <div className="flex min-w-0 flex-1 flex-col overflow-hidden p-5 sm:p-6 xl:p-8">
+                <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
                     <NeuralViewerStage
                         title={neuralRun.tool.name}
                         status={neuralRun.status}
                         viewerUrl={neuralRun.viewerUrl}
+                        viewerLabel={neuralRun.viewerLabel}
+                        viewerSource={neuralRun.viewerSource}
                         error={neuralRun.error}
                         generationTimeMs={neuralRun.generationTimeMs}
                     />

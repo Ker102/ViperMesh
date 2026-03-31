@@ -825,6 +825,11 @@
    - Added a more visible collapsed restore handle (`Tool panel`) attached near the left toolbar so the neural panel is easier to rediscover after collapse
    - Added a focus toggle for the neural panel, allowing it to reopen as a much wider read-only inspector with prompt/config fields and tool descriptions visible again without making the prompt editable during an active run
    - Increased the desktop Studio shell height again so the workspace dominates more of the project page and leaves less unused screen space below it
+13. **Studio Neural Canvas + Demo Preview Pass**:
+   - Removed the remaining inner padding around the Studio neural viewer stage so the model viewer now fills the workspace canvas directly instead of reading like a smaller sub-window inside the shell
+   - Changed the collapsed `Tool panel` restore action to reopen the richer focus inspector by default, making the reopened neural panel feel closer to the original full-detail tool view instead of a narrow dock
+   - Rebalanced the focus overlay width so it stays information-dense without covering nearly the entire viewer surface
+   - Moved the local sample GLB controls into a high-visibility "Viewer demo" section near the top of the neural inspector, including active demo labeling so the Studio viewer can be previewed without waiting for a real neural generation to complete
 
 ### Validation
 - `npx tsc --noEmit`
