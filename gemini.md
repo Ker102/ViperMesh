@@ -1,5 +1,61 @@
 # ViperMesh — Current Progress
 
+## Last Session: 2026-03-31 (Studio Neural Paint Handoff + Viewer Header Polish)
+
+### What Was Done
+1. **Fixed the Studio neural handoff path for mesh-based tools:**
+   - Investigated the first successful TRELLIS → Hunyuan Paint handoff in Studio
+   - Found that all neural reruns were still being sent through the generic geometry-oriented `/api/ai/neural-run` request shape
+   - This caused Hunyuan Paint to fail before generation because the request schema did not accept `hunyuan-paint` or carry the required `meshUrl`
+
+2. **Expanded the shared Studio neural route to support mesh-based neural tools:**
+   - Updated `app/api/ai/neural-run/route.ts`
+   - The route now accepts:
+     - `hunyuan-shape`
+     - `trellis`
+     - `hunyuan-paint`
+     - `yvo3d`
+     - `hunyuan-part`
+     - `unirig`
+     - `meshanything-v2`
+   - Added request fields for:
+     - `meshUrl`
+     - `textureResolution`
+     - `targetFaces`
+   - Added provider-specific validation and generation-mode resolution instead of the old shape-only assumptions
+
+3. **Fixed carried mesh normalization for server-side neural clients:**
+   - The Studio handoff was storing the geometry result as the authenticated viewer URL (`/api/ai/neural-output?...`)
+   - Added route-side normalization so mesh-based providers resolve that viewer URL back to the safe local GLB path before calling the client
+   - This keeps the same generated geometry reusable across shape → paint / retopo / rigging flows without exposing the raw local path in the browser state
+
+4. **Improved Studio mesh input UX:**
+   - Replaced the plain text `A model from your current project session is attached to this tool` placeholder with a richer attached-model card in `components/projects/studio-workspace.tsx`
+   - The card now shows:
+     - attached model state
+     - resolved filename label
+     - explanatory copy about using the current project model
+   - Added the same mesh-card rendering to:
+     - first-run tool detail forms
+     - rerun overlay fields
+     - running neural overlay summaries
+
+5. **Improved viewer continuity for mesh-based neural tools:**
+   - When a neural tool starts with an attached `meshUrl`, the right-hand viewer now keeps that mesh visible during the run instead of dropping to an empty white canvas
+   - This makes shape → paint feel like a true continuation of the same asset instead of a reset between tools
+
+6. **Cleaned up Studio viewer header collisions:**
+   - Moved the neural viewer time/status badges into the left overlay chip row with the viewer label
+   - This avoids the collision between Studio viewer metadata and the top-right `Fit / Reset / Fullscreen / Download` controls inside `ModelViewer`
+
+### Validation
+- `npx tsc --noEmit` ✅
+- `npm run lint` ✅
+
+### Notes
+- This resolves the immediate TRELLIS → Hunyuan Paint Studio handoff bug.
+- There is still no full user-facing mesh picker yet; current mesh attachment is driven by the workflow continuation path. The new mesh card is a better temporary UX, but a real project asset selector is still a later step.
+
 ## Last Session: 2026-03-31 (TRELLIS Routing Fix + Provider Contract Verification)
 
 ### What Was Done

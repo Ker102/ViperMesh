@@ -27,6 +27,7 @@ interface StudioWorkspaceProps {
 
 type NeuralDockMode = "docked" | "collapsed" | "focus"
 type NeuralRunStatus = "running" | "ready" | "failed" | "stopped"
+type NeuralViewerSource = "generated" | "demo" | "input"
 
 interface ActiveNeuralRun {
     stepId: string
@@ -37,7 +38,7 @@ interface ActiveNeuralRun {
     dockMode: NeuralDockMode
     viewerUrl: string | null
     viewerLabel?: string
-    viewerSource?: "generated" | "demo"
+    viewerSource?: NeuralViewerSource
     error?: string
     generationTimeMs?: number
 }
@@ -87,6 +88,96 @@ function PreviewImage(props: React.ImgHTMLAttributes<HTMLImageElement> & { alt: 
     // Uploaded reference previews use in-memory data URLs, so Next image optimization does not apply.
     // eslint-disable-next-line @next/next/no-img-element
     return <img alt={alt} {...imgProps} />
+}
+
+function getAssetDisplayLabel(value: string): string {
+    if (!value) return "Attached 3D model"
+
+    try {
+        if (value.startsWith("http://") || value.startsWith("https://")) {
+            const url = new URL(value)
+            const pathParam = url.searchParams.get("path")
+            if (pathParam) {
+                const decoded = decodeURIComponent(pathParam)
+                const parts = decoded.split(/[\\/]/).filter(Boolean)
+                return parts[parts.length - 1] ?? "Attached 3D model"
+            }
+
+            const parts = url.pathname.split("/").filter(Boolean)
+            return parts[parts.length - 1] ?? "Attached 3D model"
+        }
+    } catch {
+        // Fall through to plain path handling
+    }
+
+    if (value.startsWith("data:")) {
+        return "Attached 3D model"
+    }
+
+    const parts = value.split(/[\\/]/).filter(Boolean)
+    return parts[parts.length - 1] ?? "Attached 3D model"
+}
+
+function MeshAttachmentCard({
+    value,
+    emptyMessage,
+    description,
+}: {
+    value?: string
+    emptyMessage: string
+    description?: string
+}) {
+    if (!value) {
+        return (
+            <div
+                className="rounded-xl border px-4 py-3 text-sm"
+                style={{
+                    borderColor: "hsl(var(--forge-border))",
+                    backgroundColor: "hsl(var(--forge-surface-dim))",
+                    color: "hsl(var(--forge-text-muted))",
+                }}
+            >
+                {emptyMessage}
+            </div>
+        )
+    }
+
+    return (
+        <div
+            className="rounded-2xl border p-4"
+            style={{
+                borderColor: "hsl(var(--forge-border))",
+                backgroundColor: "hsl(var(--forge-surface-dim))",
+            }}
+        >
+            <div className="flex items-start gap-3">
+                <div
+                    className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl"
+                    style={{
+                        backgroundColor: "hsl(var(--forge-accent-subtle))",
+                        color: "hsl(var(--forge-accent))",
+                    }}
+                >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 2 3 7l9 5 9-5-9-5Z" />
+                        <path d="m3 17 9 5 9-5" />
+                        <path d="m3 12 9 5 9-5" />
+                    </svg>
+                </div>
+                <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                        Attached model
+                    </p>
+                    <p className="mt-1 truncate text-sm font-medium" style={{ color: "hsl(var(--forge-text))" }}>
+                        {getAssetDisplayLabel(value)}
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed" style={{ color: "hsl(var(--forge-text-muted))" }}>
+                        {description ?? "This tool will use the current project model as its source mesh."}
+                    </p>
+                </div>
+            </div>
+        </div>
+    )
 }
 
 async function fileToDataUrl(file: File): Promise<string> {
@@ -485,18 +576,10 @@ function ToolDetailView({
                                 )}
 
                                 {input.type === "mesh" && (
-                                    <div
-                                        className="rounded-xl border px-4 py-3 text-sm"
-                                        style={{
-                                            borderColor: "hsl(var(--forge-border))",
-                                            backgroundColor: "hsl(var(--forge-surface-dim))",
-                                            color: "hsl(var(--forge-text))",
-                                        }}
-                                    >
-                                        {inputs[input.key]
-                                            ? "A model from your current project session is attached to this tool."
-                                            : "No model is attached yet. Continue from a generated result or a future asset selector to populate this field."}
-                                    </div>
+                                    <MeshAttachmentCard
+                                        value={inputs[input.key]}
+                                        emptyMessage="No model is attached yet. Continue from a generated result or a future asset selector to populate this field."
+                                    />
                                 )}
 
                                 {input.type === "image" && (
@@ -701,7 +784,7 @@ function NeuralViewerStage({
     status: NeuralRunStatus
     viewerUrl: string | null
     viewerLabel?: string
-    viewerSource?: "generated" | "demo"
+    viewerSource?: NeuralViewerSource
     error?: string
     generationTimeMs?: number
 }) {
@@ -745,7 +828,7 @@ function NeuralViewerStage({
                 </div>
             )}
 
-            <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-4 bg-gradient-to-b from-white/95 via-white/60 to-transparent px-6 pb-10 pt-5">
+            <div className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-white/95 via-white/60 to-transparent px-6 pb-10 pt-5">
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
                         Neural viewer
@@ -753,30 +836,39 @@ function NeuralViewerStage({
                     <h3 className="text-2xl font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
                         {title}
                     </h3>
-                    {viewerLabel && (
-                        <div className="pointer-events-auto mt-3 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium" style={{
-                            borderColor: "hsl(var(--forge-border))",
-                            backgroundColor: "rgba(255,255,255,0.78)",
-                            color: "hsl(var(--forge-text-muted))",
-                        }}>
-                            <span className="h-2 w-2 rounded-full" style={{
-                                backgroundColor: viewerSource === "demo" ? "hsl(var(--forge-accent))" : "hsl(153 60% 40%)",
-                            }} />
-                            {viewerSource === "demo" ? `Demo model: ${viewerLabel}` : viewerLabel}
-                        </div>
-                    )}
-                </div>
-                <div className="flex items-center gap-2">
-                    {typeof generationTimeMs === "number" && generationTimeMs > 0 && (
-                        <span className="rounded-full border px-2.5 py-1 text-xs font-medium" style={{
-                            borderColor: "hsl(var(--forge-border))",
-                            color: "hsl(var(--forge-text-subtle))",
-                            backgroundColor: "rgba(255,255,255,0.72)",
-                        }}>
-                            {(generationTimeMs / 1000).toFixed(1)}s
-                        </span>
-                    )}
-                    <NeuralRunStatusBadge status={status} />
+                    <div className="pointer-events-auto mt-3 flex flex-wrap items-center gap-2">
+                        {viewerLabel && (
+                            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium" style={{
+                                borderColor: "hsl(var(--forge-border))",
+                                backgroundColor: "rgba(255,255,255,0.78)",
+                                color: "hsl(var(--forge-text-muted))",
+                            }}>
+                                <span className="h-2 w-2 rounded-full" style={{
+                                    backgroundColor:
+                                        viewerSource === "demo"
+                                            ? "hsl(var(--forge-accent))"
+                                            : viewerSource === "input"
+                                                ? "hsl(215 90% 55%)"
+                                                : "hsl(153 60% 40%)",
+                                }} />
+                                {viewerSource === "demo"
+                                    ? `Demo model: ${viewerLabel}`
+                                    : viewerSource === "input"
+                                        ? `Attached model: ${viewerLabel}`
+                                        : viewerLabel}
+                            </div>
+                        )}
+                        {typeof generationTimeMs === "number" && generationTimeMs > 0 && (
+                            <span className="rounded-full border px-2.5 py-1 text-xs font-medium" style={{
+                                borderColor: "hsl(var(--forge-border))",
+                                color: "hsl(var(--forge-text-subtle))",
+                                backgroundColor: "rgba(255,255,255,0.72)",
+                            }}>
+                                {(generationTimeMs / 1000).toFixed(1)}s
+                            </span>
+                        )}
+                        <NeuralRunStatusBadge status={status} />
+                    </div>
                 </div>
             </div>
         </div>
@@ -862,6 +954,13 @@ function NeuralRerunFields({
                                 <span>{input.max ?? 100}</span>
                             </div>
                         </div>
+                    )}
+
+                    {input.type === "mesh" && (
+                        <MeshAttachmentCard
+                            value={inputs[input.key]}
+                            emptyMessage="No model is attached yet. Continue from a generated result or a future asset selector to populate this field."
+                        />
                     )}
 
                     {input.type === "image" && (
@@ -1198,6 +1297,25 @@ function NeuralRunOverlay({
                                 )
                             }
 
+                            if (input.type === "mesh") {
+                                return (
+                                    <div key={input.key} className="space-y-2">
+                                        <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                                            {input.label}
+                                        </p>
+                                        <MeshAttachmentCard
+                                            value={value}
+                                            emptyMessage="No model is attached yet."
+                                        />
+                                        {input.helpText && (
+                                            <p className="text-xs" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                                                {input.helpText}
+                                            </p>
+                                        )}
+                                    </div>
+                                )
+                            }
+
                             return (
                                 <div key={input.key} className="space-y-2">
                                     <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
@@ -1423,6 +1541,8 @@ export function StudioWorkspace({
             ? inputs[tool.inputs.find((input) => input.type === "image")?.key ?? ""]
             : undefined
         const resolutionValue = inputs.resolution ? Number(inputs.resolution) : undefined
+        const targetFacesValue = inputs.targetFaces ? Number(inputs.targetFaces) : undefined
+        const carriedViewerUrl = inputs.meshUrl || null
         const abortController = new AbortController()
 
         neuralAbortRef.current?.abort()
@@ -1435,9 +1555,9 @@ export function StudioWorkspace({
             draftInputs: inputs,
             status: "running",
             dockMode: "docked",
-            viewerUrl: null,
-            viewerLabel: undefined,
-            viewerSource: undefined,
+            viewerUrl: carriedViewerUrl,
+            viewerLabel: carriedViewerUrl ? getAssetDisplayLabel(carriedViewerUrl) : undefined,
+            viewerSource: carriedViewerUrl ? "input" : undefined,
         })
 
         try {
@@ -1448,7 +1568,10 @@ export function StudioWorkspace({
                     provider: tool.provider,
                     prompt: inputs.prompt,
                     imageDataUrl,
+                    meshUrl: inputs.meshUrl,
                     resolution: Number.isFinite(resolutionValue) ? resolutionValue : undefined,
+                    textureResolution: inputs.textureResolution,
+                    targetFaces: Number.isFinite(targetFacesValue) ? targetFacesValue : undefined,
                 }),
                 signal: abortController.signal,
             })
@@ -1483,7 +1606,6 @@ export function StudioWorkspace({
                     ...current,
                     status: "failed",
                     error: message,
-                    viewerUrl: null,
                 }
             })
             onNeuralRunUpdate(stepId, {
