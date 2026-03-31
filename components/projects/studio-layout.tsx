@@ -596,6 +596,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                     onNeuralRunStart={handleNeuralRunStart}
                     onNeuralRunUpdate={handleNeuralRunUpdate}
                     selectedPipelineStep={selectedNeuralStep}
+                    onRequestCategoryChange={setActiveCategory}
                 />
 
                 <StudioAdvisor

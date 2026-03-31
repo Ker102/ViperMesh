@@ -840,6 +840,13 @@
    - Studio now restores the neural workspace state for that pipeline step instead, including the overlay viewer context that was cached for the step ID
    - Added local neural run state caching keyed by pipeline step ID inside `StudioWorkspace`, so returning to the same Hunyuan/TRELLIS pipeline tab restores the last known neural viewer state instead of falling back to a blank prompt/session shell
    - Pipeline chip selection now also switches the active Studio category to the selected tool's category, so reopening a neural step returns the user to the correct workspace mode automatically
+16. **Viewer Professionalization + Geometry Handoff**:
+   - Upgraded `components/generation/ModelViewer.tsx` with a more product-grade control layer: `Fit`, `Reset`, `Fullscreen`, and `Download` actions now live directly in the viewer stage instead of leaving the Studio neural result as a passive preview
+   - The viewer now explicitly reframes on model load using `<model-viewer>`'s staging support before jumping the camera to goal, producing a cleaner first impression for generated models
+   - Added the first cross-tool continuation affordance in Studio: once a neural geometry run finishes successfully with a real generated result, the neural side panel now shows a suggested `Continue to Hunyuan3D Paint` button
+   - That continuation carries the generated model URL into the texturing tool as a prefilled `meshUrl`, and also carries forward the original reference image when available so users can move from geometry to texturing without manually reattaching inputs
+   - Added basic `mesh` input handling in the Studio tool detail form so downstream tools can visibly acknowledge that a current model is attached, even before a full project-asset picker exists
+   - Preserved the current plan to keep `<model-viewer>` as the polished review/result viewer while reserving more interactive engines for future tools like AI texture brushing that need real manual scene editing rather than display-oriented material swapping
 
 ### Validation
 - `npx tsc --noEmit`

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ModelViewerElement } from "@google/model-viewer";
-import { Loader2, RotateCcw } from "lucide-react";
+import { Download, Loader2, Maximize2, RotateCcw } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -84,13 +84,26 @@ function ErrorState({ message }: { message: string }) {
 
 export function ModelViewer({ url, className }: ModelViewerProps) {
     const viewerRef = useRef<ModelViewerElement | null>(null);
+    const frameRef = useRef<HTMLDivElement | null>(null);
     const [isRegistered, setIsRegistered] = useState<boolean>(() => {
         if (typeof window === "undefined") return false;
         return customElements.get("model-viewer") != null;
     });
     const [loadedUrl, setLoadedUrl] = useState<string | null>(null);
     const [errorState, setErrorState] = useState<{ url: string; message: string } | null>(null);
+    const [isFullscreen, setIsFullscreen] = useState(false);
     const safeUrl = useMemo(() => getSafeModelUrl(url), [url]);
+
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsFullscreen(document.fullscreenElement === frameRef.current);
+        };
+
+        document.addEventListener("fullscreenchange", handleFullscreenChange);
+        return () => {
+            document.removeEventListener("fullscreenchange", handleFullscreenChange);
+        };
+    }, []);
 
     useEffect(() => {
         let cancelled = false;
@@ -122,6 +135,8 @@ export function ModelViewer({ url, className }: ModelViewerProps) {
         if (!viewer || !safeUrl) return;
 
         const handleLoad = () => {
+            (viewer as ModelViewerElement & { updateFraming?: () => void }).updateFraming?.();
+            viewer.jumpCameraToGoal();
             setLoadedUrl(safeUrl);
             setErrorState(null);
         };
@@ -157,6 +172,34 @@ export function ModelViewer({ url, className }: ModelViewerProps) {
         viewerRef.current?.jumpCameraToGoal();
     };
 
+    const handleFitView = () => {
+        const viewer = viewerRef.current as ModelViewerElement & { updateFraming?: () => void };
+        viewer?.updateFraming?.();
+        viewer?.jumpCameraToGoal();
+    };
+
+    const handleToggleFullscreen = async () => {
+        if (!frameRef.current) return;
+
+        if (document.fullscreenElement === frameRef.current) {
+            await document.exitFullscreen();
+            return;
+        }
+
+        await frameRef.current.requestFullscreen();
+    };
+
+    const handleDownload = () => {
+        if (!safeUrl) return;
+
+        const anchor = document.createElement("a");
+        anchor.href = safeUrl;
+        anchor.download = safeUrl.split("/").pop() ?? "model.glb";
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+    };
+
     const activeError =
         !safeUrl ? "Invalid or unsafe model URL" : errorState?.url === safeUrl ? errorState.message : null;
     const status: ViewerStatus = activeError
@@ -179,6 +222,7 @@ export function ModelViewer({ url, className }: ModelViewerProps) {
 
     return (
         <div
+            ref={frameRef}
             className={cn(
                 "relative h-96 w-full overflow-hidden rounded-lg border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(45,212,191,0.14),_rgba(15,23,42,0.95)_58%)]",
                 className,
@@ -215,18 +259,47 @@ export function ModelViewer({ url, className }: ModelViewerProps) {
                 </div>
             )}
 
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-slate-950/80 via-slate-950/15 to-transparent px-4 pb-4 pt-10">
-                <div className="text-xs text-slate-200/75">
-                    Drag to orbit • Scroll to zoom • Right-click drag to pan
-                </div>
+            <div className="pointer-events-none absolute right-4 top-4 flex items-center gap-2">
+                <button
+                    type="button"
+                    onClick={handleFitView}
+                    className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-slate-100 transition hover:border-teal-300/50 hover:bg-slate-900"
+                >
+                    Fit
+                </button>
                 <button
                     type="button"
                     onClick={handleResetView}
                     className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-slate-100 transition hover:border-teal-300/50 hover:bg-slate-900"
                 >
                     <RotateCcw className="h-3.5 w-3.5" />
-                    Reset View
+                    Reset
                 </button>
+                <button
+                    type="button"
+                    onClick={handleToggleFullscreen}
+                    className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-slate-100 transition hover:border-teal-300/50 hover:bg-slate-900"
+                >
+                    <Maximize2 className="h-3.5 w-3.5" />
+                    {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                </button>
+                <button
+                    type="button"
+                    onClick={handleDownload}
+                    className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-slate-100 transition hover:border-teal-300/50 hover:bg-slate-900"
+                >
+                    <Download className="h-3.5 w-3.5" />
+                    Download
+                </button>
+            </div>
+
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-slate-950/80 via-slate-950/15 to-transparent px-4 pb-4 pt-10">
+                <div className="text-xs text-slate-200/75">
+                    Drag to orbit • Scroll to zoom • Right-click drag to pan
+                </div>
+                <div className="rounded-full border border-white/10 bg-slate-900/45 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-slate-200/70">
+                    Interactive preview
+                </div>
             </div>
         </div>
     );

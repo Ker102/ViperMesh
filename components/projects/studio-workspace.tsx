@@ -22,6 +22,7 @@ interface StudioWorkspaceProps {
     onNeuralRunStart: (tool: ToolEntry, inputs: Record<string, string>, existingStepId?: string) => string
     onNeuralRunUpdate: (stepId: string, patch: { status?: "pending" | "running" | "done" | "failed"; error?: string }) => void
     selectedPipelineStep?: WorkflowTimelineStep | null
+    onRequestCategoryChange?: (category: StudioCategory) => void
 }
 
 type NeuralDockMode = "docked" | "collapsed" | "focus"
@@ -483,6 +484,21 @@ function ToolDetailView({
                                     </select>
                                 )}
 
+                                {input.type === "mesh" && (
+                                    <div
+                                        className="rounded-xl border px-4 py-3 text-sm"
+                                        style={{
+                                            borderColor: "hsl(var(--forge-border))",
+                                            backgroundColor: "hsl(var(--forge-surface-dim))",
+                                            color: "hsl(var(--forge-text))",
+                                        }}
+                                    >
+                                        {inputs[input.key]
+                                            ? "A model from your current project session is attached to this tool."
+                                            : "No model is attached yet. Continue from a generated result or a future asset selector to populate this field."}
+                                    </div>
+                                )}
+
                                 {input.type === "image" && (
                                     <div>
                                         {inputs[input.key] ? (
@@ -938,6 +954,7 @@ function NeuralRunOverlay({
     draftInputs,
     onLoadDemo,
     onDraftInputChange,
+    onContinueToNextTool,
     onCollapse,
     onToggleFocus,
     onStop,
@@ -949,6 +966,7 @@ function NeuralRunOverlay({
     draftInputs: Record<string, string>
     onLoadDemo: (sample: ViewerSample) => void
     onDraftInputChange: (key: string, value: string) => void
+    onContinueToNextTool: () => void
     onCollapse: () => void
     onToggleFocus: () => void
     onStop: () => void
@@ -1232,6 +1250,33 @@ function NeuralRunOverlay({
                             : run.error ?? "The latest result stays in the viewer while you adjust the next prompt and rerun this same tool."}
                     </p>
                 </div>
+
+                {run.status === "ready" && run.viewerUrl && run.viewerSource === "generated" && (
+                    <div
+                        className="rounded-2xl border p-4"
+                        style={{
+                            borderColor: "hsl(var(--forge-border))",
+                            backgroundColor: "hsl(var(--forge-accent-subtle))",
+                        }}
+                    >
+                        <div className="space-y-2">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-accent))" }}>
+                                Suggested next step
+                            </p>
+                            <p className="text-sm leading-relaxed" style={{ color: "hsl(var(--forge-text-muted))" }}>
+                                Continue this generated geometry into the texturing stage without re-uploading the mesh.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={onContinueToNextTool}
+                            className="mt-3 w-full rounded-xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
+                            style={{ backgroundColor: "hsl(var(--forge-accent))" }}
+                        >
+                            Continue to Hunyuan3D Paint
+                        </button>
+                    </div>
+                )}
             </div>
 
             <div className="border-t px-5 py-4" style={{ borderColor: "hsl(var(--forge-border))" }}>
@@ -1276,6 +1321,7 @@ export function StudioWorkspace({
     onNeuralRunStart,
     onNeuralRunUpdate,
     selectedPipelineStep,
+    onRequestCategoryChange,
 }: StudioWorkspaceProps) {
     const [selectedTool, setSelectedTool] = useState<ToolEntry | null>(null)
     const [toolDrafts, setToolDrafts] = useState<Record<string, Record<string, string>>>({})
@@ -1291,8 +1337,12 @@ export function StudioWorkspace({
     // Reset selected tool when category changes
     useEffect(() => {
         neuralAbortRef.current?.abort()
-        setSelectedTool(null)
-        setNeuralRun(null)
+        setSelectedTool((current) =>
+            current?.category === activeCategory ? current : null
+        )
+        setNeuralRun((current) =>
+            current?.tool.category === activeCategory ? current : null
+        )
     }, [activeCategory])
 
     useEffect(() => {
@@ -1305,6 +1355,7 @@ export function StudioWorkspace({
 
     useEffect(() => {
         if (!selectedPipelineStep) return
+        if (selectedTool) return
 
         const tool = getToolById(selectedPipelineStep.toolName)
         if (!tool || tool.type !== "neural") return
@@ -1330,7 +1381,7 @@ export function StudioWorkspace({
                 generationTimeMs: undefined,
             }
         })
-    }, [savedNeuralRuns, selectedPipelineStep])
+    }, [savedNeuralRuns, selectedPipelineStep, selectedTool])
 
     useEffect(() => {
         return () => {
@@ -1518,6 +1569,33 @@ export function StudioWorkspace({
         })
     }
 
+    const handleContinueToPaint = () => {
+        if (!neuralRun?.viewerUrl) return
+
+        const paintTool = getToolById("hunyuan-paint")
+        if (!paintTool) return
+
+        const carriedReference = neuralRun.inputs.imageUrl ?? neuralRun.inputs.referenceImage
+        const draft: Record<string, string> = {
+            meshUrl: neuralRun.viewerUrl,
+        }
+
+        if (carriedReference) {
+            draft.imageUrl = carriedReference
+        }
+
+        setToolDrafts((prev) => ({
+            ...prev,
+            [paintTool.id]: draft,
+        }))
+        setSavedNeuralRuns((prev) =>
+            neuralRun ? { ...prev, [neuralRun.stepId]: neuralRun } : prev
+        )
+        setNeuralRun(null)
+        onRequestCategoryChange?.(paintTool.category)
+        setSelectedTool(paintTool)
+    }
+
     // ── Detail view ──
     if (neuralRun) {
         const referenceImageKey = neuralRun.tool.inputs.find((input) => input.type === "image")?.key
@@ -1550,6 +1628,7 @@ export function StudioWorkspace({
                         draftInputs={neuralRun.draftInputs}
                         onLoadDemo={handleLoadDemoSample}
                         onDraftInputChange={handleDraftInputChange}
+                        onContinueToNextTool={handleContinueToPaint}
                         onCollapse={handleCollapseNeuralPanel}
                         onToggleFocus={handleToggleNeuralFocus}
                         onStop={handleStopNeuralRun}
