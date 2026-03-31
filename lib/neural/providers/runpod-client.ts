@@ -197,11 +197,7 @@ export class RunPodClient extends Neural3DClient {
             console.log(`[RunPod] Job submitted: ${job.id} (status: ${job.status})`)
 
             // 3. Poll /status until COMPLETED or FAILED
-            const result = await this.pollUntilDone(
-                () => this.checkJobStatus(job.id),
-                5_000,     // poll every 5s
-                300_000,   // max 5 minutes
-            )
+            const result = await this.pollJobUntilDone(job.id, 5_000, 300_000)
 
             // Add timing
             if (result.status === "completed") {
@@ -313,6 +309,38 @@ export class RunPodClient extends Neural3DClient {
 
             default:
                 return { status: "pending", provider: this.slug, stage: this.meta.stages[0] }
+        }
+    }
+
+    private async pollJobUntilDone(
+        jobId: string,
+        intervalMs: number,
+        maxWaitMs: number,
+    ): Promise<GenerationResult> {
+        const deadline = Date.now() + maxWaitMs
+        let lastObservedStatus: GenerationResult["status"] = "pending"
+
+        while (Date.now() < deadline) {
+            const result = await this.checkJobStatus(jobId)
+            lastObservedStatus = result.status
+
+            if (result.status === "completed" || result.status === "failed") {
+                return result
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, intervalMs))
+        }
+
+        const error =
+            lastObservedStatus === "pending"
+                ? "RunPod did not start this generation within 5 minutes. The endpoint appears to have stayed in queue or failed to warm up in time. Please retry."
+                : "RunPod started processing this generation but did not finish within 5 minutes. Please retry, or check the endpoint health if this keeps happening."
+
+        return {
+            status: "failed",
+            provider: this.slug,
+            stage: this.meta.stages[0],
+            error,
         }
     }
 }

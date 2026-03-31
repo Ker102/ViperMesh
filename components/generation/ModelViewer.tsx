@@ -8,6 +8,9 @@ import { cn } from "@/lib/utils";
 interface ModelViewerProps {
     url: string;
     className?: string;
+    showControls?: boolean;
+    showFooter?: boolean;
+    interactive?: boolean;
 }
 
 type ViewerStatus = "booting" | "loading" | "ready" | "error";
@@ -82,7 +85,13 @@ function ErrorState({ message }: { message: string }) {
     );
 }
 
-export function ModelViewer({ url, className }: ModelViewerProps) {
+export function ModelViewer({
+    url,
+    className,
+    showControls = true,
+    showFooter = true,
+    interactive = true,
+}: ModelViewerProps) {
     const viewerRef = useRef<ModelViewerElement | null>(null);
     const frameRef = useRef<HTMLDivElement | null>(null);
     const [isRegistered, setIsRegistered] = useState<boolean>(() => {
@@ -240,8 +249,8 @@ export function ModelViewer({ url, className }: ModelViewerProps) {
                 ref={viewerRef}
                 src={safeUrl}
                 alt="Generated 3D model preview"
-                camera-controls=""
-                interaction-prompt="auto"
+                camera-controls={interactive ? "" : undefined}
+                interaction-prompt={interactive ? "auto" : "none"}
                 loading="eager"
                 reveal="auto"
                 shadow-intensity="1"
@@ -259,48 +268,52 @@ export function ModelViewer({ url, className }: ModelViewerProps) {
                 </div>
             )}
 
-            <div className="pointer-events-none absolute right-4 top-4 flex items-center gap-2">
-                <button
-                    type="button"
-                    onClick={handleFitView}
-                    className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-slate-100 transition hover:border-teal-300/50 hover:bg-slate-900"
-                >
-                    Fit
-                </button>
-                <button
-                    type="button"
-                    onClick={handleResetView}
-                    className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-slate-100 transition hover:border-teal-300/50 hover:bg-slate-900"
-                >
-                    <RotateCcw className="h-3.5 w-3.5" />
-                    Reset
-                </button>
-                <button
-                    type="button"
-                    onClick={handleToggleFullscreen}
-                    className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-slate-100 transition hover:border-teal-300/50 hover:bg-slate-900"
-                >
-                    <Maximize2 className="h-3.5 w-3.5" />
-                    {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-                </button>
-                <button
-                    type="button"
-                    onClick={handleDownload}
-                    className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-slate-100 transition hover:border-teal-300/50 hover:bg-slate-900"
-                >
-                    <Download className="h-3.5 w-3.5" />
-                    Download
-                </button>
-            </div>
+            {showControls && (
+                <div className="pointer-events-none absolute right-4 top-4 flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={handleFitView}
+                        className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-slate-100 transition hover:border-teal-300/50 hover:bg-slate-900"
+                    >
+                        Fit
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleResetView}
+                        className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-slate-100 transition hover:border-teal-300/50 hover:bg-slate-900"
+                    >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Reset
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleToggleFullscreen}
+                        className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-slate-100 transition hover:border-teal-300/50 hover:bg-slate-900"
+                    >
+                        <Maximize2 className="h-3.5 w-3.5" />
+                        {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleDownload}
+                        className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-slate-100 transition hover:border-teal-300/50 hover:bg-slate-900"
+                    >
+                        <Download className="h-3.5 w-3.5" />
+                        Download
+                    </button>
+                </div>
+            )}
 
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-slate-950/80 via-slate-950/15 to-transparent px-4 pb-4 pt-10">
-                <div className="text-xs text-slate-200/75">
-                    Drag to orbit • Scroll to zoom • Right-click drag to pan
+            {showFooter && (
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-slate-950/80 via-slate-950/15 to-transparent px-4 pb-4 pt-10">
+                    <div className="text-xs text-slate-200/75">
+                        Drag to orbit • Scroll to zoom • Right-click drag to pan
+                    </div>
+                    <div className="rounded-full border border-white/10 bg-slate-900/45 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-slate-200/70">
+                        Interactive preview
+                    </div>
                 </div>
-                <div className="rounded-full border border-white/10 bg-slate-900/45 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-slate-200/70">
-                    Interactive preview
-                </div>
-            </div>
+            )}
         </div>
     );
 }

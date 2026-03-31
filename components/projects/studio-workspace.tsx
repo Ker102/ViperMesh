@@ -108,28 +108,40 @@ function PreviewImage(props: React.ImgHTMLAttributes<HTMLImageElement> & { alt: 
 function getAssetDisplayLabel(value: string): string {
     if (!value) return "Attached 3D model"
 
-    try {
-        if (value.startsWith("http://") || value.startsWith("https://")) {
-            const url = new URL(value)
-            const pathParam = url.searchParams.get("path")
-            if (pathParam) {
-                const decoded = decodeURIComponent(pathParam)
-                const parts = decoded.split(/[\\/]/).filter(Boolean)
-                return parts[parts.length - 1] ?? "Attached 3D model"
-            }
+    if (value.startsWith("data:")) {
+        return "Attached 3D model"
+    }
 
-            const parts = url.pathname.split("/").filter(Boolean)
+    try {
+        const baseUrl =
+            typeof window !== "undefined"
+                ? window.location.origin
+                : "http://127.0.0.1"
+        const url = new URL(value, baseUrl)
+        const pathParam = url.searchParams.get("path")
+        if (pathParam) {
+            const decoded = decodeURIComponent(pathParam)
+            const parts = decoded.split(/[\\/]/).filter(Boolean)
             return parts[parts.length - 1] ?? "Attached 3D model"
+        }
+
+        const parts = url.pathname.split("/").filter(Boolean)
+        const lastPart = parts[parts.length - 1]
+        if (lastPart && lastPart !== "neural-output") {
+            return decodeURIComponent(lastPart)
         }
     } catch {
         // Fall through to plain path handling
     }
 
-    if (value.startsWith("data:")) {
-        return "Attached 3D model"
-    }
-
-    const parts = value.split(/[\\/]/).filter(Boolean)
+    const decodedValue = (() => {
+        try {
+            return decodeURIComponent(value)
+        } catch {
+            return value
+        }
+    })()
+    const parts = decodedValue.split(/[\\/]/).filter(Boolean)
     return parts[parts.length - 1] ?? "Attached 3D model"
 }
 
@@ -165,25 +177,27 @@ function MeshAttachmentCard({
                 backgroundColor: "hsl(var(--forge-surface-dim))",
             }}
         >
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-4">
                 <div
-                    className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl"
+                    className="h-24 w-24 shrink-0 overflow-hidden rounded-2xl border"
                     style={{
-                        backgroundColor: "hsl(var(--forge-accent-subtle))",
-                        color: "hsl(var(--forge-accent))",
+                        borderColor: "hsl(var(--forge-border))",
+                        backgroundColor: "hsl(var(--forge-surface))",
                     }}
                 >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 2 3 7l9 5 9-5-9-5Z" />
-                        <path d="m3 17 9 5 9-5" />
-                        <path d="m3 12 9 5 9-5" />
-                    </svg>
+                    <ModelViewer
+                        url={value}
+                        className="h-full w-full rounded-none border-0"
+                        showControls={false}
+                        showFooter={false}
+                        interactive={false}
+                    />
                 </div>
                 <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
                         Attached model
                     </p>
-                    <p className="mt-1 truncate text-sm font-medium" style={{ color: "hsl(var(--forge-text))" }}>
+                    <p className="mt-1 text-sm font-medium" style={{ color: "hsl(var(--forge-text))" }}>
                         {getAssetDisplayLabel(value)}
                     </p>
                     <p className="mt-1 text-xs leading-relaxed" style={{ color: "hsl(var(--forge-text-muted))" }}>
@@ -803,6 +817,11 @@ function NeuralViewerStage({
     error?: string
     generationTimeMs?: number
 }) {
+    const displayViewerLabel =
+        viewerSource === "input" && viewerUrl
+            ? getAssetDisplayLabel(viewerUrl)
+            : viewerLabel
+
     return (
         <div
             className="relative flex min-h-0 flex-1 overflow-hidden"
@@ -843,7 +862,36 @@ function NeuralViewerStage({
                 </div>
             )}
 
-            <div className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-white/95 via-white/60 to-transparent px-6 pb-10 pt-5">
+            {error && (status === "failed" || status === "stopped") && (
+                <div className="pointer-events-none absolute inset-x-0 top-28 z-20 flex justify-center px-6">
+                    <div
+                        className="max-w-xl rounded-2xl border px-4 py-3 shadow-lg"
+                        style={{
+                            borderColor: status === "failed" ? "rgba(239, 68, 68, 0.28)" : "rgba(245, 158, 11, 0.28)",
+                            backgroundColor: status === "failed" ? "rgba(254, 242, 242, 0.92)" : "rgba(255, 251, 235, 0.94)",
+                        }}
+                    >
+                        <p
+                            className="text-sm font-semibold"
+                            style={{
+                                color: status === "failed" ? "rgb(185, 28, 28)" : "rgb(180, 83, 9)",
+                            }}
+                        >
+                            {status === "failed" ? "Generation failed" : "Generation stopped"}
+                        </p>
+                        <p
+                            className="mt-1 text-sm leading-relaxed"
+                            style={{
+                                color: status === "failed" ? "rgb(127, 29, 29)" : "rgb(120, 53, 15)",
+                            }}
+                        >
+                            {error}
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            <div className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-white/95 via-white/60 to-transparent px-6 pb-10 pt-5 sm:pr-[22rem]">
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
                         Neural viewer
@@ -851,9 +899,9 @@ function NeuralViewerStage({
                     <h3 className="text-2xl font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
                         {title}
                     </h3>
-                    <div className="pointer-events-auto mt-3 flex flex-wrap items-center gap-2">
-                        {viewerLabel && (
-                            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium" style={{
+                    <div className="pointer-events-auto mt-3 flex max-w-[38rem] flex-wrap items-center gap-2">
+                        {displayViewerLabel && (
+                            <div className="inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium" style={{
                                 borderColor: "hsl(var(--forge-border))",
                                 backgroundColor: "rgba(255,255,255,0.78)",
                                 color: "hsl(var(--forge-text-muted))",
@@ -866,11 +914,13 @@ function NeuralViewerStage({
                                                 ? "hsl(215 90% 55%)"
                                                 : "hsl(153 60% 40%)",
                                 }} />
-                                {viewerSource === "demo"
-                                    ? `Demo model: ${viewerLabel}`
-                                    : viewerSource === "input"
-                                        ? `Attached model: ${viewerLabel}`
-                                        : viewerLabel}
+                                <span className="truncate">
+                                    {viewerSource === "demo"
+                                        ? `Demo model: ${displayViewerLabel}`
+                                        : viewerSource === "input"
+                                            ? `Attached model: ${displayViewerLabel}`
+                                            : displayViewerLabel}
+                                </span>
                             </div>
                         )}
                         {typeof generationTimeMs === "number" && generationTimeMs > 0 && (

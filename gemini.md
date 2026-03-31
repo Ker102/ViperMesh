@@ -958,6 +958,13 @@
    - Kept the DB/storage phase explicitly separate from the immediate picker work because the next UX slice can be built entirely on top of the already-persisted `studio_sessions.steps` JSON
    - Extracted the generated-asset domain logic into `components/projects/generated-assets.ts`, creating a shared `GeneratedAssetItem` model plus `extractGeneratedAssets()` so the sidebar shelf and the future inline picker do not diverge
    - Updated `StudioLayout` and `GeneratedAssetsShelf` to use that shared helper as the source of truth, which is the first low-risk setup slice before wiring `Attach from Generated Assets` into every `mesh` input
+20. **Neural Paint Failure Clarity + Attachment Preview Pass**:
+   - Diagnosed the first `TRELLIS → Hunyuan3D Paint` failure path from the local server logs: the RunPod job stayed queued for the full five-minute polling window and never reached a worker, so the failure was a queue/warmup timeout rather than a malformed handoff payload
+   - Updated `lib/neural/providers/runpod-client.ts` to replace the generic timeout path with RunPod-specific polling, so queue-stalled jobs now return a clearer user-facing message distinguishing "never started" from "started but did not finish"
+   - Fixed `getAssetDisplayLabel()` in `components/projects/studio-workspace.tsx` so relative in-app viewer URLs like `/api/ai/neural-output?path=...` resolve to clean filenames instead of leaking raw encoded transport/query strings into the UI
+   - Upgraded `MeshAttachmentCard` to include a compact visual 3D preview using the shared `<ModelViewer>` component, replacing the previous plain-text attachment treatment for `mesh` inputs in both the inline tool form and the neural rerun panel
+   - Added a visible failure banner inside the neural viewer stage when a run fails or is stopped while an earlier mesh is still displayed, so long-running paint failures are visible directly on the canvas instead of only in the side-panel status copy
+   - Rebalanced the neural viewer's top overlay layout with reserved space for the built-in model-viewer controls and truncation-safe metadata chips, reducing the overlap between viewer actions and attached-model / status indicators
 
 ### Validation
 - `npx tsc --noEmit`
