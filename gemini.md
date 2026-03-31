@@ -947,6 +947,12 @@
    - Wired neural run state changes back into the pipeline step itself on every meaningful change, so successful generated models remain attached to their pipeline tab until the tab is removed
    - Added session-scoped selected-step restore in `StudioLayout` using `sessionStorage`, so refreshing the browser in the same tab reopens the same Studio pipeline step and category automatically without waiting for the user to click the chip again
    - Kept this intentionally session-scoped rather than global: the open-step restore survives refresh/connection hiccups in the same tab, while closing the browser tab clears that UI selection as expected
+18. **Studio Generated Assets Shelf (Project-Scoped First Slice)**:
+   - Added a dedicated `Generated Assets` shelf panel off the Studio sidebar so persisted neural outputs from the current project can be reopened without scrolling through the pipeline or relying only on the in-view continuation button
+   - The shelf is derived from persisted `WorkflowTimelineStep.neuralState`, so it survives refreshes and only includes successful generated neural outputs with a real viewer URL
+   - Each asset card can reopen the original pipeline step in the viewer, and geometry outputs from shape tools can be pushed directly into `Hunyuan3D Paint` from the shelf using the saved mesh URL plus the carried reference image when available
+   - Added an explicit generated-assets sidebar button with a count badge, while keeping this first version project-scoped and step-backed rather than introducing a separate user asset table before the UX is validated
+   - Added a lightweight external-tool launch path in `StudioWorkspace`, so shelf-driven handoffs can open downstream tool forms with prefilled `meshUrl` inputs without spawning duplicate pipeline tabs
 
 ### Validation
 - `npx tsc --noEmit`

@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useCallback, useRef, useEffect } from "react"
+import { useState, useCallback, useRef, useEffect, useMemo } from "react"
 import { StudioSidebar } from "./studio-sidebar"
 import { StudioWorkspace } from "./studio-workspace"
 import { StudioAdvisor } from "./studio-advisor"
 import { WorkflowTimeline, type WorkflowTimelineStep, type StepMonitoringLog, type StepPlanData, type StepCommandResult } from "./workflow-timeline"
 import { StepSessionDrawer } from "./step-session-drawer"
+import { GeneratedAssetsShelf, type GeneratedAssetItem } from "./generated-assets-shelf"
 import type { ToolEntry } from "@/lib/orchestration/tool-catalog"
 import { getToolById } from "@/lib/orchestration/tool-catalog"
 import type { AgentStreamEvent } from "@/lib/orchestration/types"
@@ -84,6 +85,7 @@ async function deletePersistedSteps(projectId: string) {
 
 export function StudioLayout({ projectId }: StudioLayoutProps) {
     const [activeCategory, setActiveCategory] = useState("shape")
+    const [generatedAssetsOpen, setGeneratedAssetsOpen] = useState(false)
     const [assistantOpen, setAssistantOpen] = useState(false)
     const [workflowSteps, setWorkflowSteps] = useState<WorkflowTimelineStep[]>([])
     const workflowStepsRef = useRef<WorkflowTimelineStep[]>(workflowSteps)
@@ -93,6 +95,11 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const initialLoadDone = useRef(false)
     const selectedStepStorageKey = `studio-selected-step:${projectId}`
+    const [externalToolLaunch, setExternalToolLaunch] = useState<{
+        token: string
+        toolId: string
+        inputs: Record<string, string>
+    } | null>(null)
 
     // Keep ref in sync with state
     useEffect(() => {
@@ -145,6 +152,30 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
             window.sessionStorage.removeItem(selectedStepStorageKey)
         }
     }, [selectedStepId, selectedStepStorageKey])
+
+    const generatedAssets = useMemo<GeneratedAssetItem[]>(() => {
+        return workflowSteps
+            .flatMap((step) => {
+                const neuralState = step.neuralState
+                if (!neuralState?.viewerUrl || neuralState.viewerSource !== "generated") {
+                    return []
+                }
+
+                const tool = getToolById(step.toolName)
+                return [{
+                    id: `${step.id}:${neuralState.viewerUrl}`,
+                    stepId: step.id,
+                    title: step.title,
+                    toolName: step.toolName,
+                    toolLabel: tool?.name ?? step.title,
+                    viewerUrl: neuralState.viewerUrl,
+                    viewerLabel: neuralState.viewerLabel,
+                    canContinueToPaint: tool?.category === "shape",
+                    referenceImage: step.inputs?.imageUrl ?? step.inputs?.referenceImage,
+                }]
+            })
+            .reverse()
+    }, [workflowSteps])
 
     // ── Helpers ──────────────────────────────────────────────────
 
@@ -483,11 +514,41 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         abortControllerRef.current?.abort()
         setWorkflowSteps([])
         setSelectedStepId(null)
+        setGeneratedAssetsOpen(false)
         if (typeof window !== "undefined") {
             window.sessionStorage.removeItem(selectedStepStorageKey)
         }
         deletePersistedSteps(projectId)
     }, [projectId, selectedStepStorageKey])
+
+    const handleOpenGeneratedAsset = useCallback((stepId: string) => {
+        const step = workflowStepsRef.current.find((item) => item.id === stepId)
+        const tool = step ? getToolById(step.toolName) : undefined
+        if (tool) {
+            setActiveCategory(tool.category)
+        }
+        setSelectedStepId(stepId)
+        setGeneratedAssetsOpen(false)
+        setAssistantOpen(false)
+    }, [])
+
+    const handleContinueGeneratedAssetToPaint = useCallback((asset: GeneratedAssetItem) => {
+        const paintTool = getToolById("hunyuan-paint")
+        if (!paintTool) return
+
+        setSelectedStepId(null)
+        setAssistantOpen(false)
+        setGeneratedAssetsOpen(false)
+        setActiveCategory(paintTool.category)
+        setExternalToolLaunch({
+            token: `${asset.stepId}:${Date.now()}`,
+            toolId: paintTool.id,
+            inputs: {
+                meshUrl: asset.viewerUrl,
+                ...(asset.referenceImage ? { imageUrl: asset.referenceImage } : {}),
+            },
+        })
+    }, [])
 
     const handleToolRunNow = useCallback(
         (tool: ToolEntry, inputs: Record<string, string>) => {
@@ -618,8 +679,25 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                 <StudioSidebar
                     activeCategory={activeCategory}
                     onCategoryChange={setActiveCategory}
-                    onAssistantToggle={() => setAssistantOpen((o) => !o)}
+                    onGeneratedAssetsToggle={() => {
+                        setGeneratedAssetsOpen((open) => !open)
+                        setAssistantOpen(false)
+                    }}
+                    generatedAssetsOpen={generatedAssetsOpen}
+                    generatedAssetCount={generatedAssets.length}
+                    onAssistantToggle={() => {
+                        setAssistantOpen((o) => !o)
+                        setGeneratedAssetsOpen(false)
+                    }}
                     assistantOpen={assistantOpen}
+                />
+
+                <GeneratedAssetsShelf
+                    open={generatedAssetsOpen}
+                    assets={generatedAssets}
+                    onClose={() => setGeneratedAssetsOpen(false)}
+                    onOpenAsset={handleOpenGeneratedAsset}
+                    onContinueToPaint={handleContinueGeneratedAssetToPaint}
                 />
 
                 <StudioWorkspace
@@ -630,6 +708,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                     onNeuralRunUpdate={handleNeuralRunUpdate}
                     selectedPipelineStep={selectedNeuralStep}
                     onRequestCategoryChange={setActiveCategory}
+                    externalToolLaunch={externalToolLaunch}
                 />
 
                 <StudioAdvisor

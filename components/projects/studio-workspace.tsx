@@ -23,6 +23,11 @@ interface StudioWorkspaceProps {
     onNeuralRunUpdate: (stepId: string, patch: Partial<Pick<WorkflowTimelineStep, "status" | "error" | "inputs" | "neuralState">>) => void
     selectedPipelineStep?: WorkflowTimelineStep | null
     onRequestCategoryChange?: (category: StudioCategory) => void
+    externalToolLaunch?: {
+        token: string
+        toolId: string
+        inputs: Record<string, string>
+    } | null
 }
 
 type NeuralDockMode = "docked" | "collapsed" | "focus"
@@ -1450,6 +1455,7 @@ export function StudioWorkspace({
     onNeuralRunUpdate,
     selectedPipelineStep,
     onRequestCategoryChange,
+    externalToolLaunch,
 }: StudioWorkspaceProps) {
     const [selectedTool, setSelectedTool] = useState<ToolEntry | null>(null)
     const [toolDrafts, setToolDrafts] = useState<Record<string, Record<string, string>>>({})
@@ -1522,6 +1528,23 @@ export function StudioWorkspace({
             neuralAbortRef.current?.abort()
         }
     }, [])
+
+    useEffect(() => {
+        if (!externalToolLaunch) return
+        const tool = getToolById(externalToolLaunch.toolId)
+        if (!tool) return
+
+        neuralAbortRef.current?.abort()
+        setNeuralRun(null)
+        setToolDrafts((prev) => ({
+            ...prev,
+            [tool.id]: {
+                ...(prev[tool.id] ?? {}),
+                ...externalToolLaunch.inputs,
+            },
+        }))
+        setSelectedTool(tool)
+    }, [externalToolLaunch])
 
     useEffect(() => {
         let cancelled = false
