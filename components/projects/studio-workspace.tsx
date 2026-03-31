@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Loader2, PanelLeftClose, PanelLeftOpen, RefreshCw, Square } from "lucide-react"
+import { Loader2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, RefreshCw, Square } from "lucide-react"
 import { ModelViewer } from "@/components/generation/ModelViewer"
+import { cn } from "@/lib/utils"
 import {
     CATEGORIES,
     getToolsForCategory,
@@ -20,7 +21,7 @@ interface StudioWorkspaceProps {
     onNeuralRunUpdate: (stepId: string, patch: { status?: "pending" | "running" | "done" | "failed"; error?: string }) => void
 }
 
-type NeuralDockMode = "docked" | "collapsed"
+type NeuralDockMode = "docked" | "collapsed" | "focus"
 type NeuralRunStatus = "running" | "ready" | "failed" | "stopped"
 
 interface ActiveNeuralRun {
@@ -39,6 +40,18 @@ interface NeuralRunResponse {
     viewerUrl?: string | null
     generationTimeMs?: number
     error?: string
+}
+
+function resolveInputDisplayValue(input: ToolInput, inputs: Record<string, string>): string {
+    const rawValue = inputs[input.key]
+    if (!rawValue) return "Not provided"
+
+    if (input.type === "select") {
+        const option = input.options?.find((opt) => opt.value === rawValue)
+        return option?.label ?? rawValue
+    }
+
+    return rawValue
 }
 
 function PreviewImage(props: React.ImgHTMLAttributes<HTMLImageElement> & { alt: string }) {
@@ -638,68 +651,286 @@ function NeuralViewerStage({
     generationTimeMs?: number
 }) {
     return (
-        <div className="flex min-h-0 flex-1 flex-col rounded-[24px] border" style={{
+        <div className="relative flex min-h-0 flex-1 overflow-hidden rounded-[26px] border" style={{
             borderColor: "hsl(var(--forge-border))",
             backgroundColor: "hsl(var(--forge-surface-dim))",
         }}>
-            <div
-                className="flex items-center justify-between gap-3 border-b px-5 py-4"
-                style={{ borderColor: "hsl(var(--forge-border))" }}
-            >
+            {viewerUrl ? (
+                <ModelViewer
+                    url={viewerUrl}
+                    className="h-full min-h-[560px] rounded-[26px] border-0"
+                />
+            ) : (
+                <div
+                    className="flex min-h-[560px] flex-1 items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(45,212,191,0.08),_rgba(255,255,255,0.96)_58%)] px-8 text-center"
+                >
+                    <div className="max-w-md space-y-3">
+                        {status === "running" && (
+                            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[hsl(var(--forge-accent-subtle))]">
+                                <Loader2 className="h-6 w-6 animate-spin" style={{ color: "hsl(var(--forge-accent))" }} />
+                            </div>
+                        )}
+                        <p className="text-lg font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
+                            {status === "running"
+                                ? "Preparing your 3D model"
+                                : status === "failed"
+                                    ? "Generation did not complete"
+                                    : status === "stopped"
+                                        ? "Generation stopped"
+                                        : "Viewer ready"}
+                        </p>
+                        <p className="text-sm leading-relaxed" style={{ color: "hsl(var(--forge-text-muted))" }}>
+                            {status === "running"
+                                ? "The viewer stage stays in place while the neural model runs. The first result will appear here automatically."
+                                : error ?? "This area will render the first generated GLB as soon as it is available."}
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-4 bg-gradient-to-b from-white/95 via-white/60 to-transparent px-6 pb-10 pt-5">
                 <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
-                        Viewer
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                        Neural viewer
                     </p>
-                    <h3 className="text-lg font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
+                    <h3 className="text-2xl font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
                         {title}
                     </h3>
                 </div>
                 <div className="flex items-center gap-2">
-                    <NeuralRunStatusBadge status={status} />
                     {typeof generationTimeMs === "number" && generationTimeMs > 0 && (
-                        <span className="text-xs" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                        <span className="rounded-full border px-2.5 py-1 text-xs font-medium" style={{
+                            borderColor: "hsl(var(--forge-border))",
+                            color: "hsl(var(--forge-text-subtle))",
+                            backgroundColor: "rgba(255,255,255,0.72)",
+                        }}>
                             {(generationTimeMs / 1000).toFixed(1)}s
                         </span>
                     )}
+                    <NeuralRunStatusBadge status={status} />
+                </div>
+            </div>
+        </div>
+    )
+}
+
+function NeuralRunOverlay({
+    run,
+    referenceImage,
+    onCollapse,
+    onToggleFocus,
+    onStop,
+    onNewRun,
+}: {
+    run: ActiveNeuralRun
+    referenceImage?: string
+    onCollapse: () => void
+    onToggleFocus: () => void
+    onStop: () => void
+    onNewRun: () => void
+}) {
+    const isFocus = run.dockMode === "focus"
+
+    return (
+        <aside
+            className={cn(
+                "absolute inset-y-5 left-5 z-20 flex flex-col overflow-hidden rounded-[26px] border shadow-[0_28px_80px_rgba(15,23,42,0.18)] backdrop-blur-xl transition-all duration-300",
+                isFocus ? "right-5 w-auto max-w-none" : "w-[min(430px,calc(100%-2.5rem))] max-w-[430px]"
+            )}
+            style={{
+                borderColor: "hsl(var(--forge-border))",
+                backgroundColor: "rgba(255,255,255,0.94)",
+            }}
+        >
+            <div className="flex items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: "hsl(var(--forge-border))" }}>
+                <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                        Neural run
+                    </p>
+                    <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
+                            {run.tool.name}
+                        </h3>
+                        <NeuralRunStatusBadge status={run.status} />
+                    </div>
+                    <p className="text-sm" style={{ color: "hsl(var(--forge-text-muted))" }}>
+                        {run.tool.tagline}
+                    </p>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={onToggleFocus}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border transition hover:opacity-85"
+                        style={{
+                            borderColor: "hsl(var(--forge-border))",
+                            color: "hsl(var(--forge-text-muted))",
+                            backgroundColor: "rgba(255,255,255,0.8)",
+                        }}
+                        aria-label={isFocus ? "Shrink tool panel" : "Expand tool panel"}
+                    >
+                        {isFocus ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onCollapse}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border transition hover:opacity-85"
+                        style={{
+                            borderColor: "hsl(var(--forge-border))",
+                            color: "hsl(var(--forge-text-muted))",
+                            backgroundColor: "rgba(255,255,255,0.8)",
+                        }}
+                        aria-label="Collapse neural panel"
+                    >
+                        <PanelLeftClose className="h-4 w-4" />
+                    </button>
                 </div>
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col p-5">
-                {viewerUrl ? (
-                    <ModelViewer url={viewerUrl} />
-                ) : (
-                    <div
-                        className="flex min-h-[420px] flex-1 items-center justify-center rounded-[20px] border border-dashed px-8 text-center"
-                        style={{
-                            borderColor: "hsl(var(--forge-border))",
-                            backgroundColor: "hsl(var(--forge-surface))",
-                        }}
-                    >
-                        <div className="max-w-md space-y-3">
-                            {status === "running" && (
-                                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[hsl(var(--forge-accent-subtle))]">
-                                    <Loader2 className="h-6 w-6 animate-spin" style={{ color: "hsl(var(--forge-accent))" }} />
-                                </div>
-                            )}
-                            <p className="text-lg font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
-                                {status === "running"
-                                    ? "Preparing your 3D model"
-                                    : status === "failed"
-                                        ? "Generation did not complete"
-                                        : status === "stopped"
-                                            ? "Generation stopped"
-                                            : "Viewer ready"}
-                            </p>
-                            <p className="text-sm leading-relaxed" style={{ color: "hsl(var(--forge-text-muted))" }}>
-                                {status === "running"
-                                    ? "The viewer stage stays in place while the neural model runs. The first result will appear here automatically."
-                                    : error ?? "This area will render the first generated GLB as soon as it is available."}
-                            </p>
+            <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-5">
+                <div
+                    className="rounded-2xl border p-4"
+                    style={{
+                        borderColor: "hsl(var(--forge-border))",
+                        backgroundColor: "hsl(var(--forge-surface-dim))",
+                    }}
+                >
+                    <p className="text-sm leading-relaxed" style={{ color: "hsl(var(--forge-text-muted))" }}>
+                        {run.tool.description}
+                    </p>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <h4 className="mb-2 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-accent))" }}>
+                            Best for
+                        </h4>
+                        <div className="flex flex-wrap gap-1.5">
+                            {run.tool.bestFor.map((tag) => (
+                                <span
+                                    key={tag}
+                                    className="rounded-lg px-2.5 py-1 text-xs font-medium"
+                                    style={{
+                                        backgroundColor: "hsl(var(--forge-accent-subtle))",
+                                        color: "hsl(var(--forge-accent))",
+                                    }}
+                                >
+                                    ✓ {tag}
+                                </span>
+                            ))}
                         </div>
                     </div>
-                )}
+                    {run.tool.notFor.length > 0 && (
+                        <div>
+                            <h4 className="mb-2 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                                Not ideal for
+                            </h4>
+                            <div className="flex flex-wrap gap-1.5">
+                                {run.tool.notFor.map((tag) => (
+                                    <span
+                                        key={tag}
+                                        className="rounded-lg px-2.5 py-1 text-xs font-medium"
+                                        style={{
+                                            backgroundColor: "hsl(0 0% 95%)",
+                                            color: "hsl(var(--forge-text-subtle))",
+                                        }}
+                                    >
+                                        {tag}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                    {run.tool.inputs.map((input) => {
+                        const value = run.inputs[input.key]
+                        if (!value) return null
+
+                        if (input.type === "image") {
+                            return (
+                                <div key={input.key} className="space-y-2 md:col-span-2">
+                                    <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                                        {input.label}
+                                    </p>
+                                    <PreviewImage
+                                        src={referenceImage ?? value}
+                                        alt={input.label}
+                                        className="max-h-52 rounded-2xl border object-contain"
+                                        style={{ borderColor: "hsl(var(--forge-border))" }}
+                                    />
+                                </div>
+                            )
+                        }
+
+                        return (
+                            <div key={input.key} className="space-y-2">
+                                <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                                    {input.label}
+                                </p>
+                                <div
+                                    className="rounded-2xl border px-4 py-3 text-sm leading-relaxed"
+                                    style={{
+                                        borderColor: "hsl(var(--forge-border))",
+                                        backgroundColor: "hsl(var(--forge-surface-dim))",
+                                        color: "hsl(var(--forge-text))",
+                                    }}
+                                >
+                                    {resolveInputDisplayValue(input, run.inputs)}
+                                </div>
+                                {input.helpText && (
+                                    <p className="text-xs" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                                        {input.helpText}
+                                    </p>
+                                )}
+                            </div>
+                        )
+                    })}
+                </div>
+
+                <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                        Status
+                    </p>
+                    <p className="text-sm leading-relaxed" style={{ color: "hsl(var(--forge-text-muted))" }}>
+                        {run.status === "running"
+                            ? "Generation is running. The prompt is locked until this run finishes or you stop it."
+                            : run.error ?? "The first generated result is loaded into the viewer automatically."}
+                    </p>
+                </div>
             </div>
-        </div>
+
+            <div className="border-t px-5 py-4" style={{ borderColor: "hsl(var(--forge-border))" }}>
+                <div className="flex gap-3">
+                    {run.status === "running" ? (
+                        <button
+                            type="button"
+                            onClick={onStop}
+                            className="flex-1 rounded-xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
+                            style={{ backgroundColor: "hsl(0 84% 60%)" }}
+                        >
+                            <span className="inline-flex items-center gap-2">
+                                <Square className="h-4 w-4 fill-current" />
+                                Stop
+                            </span>
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={onNewRun}
+                            className="flex-1 rounded-xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
+                            style={{ backgroundColor: "hsl(var(--forge-accent))" }}
+                        >
+                            <span className="inline-flex items-center gap-2">
+                                <RefreshCw className="h-4 w-4" />
+                                New Run
+                            </span>
+                        </button>
+                    )}
+                </div>
+            </div>
+        </aside>
     )
 }
 
@@ -845,6 +1076,16 @@ export function StudioWorkspace({
         })
     }
 
+    const handleToggleNeuralFocus = () => {
+        setNeuralRun((current) => {
+            if (!current) return current
+            return {
+                ...current,
+                dockMode: current.dockMode === "focus" ? "docked" : "focus",
+            }
+        })
+    }
+
     const handleStartNewNeuralRun = () => {
         if (!neuralRun) return
         const nextTool = neuralRun.tool
@@ -864,123 +1105,28 @@ export function StudioWorkspace({
                     <button
                         type="button"
                         onClick={handleRestoreNeuralPanel}
-                        className="absolute left-0 top-6 z-10 inline-flex h-16 w-7 items-center justify-center rounded-r-2xl border border-l-0 shadow-sm transition hover:opacity-90"
+                        className="absolute left-4 top-6 z-30 inline-flex items-center gap-2 rounded-2xl border px-3 py-2 shadow-lg transition hover:opacity-90"
                         style={{
                             borderColor: "hsl(var(--forge-border))",
-                            backgroundColor: "hsl(var(--forge-surface))",
+                            backgroundColor: "rgba(255,255,255,0.96)",
                             color: "hsl(var(--forge-text-muted))",
                         }}
                         aria-label="Restore neural panel"
                     >
                         <PanelLeftOpen className="h-4 w-4" />
+                        <span className="text-xs font-semibold uppercase tracking-[0.14em]">
+                            Tool panel
+                        </span>
                     </button>
                 ) : (
-                    <aside
-                        className="flex w-[min(420px,34vw)] shrink-0 flex-col border-r"
-                        style={{
-                            borderColor: "hsl(var(--forge-border))",
-                            backgroundColor: "hsl(var(--forge-surface))",
-                        }}
-                    >
-                        <div className="flex items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: "hsl(var(--forge-border))" }}>
-                            <div className="space-y-2">
-                                <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
-                                    Neural run
-                                </p>
-                                <div className="flex items-center gap-2">
-                                    <h3 className="text-lg font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
-                                        {neuralRun.tool.name}
-                                    </h3>
-                                    <NeuralRunStatusBadge status={neuralRun.status} />
-                                </div>
-                                <p className="text-sm" style={{ color: "hsl(var(--forge-text-muted))" }}>
-                                    {neuralRun.tool.tagline}
-                                </p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={handleCollapseNeuralPanel}
-                                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border transition hover:opacity-85"
-                                style={{
-                                    borderColor: "hsl(var(--forge-border))",
-                                    color: "hsl(var(--forge-text-muted))",
-                                }}
-                                aria-label="Collapse neural panel"
-                            >
-                                <PanelLeftClose className="h-4 w-4" />
-                            </button>
-                        </div>
-
-                        <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-5">
-                            <div className="space-y-2">
-                                <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
-                                    Prompt
-                                </p>
-                                <div className="rounded-2xl border px-4 py-3 text-sm leading-relaxed" style={{
-                                    borderColor: "hsl(var(--forge-border))",
-                                    backgroundColor: "hsl(var(--forge-surface-dim))",
-                                    color: "hsl(var(--forge-text))",
-                                }}>
-                                    {neuralRun.inputs.prompt?.trim() || "Reference-image-led generation"}
-                                </div>
-                            </div>
-
-                            {referenceImage && (
-                                <div className="space-y-2">
-                                    <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
-                                        Reference
-                                    </p>
-                                    <PreviewImage
-                                        src={referenceImage}
-                                        alt="Reference"
-                                        className="max-h-44 rounded-2xl border object-contain"
-                                        style={{ borderColor: "hsl(var(--forge-border))" }}
-                                    />
-                                </div>
-                            )}
-
-                            <div className="space-y-2">
-                                <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
-                                    Status
-                                </p>
-                                <p className="text-sm leading-relaxed" style={{ color: "hsl(var(--forge-text-muted))" }}>
-                                    {neuralRun.status === "running"
-                                        ? "Generation is running. The prompt is locked until this run finishes or you stop it."
-                                        : neuralRun.error ?? "The first generated result is loaded into the viewer automatically."}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="border-t px-5 py-4" style={{ borderColor: "hsl(var(--forge-border))" }}>
-                            <div className="flex gap-3">
-                                {neuralRun.status === "running" ? (
-                                    <button
-                                        type="button"
-                                        onClick={handleStopNeuralRun}
-                                        className="flex-1 rounded-xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
-                                        style={{ backgroundColor: "hsl(0 84% 60%)" }}
-                                    >
-                                        <span className="inline-flex items-center gap-2">
-                                            <Square className="h-4 w-4 fill-current" />
-                                            Stop
-                                        </span>
-                                    </button>
-                                ) : (
-                                    <button
-                                        type="button"
-                                        onClick={handleStartNewNeuralRun}
-                                        className="flex-1 rounded-xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
-                                        style={{ backgroundColor: "hsl(var(--forge-accent))" }}
-                                    >
-                                        <span className="inline-flex items-center gap-2">
-                                            <RefreshCw className="h-4 w-4" />
-                                            New Run
-                                        </span>
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    </aside>
+                    <NeuralRunOverlay
+                        run={neuralRun}
+                        referenceImage={referenceImage}
+                        onCollapse={handleCollapseNeuralPanel}
+                        onToggleFocus={handleToggleNeuralFocus}
+                        onStop={handleStopNeuralRun}
+                        onNewRun={handleStartNewNeuralRun}
+                    />
                 )}
 
                 <div className="flex min-w-0 flex-1 flex-col overflow-hidden p-5 sm:p-6 xl:p-8">

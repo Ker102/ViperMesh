@@ -819,6 +819,12 @@
    - Updated `StudioWorkspace` so neural `Run Now` transitions into a split workspace: docked read-only neural panel on the left, persistent viewer stage on the right, stop action during generation, collapse-to-handle behavior, and automatic viewer loading when a generated GLB is returned
    - Reused the existing `components/generation/ModelViewer.tsx` inside Studio, so the same viewer engine now powers both the `/generate` sandbox and the in-project neural workspace
    - During validation, the local `HUNYUAN_API_URL` endpoint (`http://localhost:8080`) did not answer quick health probes, so real Hunyuan generation still depends on that local service actually being up even though the Studio UI and route wiring are now in place
+12. **Studio Neural Viewer Overlay Refinement**:
+   - Removed the extra nested "Viewer" window framing inside the Studio neural workspace so the model viewer now acts as the actual workspace canvas rather than living inside a second bordered panel
+   - Changed the neural side panel from a layout sibling into an overlay inspector: the viewer keeps the same width whether the panel is open or collapsed, and the left panel now floats over the viewer instead of shrinking it
+   - Added a more visible collapsed restore handle (`Tool panel`) attached near the left toolbar so the neural panel is easier to rediscover after collapse
+   - Added a focus toggle for the neural panel, allowing it to reopen as a much wider read-only inspector with prompt/config fields and tool descriptions visible again without making the prompt editable during an active run
+   - Increased the desktop Studio shell height again so the workspace dominates more of the project page and leaves less unused screen space below it
 
 ### Validation
 - `npx tsc --noEmit`

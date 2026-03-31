@@ -547,11 +547,11 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
 
     return (
         <div
-            className="flex min-h-[560px] flex-col overflow-hidden rounded-[28px] border xl:min-h-[720px]"
+            className="flex min-h-[620px] flex-col overflow-hidden rounded-[28px] border xl:min-h-[820px]"
             style={{
                 borderColor: "hsl(var(--forge-border))",
                 backgroundColor: "hsl(var(--forge-surface))",
-                height: "clamp(560px, calc(100vh - 180px), 980px)",
+                height: "clamp(620px, calc(100vh - 120px), 1120px)",
             }}
         >
             {/* Main content area — relative for drawer overlay */}

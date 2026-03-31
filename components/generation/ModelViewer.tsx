@@ -3,9 +3,11 @@
 import type { ModelViewerElement } from "@google/model-viewer";
 import { Loader2, RotateCcw } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 
 interface ModelViewerProps {
     url: string;
+    className?: string;
 }
 
 type ViewerStatus = "booting" | "loading" | "ready" | "error";
@@ -80,7 +82,7 @@ function ErrorState({ message }: { message: string }) {
     );
 }
 
-export function ModelViewer({ url }: ModelViewerProps) {
+export function ModelViewer({ url, className }: ModelViewerProps) {
     const viewerRef = useRef<ModelViewerElement | null>(null);
     const [isRegistered, setIsRegistered] = useState<boolean>(() => {
         if (typeof window === "undefined") return false;
@@ -169,7 +171,7 @@ export function ModelViewer({ url }: ModelViewerProps) {
 
     if (!safeUrl) {
         return (
-            <div className="h-96 w-full">
+            <div className={cn("h-96 w-full", className)}>
                 <ErrorState message="Invalid or unsafe model URL" />
             </div>
         );
@@ -177,7 +179,10 @@ export function ModelViewer({ url }: ModelViewerProps) {
 
     return (
         <div
-            className="relative h-96 w-full overflow-hidden rounded-lg border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(45,212,191,0.14),_rgba(15,23,42,0.95)_58%)]"
+            className={cn(
+                "relative h-96 w-full overflow-hidden rounded-lg border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(45,212,191,0.14),_rgba(15,23,42,0.95)_58%)]",
+                className,
+            )}
             role="img"
             aria-label="Interactive 3D model viewer. Drag to rotate, scroll to zoom, and right-click drag to pan."
         >
