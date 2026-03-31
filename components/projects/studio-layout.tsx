@@ -7,6 +7,7 @@ import { StudioAdvisor } from "./studio-advisor"
 import { WorkflowTimeline, type WorkflowTimelineStep, type StepMonitoringLog, type StepPlanData, type StepCommandResult } from "./workflow-timeline"
 import { StepSessionDrawer } from "./step-session-drawer"
 import type { ToolEntry } from "@/lib/orchestration/tool-catalog"
+import { getToolById } from "@/lib/orchestration/tool-catalog"
 import type { AgentStreamEvent } from "@/lib/orchestration/types"
 
 interface StudioLayoutProps {
@@ -535,6 +536,11 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
     )
 
     const handleStepClick = useCallback((stepId: string) => {
+        const step = workflowStepsRef.current.find((item) => item.id === stepId)
+        const tool = step ? getToolById(step.toolName) : undefined
+        if (tool) {
+            setActiveCategory(tool.category)
+        }
         setSelectedStepId((prev) => (prev === stepId ? null : stepId))
     }, [])
 
@@ -562,6 +568,8 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
     // ── Render ──────────────────────────────────────────────────
 
     const selectedStep = workflowSteps.find((s) => s.id === selectedStepId) ?? null
+    const selectedStepTool = selectedStep ? getToolById(selectedStep.toolName) : undefined
+    const selectedNeuralStep = selectedStep && selectedStepTool?.type === "neural" ? selectedStep : null
 
     return (
         <div
@@ -587,6 +595,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                     onToolRunNow={handleToolRunNow}
                     onNeuralRunStart={handleNeuralRunStart}
                     onNeuralRunUpdate={handleNeuralRunUpdate}
+                    selectedPipelineStep={selectedNeuralStep}
                 />
 
                 <StudioAdvisor
@@ -596,7 +605,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                 />
 
                 {/* Session drawer — overlays workspace when a step is selected */}
-                {selectedStep && (
+                {selectedStep && !selectedNeuralStep && (
                     <StepSessionDrawer
                         step={selectedStep}
                         onClose={() => setSelectedStepId(null)}

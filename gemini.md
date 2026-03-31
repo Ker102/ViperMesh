@@ -835,6 +835,11 @@
    - Replaced the old `New Run` behavior that spawned a duplicate pipeline entry with an in-place `Run Again` flow for neural tools
    - Neural runs now keep editable draft inputs after a run completes, fails, or is stopped, so the user can adjust the prompt or reference image directly inside the overlay panel and rerun the same pipeline step
    - Updated the Studio timeline integration so rerunning a neural tool reuses the existing neural step ID and refreshes that step's inputs/status instead of adding a second copy of the same tool to the pipeline
+15. **Studio Neural Pipeline Restore Fix**:
+   - Pipeline clicks now distinguish neural steps from generic agent/chat steps: clicking a neural chip in the bottom pipeline no longer opens the generic white session drawer
+   - Studio now restores the neural workspace state for that pipeline step instead, including the overlay viewer context that was cached for the step ID
+   - Added local neural run state caching keyed by pipeline step ID inside `StudioWorkspace`, so returning to the same Hunyuan/TRELLIS pipeline tab restores the last known neural viewer state instead of falling back to a blank prompt/session shell
+   - Pipeline chip selection now also switches the active Studio category to the selected tool's category, so reopening a neural step returns the user to the correct workspace mode automatically
 
 ### Validation
 - `npx tsc --noEmit`

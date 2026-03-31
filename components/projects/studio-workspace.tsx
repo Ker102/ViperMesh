@@ -7,11 +7,13 @@ import { cn } from "@/lib/utils"
 import {
     CATEGORIES,
     getToolsForCategory,
+    getToolById,
     type CategoryMeta,
     type StudioCategory,
     type ToolEntry,
     type ToolInput,
 } from "@/lib/orchestration/tool-catalog"
+import type { WorkflowTimelineStep } from "./workflow-timeline"
 
 interface StudioWorkspaceProps {
     activeCategory: string
@@ -19,6 +21,7 @@ interface StudioWorkspaceProps {
     onToolRunNow: (tool: ToolEntry, inputs: Record<string, string>) => void
     onNeuralRunStart: (tool: ToolEntry, inputs: Record<string, string>, existingStepId?: string) => string
     onNeuralRunUpdate: (stepId: string, patch: { status?: "pending" | "running" | "done" | "failed"; error?: string }) => void
+    selectedPipelineStep?: WorkflowTimelineStep | null
 }
 
 type NeuralDockMode = "docked" | "collapsed" | "focus"
@@ -50,6 +53,19 @@ interface ViewerSample {
     name: string
     source: string
     url: string
+}
+
+function mapTimelineStatusToNeuralStatus(status: WorkflowTimelineStep["status"]): NeuralRunStatus {
+    switch (status) {
+        case "running":
+            return "running"
+        case "done":
+            return "ready"
+        case "failed":
+            return "failed"
+        default:
+            return "ready"
+    }
 }
 
 function resolveInputDisplayValue(input: ToolInput, inputs: Record<string, string>): string {
@@ -1259,10 +1275,12 @@ export function StudioWorkspace({
     onToolRunNow,
     onNeuralRunStart,
     onNeuralRunUpdate,
+    selectedPipelineStep,
 }: StudioWorkspaceProps) {
     const [selectedTool, setSelectedTool] = useState<ToolEntry | null>(null)
     const [toolDrafts, setToolDrafts] = useState<Record<string, Record<string, string>>>({})
     const [neuralRun, setNeuralRun] = useState<ActiveNeuralRun | null>(null)
+    const [savedNeuralRuns, setSavedNeuralRuns] = useState<Record<string, ActiveNeuralRun>>({})
     const [viewerSamples, setViewerSamples] = useState<ViewerSample[]>([])
     const neuralAbortRef = useRef<AbortController | null>(null)
     const category = CATEGORIES.find(
@@ -1276,6 +1294,43 @@ export function StudioWorkspace({
         setSelectedTool(null)
         setNeuralRun(null)
     }, [activeCategory])
+
+    useEffect(() => {
+        if (!neuralRun) return
+        setSavedNeuralRuns((prev) => ({
+            ...prev,
+            [neuralRun.stepId]: neuralRun,
+        }))
+    }, [neuralRun])
+
+    useEffect(() => {
+        if (!selectedPipelineStep) return
+
+        const tool = getToolById(selectedPipelineStep.toolName)
+        if (!tool || tool.type !== "neural") return
+
+        setSelectedTool(null)
+        setNeuralRun((current) => {
+            if (current?.stepId === selectedPipelineStep.id) return current
+
+            const saved = savedNeuralRuns[selectedPipelineStep.id]
+            if (saved) return saved
+
+            return {
+                stepId: selectedPipelineStep.id,
+                tool,
+                inputs: selectedPipelineStep.inputs ?? {},
+                draftInputs: selectedPipelineStep.inputs ?? {},
+                status: mapTimelineStatusToNeuralStatus(selectedPipelineStep.status),
+                dockMode: "focus",
+                viewerUrl: null,
+                viewerLabel: undefined,
+                viewerSource: undefined,
+                error: selectedPipelineStep.error,
+                generationTimeMs: undefined,
+            }
+        })
+    }, [savedNeuralRuns, selectedPipelineStep])
 
     useEffect(() => {
         return () => {
