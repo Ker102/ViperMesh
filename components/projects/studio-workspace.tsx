@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import { Loader2, PanelLeftClose, PanelLeftOpen, RefreshCw, Square } from "lucide-react"
+import { ModelViewer } from "@/components/generation/ModelViewer"
 import {
     CATEGORIES,
     getToolsForCategory,
@@ -14,6 +16,29 @@ interface StudioWorkspaceProps {
     activeCategory: string
     onToolSelect: (tool: ToolEntry, inputs: Record<string, string>) => void
     onToolRunNow: (tool: ToolEntry, inputs: Record<string, string>) => void
+    onNeuralRunStart: (tool: ToolEntry, inputs: Record<string, string>) => string
+    onNeuralRunUpdate: (stepId: string, patch: { status?: "pending" | "running" | "done" | "failed"; error?: string }) => void
+}
+
+type NeuralDockMode = "docked" | "collapsed"
+type NeuralRunStatus = "running" | "ready" | "failed" | "stopped"
+
+interface ActiveNeuralRun {
+    stepId: string
+    tool: ToolEntry
+    inputs: Record<string, string>
+    status: NeuralRunStatus
+    dockMode: NeuralDockMode
+    viewerUrl: string | null
+    error?: string
+    generationTimeMs?: number
+}
+
+interface NeuralRunResponse {
+    status: "completed" | "failed"
+    viewerUrl?: string | null
+    generationTimeMs?: number
+    error?: string
 }
 
 function PreviewImage(props: React.ImgHTMLAttributes<HTMLImageElement> & { alt: string }) {
@@ -158,13 +183,15 @@ function ToolDetailView({
     onBack,
     onSubmit,
     onRunNow,
+    initialInputs,
 }: {
     tool: ToolEntry
     onBack: () => void
     onSubmit: (tool: ToolEntry, inputs: Record<string, string>) => void
     onRunNow: (tool: ToolEntry, inputs: Record<string, string>) => void
+    initialInputs?: Record<string, string>
 }) {
-    const [inputs, setInputs] = useState<Record<string, string>>({})
+    const [inputs, setInputs] = useState<Record<string, string>>(initialInputs ?? {})
 
     const handleSubmit = () => {
         onSubmit(tool, inputs)
@@ -557,40 +584,437 @@ function ToolDetailView({
     )
 }
 
+function NeuralRunStatusBadge({ status }: { status: NeuralRunStatus }) {
+    const config = {
+        running: {
+            label: "Generating",
+            bg: "hsl(var(--forge-accent-subtle))",
+            text: "hsl(var(--forge-accent))",
+            dotClass: "bg-teal-400 animate-pulse",
+        },
+        ready: {
+            label: "Ready",
+            bg: "rgba(52, 211, 153, 0.15)",
+            text: "hsl(153 60% 40%)",
+            dotClass: "bg-emerald-400",
+        },
+        failed: {
+            label: "Failed",
+            bg: "rgba(248, 113, 113, 0.15)",
+            text: "hsl(0 84% 60%)",
+            dotClass: "bg-red-400",
+        },
+        stopped: {
+            label: "Stopped",
+            bg: "rgba(113, 113, 122, 0.15)",
+            text: "hsl(var(--forge-text-subtle))",
+            dotClass: "bg-zinc-400",
+        },
+    } satisfies Record<NeuralRunStatus, { label: string; bg: string; text: string; dotClass: string }>
+    const current = config[status]
+
+    return (
+        <span
+            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
+            style={{ backgroundColor: current.bg, color: current.text }}
+        >
+            <span className={`h-2 w-2 rounded-full ${current.dotClass}`} />
+            {current.label}
+        </span>
+    )
+}
+
+function NeuralViewerStage({
+    title,
+    status,
+    viewerUrl,
+    error,
+    generationTimeMs,
+}: {
+    title: string
+    status: NeuralRunStatus
+    viewerUrl: string | null
+    error?: string
+    generationTimeMs?: number
+}) {
+    return (
+        <div className="flex min-h-0 flex-1 flex-col rounded-[24px] border" style={{
+            borderColor: "hsl(var(--forge-border))",
+            backgroundColor: "hsl(var(--forge-surface-dim))",
+        }}>
+            <div
+                className="flex items-center justify-between gap-3 border-b px-5 py-4"
+                style={{ borderColor: "hsl(var(--forge-border))" }}
+            >
+                <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                        Viewer
+                    </p>
+                    <h3 className="text-lg font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
+                        {title}
+                    </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                    <NeuralRunStatusBadge status={status} />
+                    {typeof generationTimeMs === "number" && generationTimeMs > 0 && (
+                        <span className="text-xs" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                            {(generationTimeMs / 1000).toFixed(1)}s
+                        </span>
+                    )}
+                </div>
+            </div>
+
+            <div className="flex min-h-0 flex-1 flex-col p-5">
+                {viewerUrl ? (
+                    <ModelViewer url={viewerUrl} />
+                ) : (
+                    <div
+                        className="flex min-h-[420px] flex-1 items-center justify-center rounded-[20px] border border-dashed px-8 text-center"
+                        style={{
+                            borderColor: "hsl(var(--forge-border))",
+                            backgroundColor: "hsl(var(--forge-surface))",
+                        }}
+                    >
+                        <div className="max-w-md space-y-3">
+                            {status === "running" && (
+                                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[hsl(var(--forge-accent-subtle))]">
+                                    <Loader2 className="h-6 w-6 animate-spin" style={{ color: "hsl(var(--forge-accent))" }} />
+                                </div>
+                            )}
+                            <p className="text-lg font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
+                                {status === "running"
+                                    ? "Preparing your 3D model"
+                                    : status === "failed"
+                                        ? "Generation did not complete"
+                                        : status === "stopped"
+                                            ? "Generation stopped"
+                                            : "Viewer ready"}
+                            </p>
+                            <p className="text-sm leading-relaxed" style={{ color: "hsl(var(--forge-text-muted))" }}>
+                                {status === "running"
+                                    ? "The viewer stage stays in place while the neural model runs. The first result will appear here automatically."
+                                    : error ?? "This area will render the first generated GLB as soon as it is available."}
+                            </p>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    )
+}
+
 // ── Main Workspace ──────────────────────────────────────────────
 
 export function StudioWorkspace({
     activeCategory,
     onToolSelect,
     onToolRunNow,
+    onNeuralRunStart,
+    onNeuralRunUpdate,
 }: StudioWorkspaceProps) {
     const [selectedTool, setSelectedTool] = useState<ToolEntry | null>(null)
+    const [toolDrafts, setToolDrafts] = useState<Record<string, Record<string, string>>>({})
+    const [neuralRun, setNeuralRun] = useState<ActiveNeuralRun | null>(null)
+    const neuralAbortRef = useRef<AbortController | null>(null)
     const category = CATEGORIES.find(
         (c: CategoryMeta) => c.id === activeCategory
     )
     const tools = getToolsForCategory(activeCategory as StudioCategory)
 
     // Reset selected tool when category changes
-    const [lastCategory, setLastCategory] = useState(activeCategory)
-    if (activeCategory !== lastCategory) {
+    useEffect(() => {
+        neuralAbortRef.current?.abort()
         setSelectedTool(null)
-        setLastCategory(activeCategory)
-    }
+        setNeuralRun(null)
+    }, [activeCategory])
+
+    useEffect(() => {
+        return () => {
+            neuralAbortRef.current?.abort()
+        }
+    }, [])
 
     if (!category) return null
 
+    const runNeuralTool = async (tool: ToolEntry, inputs: Record<string, string>) => {
+        if (!tool.provider) return
+
+        const stepId = onNeuralRunStart(tool, inputs)
+        const imageDataUrl = tool.inputs.find((input) => input.type === "image")
+            ? inputs[tool.inputs.find((input) => input.type === "image")?.key ?? ""]
+            : undefined
+        const resolutionValue = inputs.resolution ? Number(inputs.resolution) : undefined
+        const abortController = new AbortController()
+
+        neuralAbortRef.current?.abort()
+        neuralAbortRef.current = abortController
+
+        setNeuralRun({
+            stepId,
+            tool,
+            inputs,
+            status: "running",
+            dockMode: "docked",
+            viewerUrl: null,
+        })
+
+        try {
+            const response = await fetch("/api/ai/neural-run", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    provider: tool.provider,
+                    prompt: inputs.prompt,
+                    imageDataUrl,
+                    resolution: Number.isFinite(resolutionValue) ? resolutionValue : undefined,
+                }),
+                signal: abortController.signal,
+            })
+
+            const data = await response.json() as NeuralRunResponse
+            if (!response.ok || data.status !== "completed" || !data.viewerUrl) {
+                throw new Error(data.error ?? "Neural generation failed")
+            }
+
+            setNeuralRun((current) => {
+                if (!current || current.stepId !== stepId) return current
+                return {
+                    ...current,
+                    status: "ready",
+                    viewerUrl: data.viewerUrl ?? null,
+                    error: undefined,
+                    generationTimeMs: data.generationTimeMs,
+                }
+            })
+            onNeuralRunUpdate(stepId, { status: "done" })
+        } catch (error) {
+            if (abortController.signal.aborted) {
+                return
+            }
+
+            const message = error instanceof Error ? error.message : "Neural generation failed"
+            setNeuralRun((current) => {
+                if (!current || current.stepId !== stepId) return current
+                return {
+                    ...current,
+                    status: "failed",
+                    error: message,
+                    viewerUrl: null,
+                }
+            })
+            onNeuralRunUpdate(stepId, {
+                status: "failed",
+                error: message,
+            })
+        } finally {
+            if (neuralAbortRef.current === abortController) {
+                neuralAbortRef.current = null
+            }
+        }
+    }
+
+    const handleStopNeuralRun = () => {
+        if (!neuralRun) return
+        neuralAbortRef.current?.abort()
+        neuralAbortRef.current = null
+        setNeuralRun((current) => {
+            if (!current) return current
+            return {
+                ...current,
+                status: "stopped",
+                error: "Generation stopped by user.",
+            }
+        })
+        onNeuralRunUpdate(neuralRun.stepId, {
+            status: "failed",
+            error: "Stopped by user",
+        })
+    }
+
+    const handleRestoreNeuralPanel = () => {
+        setNeuralRun((current) => {
+            if (!current) return current
+            return { ...current, dockMode: "docked" }
+        })
+    }
+
+    const handleCollapseNeuralPanel = () => {
+        setNeuralRun((current) => {
+            if (!current) return current
+            return { ...current, dockMode: "collapsed" }
+        })
+    }
+
+    const handleStartNewNeuralRun = () => {
+        if (!neuralRun) return
+        const nextTool = neuralRun.tool
+        setToolDrafts((prev) => ({ ...prev, [nextTool.id]: neuralRun.inputs }))
+        setNeuralRun(null)
+        setSelectedTool(nextTool)
+    }
+
     // ── Detail view ──
+    if (neuralRun) {
+        const referenceImageKey = neuralRun.tool.inputs.find((input) => input.type === "image")?.key
+        const referenceImage = referenceImageKey ? neuralRun.inputs[referenceImageKey] : undefined
+
+        return (
+            <div className="relative flex min-h-0 flex-1 overflow-hidden">
+                {neuralRun.dockMode === "collapsed" ? (
+                    <button
+                        type="button"
+                        onClick={handleRestoreNeuralPanel}
+                        className="absolute left-0 top-6 z-10 inline-flex h-16 w-7 items-center justify-center rounded-r-2xl border border-l-0 shadow-sm transition hover:opacity-90"
+                        style={{
+                            borderColor: "hsl(var(--forge-border))",
+                            backgroundColor: "hsl(var(--forge-surface))",
+                            color: "hsl(var(--forge-text-muted))",
+                        }}
+                        aria-label="Restore neural panel"
+                    >
+                        <PanelLeftOpen className="h-4 w-4" />
+                    </button>
+                ) : (
+                    <aside
+                        className="flex w-[min(420px,34vw)] shrink-0 flex-col border-r"
+                        style={{
+                            borderColor: "hsl(var(--forge-border))",
+                            backgroundColor: "hsl(var(--forge-surface))",
+                        }}
+                    >
+                        <div className="flex items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: "hsl(var(--forge-border))" }}>
+                            <div className="space-y-2">
+                                <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                                    Neural run
+                                </p>
+                                <div className="flex items-center gap-2">
+                                    <h3 className="text-lg font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
+                                        {neuralRun.tool.name}
+                                    </h3>
+                                    <NeuralRunStatusBadge status={neuralRun.status} />
+                                </div>
+                                <p className="text-sm" style={{ color: "hsl(var(--forge-text-muted))" }}>
+                                    {neuralRun.tool.tagline}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleCollapseNeuralPanel}
+                                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border transition hover:opacity-85"
+                                style={{
+                                    borderColor: "hsl(var(--forge-border))",
+                                    color: "hsl(var(--forge-text-muted))",
+                                }}
+                                aria-label="Collapse neural panel"
+                            >
+                                <PanelLeftClose className="h-4 w-4" />
+                            </button>
+                        </div>
+
+                        <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-5">
+                            <div className="space-y-2">
+                                <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                                    Prompt
+                                </p>
+                                <div className="rounded-2xl border px-4 py-3 text-sm leading-relaxed" style={{
+                                    borderColor: "hsl(var(--forge-border))",
+                                    backgroundColor: "hsl(var(--forge-surface-dim))",
+                                    color: "hsl(var(--forge-text))",
+                                }}>
+                                    {neuralRun.inputs.prompt?.trim() || "Reference-image-led generation"}
+                                </div>
+                            </div>
+
+                            {referenceImage && (
+                                <div className="space-y-2">
+                                    <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                                        Reference
+                                    </p>
+                                    <PreviewImage
+                                        src={referenceImage}
+                                        alt="Reference"
+                                        className="max-h-44 rounded-2xl border object-contain"
+                                        style={{ borderColor: "hsl(var(--forge-border))" }}
+                                    />
+                                </div>
+                            )}
+
+                            <div className="space-y-2">
+                                <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                                    Status
+                                </p>
+                                <p className="text-sm leading-relaxed" style={{ color: "hsl(var(--forge-text-muted))" }}>
+                                    {neuralRun.status === "running"
+                                        ? "Generation is running. The prompt is locked until this run finishes or you stop it."
+                                        : neuralRun.error ?? "The first generated result is loaded into the viewer automatically."}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="border-t px-5 py-4" style={{ borderColor: "hsl(var(--forge-border))" }}>
+                            <div className="flex gap-3">
+                                {neuralRun.status === "running" ? (
+                                    <button
+                                        type="button"
+                                        onClick={handleStopNeuralRun}
+                                        className="flex-1 rounded-xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
+                                        style={{ backgroundColor: "hsl(0 84% 60%)" }}
+                                    >
+                                        <span className="inline-flex items-center gap-2">
+                                            <Square className="h-4 w-4 fill-current" />
+                                            Stop
+                                        </span>
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={handleStartNewNeuralRun}
+                                        className="flex-1 rounded-xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
+                                        style={{ backgroundColor: "hsl(var(--forge-accent))" }}
+                                    >
+                                        <span className="inline-flex items-center gap-2">
+                                            <RefreshCw className="h-4 w-4" />
+                                            New Run
+                                        </span>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </aside>
+                )}
+
+                <div className="flex min-w-0 flex-1 flex-col overflow-hidden p-5 sm:p-6 xl:p-8">
+                    <NeuralViewerStage
+                        title={neuralRun.tool.name}
+                        status={neuralRun.status}
+                        viewerUrl={neuralRun.viewerUrl}
+                        error={neuralRun.error}
+                        generationTimeMs={neuralRun.generationTimeMs}
+                    />
+                </div>
+            </div>
+        )
+    }
+
     if (selectedTool) {
         return (
             <ToolDetailView
+                key={selectedTool.id}
                 tool={selectedTool}
+                initialInputs={toolDrafts[selectedTool.id]}
                 onBack={() => setSelectedTool(null)}
                 onSubmit={(tool, inputs) => {
                     onToolSelect(tool, inputs)
+                    setToolDrafts((prev) => ({ ...prev, [tool.id]: inputs }))
                     setSelectedTool(null)
                 }}
                 onRunNow={(tool, inputs) => {
-                    onToolRunNow(tool, inputs)
+                    setToolDrafts((prev) => ({ ...prev, [tool.id]: inputs }))
+                    if (tool.type === "neural") {
+                        void runNeuralTool(tool, inputs)
+                    } else {
+                        onToolRunNow(tool, inputs)
+                    }
                     setSelectedTool(null)
                 }}
             />

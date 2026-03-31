@@ -13,6 +13,11 @@ interface StudioLayoutProps {
     projectId: string
 }
 
+interface NeuralStepPatch {
+    status?: WorkflowTimelineStep["status"]
+    error?: string
+}
+
 // ── API persistence helpers (replaces localStorage) ─────────────
 async function fetchPersistedSteps(projectId: string): Promise<WorkflowTimelineStep[]> {
     try {
@@ -488,6 +493,29 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         [executeStep]
     )
 
+    const handleNeuralRunStart = useCallback(
+        (tool: ToolEntry, inputs: Record<string, string>) => {
+            const stepId = `neural-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+            const step: WorkflowTimelineStep = {
+                id: stepId,
+                title: tool.name,
+                toolName: tool.id,
+                status: "running",
+                inputs,
+            }
+            setWorkflowSteps((prev) => [...prev, step])
+            return stepId
+        },
+        []
+    )
+
+    const handleNeuralRunUpdate = useCallback(
+        (stepId: string, patch: NeuralStepPatch) => {
+            updateStep(stepId, patch)
+        },
+        [updateStep]
+    )
+
     const handleStepClick = useCallback((stepId: string) => {
         setSelectedStepId((prev) => (prev === stepId ? null : stepId))
     }, [])
@@ -539,6 +567,8 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                     activeCategory={activeCategory}
                     onToolSelect={handleToolSelect}
                     onToolRunNow={handleToolRunNow}
+                    onNeuralRunStart={handleNeuralRunStart}
+                    onNeuralRunUpdate={handleNeuralRunUpdate}
                 />
 
                 <StudioAdvisor

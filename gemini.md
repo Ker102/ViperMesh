@@ -809,6 +809,16 @@
    - Kept the page responsive by using wider desktop padding and moving the lower "Connect to Blender" and "Conversation History" sections into a responsive grid rather than leaving the whole project page cramped
    - Increased the Studio frame height on desktop and removed the inner `max-w-2xl` cap inside `StudioWorkspace` detail view so larger forms, prompts, and future model previews can breathe
    - Expanded Studio tool grids to allow a fourth column on very wide displays while leaving tablet/mobile breakpoints intact
+10. **Studio Neural Viewer Design + Plan**:
+   - Captured the agreed Studio neural workflow in `docs/studio-neural-viewer-design.md`: after `Run Now`, neural tools dock left, the viewer stage stays persistent on the right, prompts become read-only during generation, and collapsing the dock leaves a slim restore handle attached near the left toolbar
+   - Added the first implementation plan in `docs/plans/2026-03-31-studio-neural-viewer-implementation.md` so the split-view rollout can be built in controlled batches instead of ad hoc UI edits
+11. **Studio Neural Split View — First Working Batch**:
+   - Added authenticated neural output transport routes: `app/api/ai/neural-run/route.ts` executes neural runs via the live provider registry, and `app/api/ai/neural-output/route.ts` streams generated local GLBs back into the browser viewer through safe authenticated URLs
+   - Added `lib/neural/output-files.ts` to validate generated output paths under `tmp/neural-output` and construct viewer-safe in-app URLs for the new Studio neural viewer stage
+   - Updated `StudioLayout` so neural runs are represented in the bottom pipeline as dedicated steps rather than being misrouted through the generic chat/blender-agent path
+   - Updated `StudioWorkspace` so neural `Run Now` transitions into a split workspace: docked read-only neural panel on the left, persistent viewer stage on the right, stop action during generation, collapse-to-handle behavior, and automatic viewer loading when a generated GLB is returned
+   - Reused the existing `components/generation/ModelViewer.tsx` inside Studio, so the same viewer engine now powers both the `/generate` sandbox and the in-project neural workspace
+   - During validation, the local `HUNYUAN_API_URL` endpoint (`http://localhost:8080`) did not answer quick health probes, so real Hunyuan generation still depends on that local service actually being up even though the Studio UI and route wiring are now in place
 
 ### Validation
 - `npx tsc --noEmit`
