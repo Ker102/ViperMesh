@@ -830,6 +830,11 @@
    - Changed the collapsed `Tool panel` restore action to reopen the richer focus inspector by default, making the reopened neural panel feel closer to the original full-detail tool view instead of a narrow dock
    - Rebalanced the focus overlay width so it stays information-dense without covering nearly the entire viewer surface
    - Moved the local sample GLB controls into a high-visibility "Viewer demo" section near the top of the neural inspector, including active demo labeling so the Studio viewer can be previewed without waiting for a real neural generation to complete
+14. **Studio Neural In-Place Rerun Flow**:
+   - Moved the collapsed `Tool panel` restore handle lower so it no longer overlaps the viewer title and model label in the top-left canvas overlay
+   - Replaced the old `New Run` behavior that spawned a duplicate pipeline entry with an in-place `Run Again` flow for neural tools
+   - Neural runs now keep editable draft inputs after a run completes, fails, or is stopped, so the user can adjust the prompt or reference image directly inside the overlay panel and rerun the same pipeline step
+   - Updated the Studio timeline integration so rerunning a neural tool reuses the existing neural step ID and refreshes that step's inputs/status instead of adding a second copy of the same tool to the pipeline
 
 ### Validation
 - `npx tsc --noEmit`

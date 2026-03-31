@@ -17,7 +17,7 @@ interface StudioWorkspaceProps {
     activeCategory: string
     onToolSelect: (tool: ToolEntry, inputs: Record<string, string>) => void
     onToolRunNow: (tool: ToolEntry, inputs: Record<string, string>) => void
-    onNeuralRunStart: (tool: ToolEntry, inputs: Record<string, string>) => string
+    onNeuralRunStart: (tool: ToolEntry, inputs: Record<string, string>, existingStepId?: string) => string
     onNeuralRunUpdate: (stepId: string, patch: { status?: "pending" | "running" | "done" | "failed"; error?: string }) => void
 }
 
@@ -28,6 +28,7 @@ interface ActiveNeuralRun {
     stepId: string
     tool: ToolEntry
     inputs: Record<string, string>
+    draftInputs: Record<string, string>
     status: NeuralRunStatus
     dockMode: NeuralDockMode
     viewerUrl: string | null
@@ -69,6 +70,15 @@ function PreviewImage(props: React.ImgHTMLAttributes<HTMLImageElement> & { alt: 
     // Uploaded reference previews use in-memory data URLs, so Next image optimization does not apply.
     // eslint-disable-next-line @next/next/no-img-element
     return <img alt={alt} {...imgProps} />
+}
+
+async function fileToDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = () => reject(new Error("Failed to read image file"))
+        reader.readAsDataURL(file)
+    })
 }
 
 // ── Difficulty Badge ────────────────────────────────────────────
@@ -741,24 +751,192 @@ function NeuralViewerStage({
     )
 }
 
+function NeuralRerunFields({
+    tool,
+    inputs,
+    onChange,
+}: {
+    tool: ToolEntry
+    inputs: Record<string, string>
+    onChange: (key: string, value: string) => void
+}) {
+    return (
+        <div className="space-y-4">
+            {tool.inputs.map((input) => (
+                <div key={input.key}>
+                    <label
+                        className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em]"
+                        style={{ color: "hsl(var(--forge-text-subtle))" }}
+                    >
+                        {input.label}
+                        {input.required ? " *" : ""}
+                    </label>
+
+                    {input.type === "text" && (
+                        <textarea
+                            value={inputs[input.key] ?? ""}
+                            onChange={(event) => onChange(input.key, event.target.value)}
+                            placeholder={input.placeholder}
+                            rows={4}
+                            className="w-full rounded-2xl border px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 transition"
+                            style={{
+                                borderColor: "hsl(var(--forge-border))",
+                                backgroundColor: "hsl(var(--forge-surface-dim))",
+                                color: "hsl(var(--forge-text))",
+                            }}
+                        />
+                    )}
+
+                    {input.type === "select" && (
+                        <select
+                            value={inputs[input.key] ?? (input.defaultValue?.toString() ?? "")}
+                            onChange={(event) => onChange(input.key, event.target.value)}
+                            className="w-full rounded-2xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 transition"
+                            style={{
+                                borderColor: "hsl(var(--forge-border))",
+                                backgroundColor: "hsl(var(--forge-surface-dim))",
+                                color: "hsl(var(--forge-text))",
+                            }}
+                        >
+                            <option value="">Select...</option>
+                            {input.options?.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                    {option.description ? ` — ${option.description}` : ""}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+
+                    {input.type === "slider" && (
+                        <div className="space-y-2 rounded-2xl border px-4 py-3" style={{
+                            borderColor: "hsl(var(--forge-border))",
+                            backgroundColor: "hsl(var(--forge-surface-dim))",
+                        }}>
+                            <input
+                                type="range"
+                                min={input.min ?? 0}
+                                max={input.max ?? 100}
+                                step={input.step ?? 1}
+                                value={inputs[input.key] ?? input.defaultValue ?? "50"}
+                                onChange={(event) => onChange(input.key, event.target.value)}
+                                className="w-full accent-[hsl(var(--forge-accent))]"
+                            />
+                            <div className="flex justify-between text-xs" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                                <span>{input.min ?? 0}</span>
+                                <span className="font-medium" style={{ color: "hsl(var(--forge-accent))" }}>
+                                    {inputs[input.key] ?? input.defaultValue ?? 50}
+                                </span>
+                                <span>{input.max ?? 100}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {input.type === "image" && (
+                        <div>
+                            {inputs[input.key] ? (
+                                <div className="relative inline-block">
+                                    <PreviewImage
+                                        src={inputs[input.key]}
+                                        alt={input.label}
+                                        className="max-h-48 rounded-2xl border object-contain"
+                                        style={{ borderColor: "hsl(var(--forge-border))" }}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => onChange(input.key, "")}
+                                        className="absolute -right-2 -top-2 h-6 w-6 rounded-full text-xs font-bold text-white shadow-md"
+                                        style={{ backgroundColor: "hsl(0 84% 60%)" }}
+                                        aria-label={`Remove ${input.label}`}
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            ) : (
+                                <label
+                                    className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed p-5 text-center transition hover:border-[hsl(var(--forge-accent))]"
+                                    style={{
+                                        borderColor: "hsl(var(--forge-border))",
+                                        backgroundColor: "hsl(var(--forge-surface-dim))",
+                                    }}
+                                >
+                                    <svg
+                                        width="28"
+                                        height="28"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="hsl(var(--forge-text-subtle))"
+                                        strokeWidth="1.5"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    >
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                                        <circle cx="8.5" cy="8.5" r="1.5" />
+                                        <polyline points="21 15 16 10 5 21" />
+                                    </svg>
+                                    <p className="text-sm" style={{ color: "hsl(var(--forge-text-muted))" }}>
+                                        Click to upload a reference image
+                                    </p>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onClick={(event) => {
+                                            (event.target as HTMLInputElement).value = ""
+                                        }}
+                                        onChange={async (event) => {
+                                            const file = event.target.files?.[0]
+                                            if (!file) return
+                                            if (file.size > 10 * 1024 * 1024) {
+                                                window.alert("Image must be under 10 MB")
+                                                return
+                                            }
+                                            try {
+                                                const value = await fileToDataUrl(file)
+                                                onChange(input.key, value)
+                                            } catch (error) {
+                                                console.error(error)
+                                            }
+                                        }}
+                                    />
+                                </label>
+                            )}
+                        </div>
+                    )}
+
+                    {input.helpText && (
+                        <p className="mt-1.5 text-xs" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                            {input.helpText}
+                        </p>
+                    )}
+                </div>
+            ))}
+        </div>
+    )
+}
+
 function NeuralRunOverlay({
     run,
     referenceImage,
     viewerSamples,
+    draftInputs,
     onLoadDemo,
+    onDraftInputChange,
     onCollapse,
     onToggleFocus,
     onStop,
-    onNewRun,
+    onRunAgain,
 }: {
     run: ActiveNeuralRun
     referenceImage?: string
     viewerSamples: ViewerSample[]
+    draftInputs: Record<string, string>
     onLoadDemo: (sample: ViewerSample) => void
+    onDraftInputChange: (key: string, value: string) => void
     onCollapse: () => void
     onToggleFocus: () => void
     onStop: () => void
-    onNewRun: () => void
+    onRunAgain: () => void
 }) {
     const isFocus = run.dockMode === "focus"
 
@@ -965,49 +1143,67 @@ function NeuralRunOverlay({
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
-                    {run.tool.inputs.map((input) => {
-                        const value = run.inputs[input.key]
-                        if (!value) return null
+                    {run.status === "running" ? (
+                        run.tool.inputs.map((input) => {
+                            const value = run.inputs[input.key]
+                            if (!value) return null
 
-                        if (input.type === "image") {
+                            if (input.type === "image") {
+                                return (
+                                    <div key={input.key} className="space-y-2 md:col-span-2">
+                                        <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                                            {input.label}
+                                        </p>
+                                        <PreviewImage
+                                            src={referenceImage ?? value}
+                                            alt={input.label}
+                                            className="max-h-52 rounded-2xl border object-contain"
+                                            style={{ borderColor: "hsl(var(--forge-border))" }}
+                                        />
+                                    </div>
+                                )
+                            }
+
                             return (
-                                <div key={input.key} className="space-y-2 md:col-span-2">
+                                <div key={input.key} className="space-y-2">
                                     <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
                                         {input.label}
                                     </p>
-                                    <PreviewImage
-                                        src={referenceImage ?? value}
-                                        alt={input.label}
-                                        className="max-h-52 rounded-2xl border object-contain"
-                                        style={{ borderColor: "hsl(var(--forge-border))" }}
-                                    />
+                                    <div
+                                        className="rounded-2xl border px-4 py-3 text-sm leading-relaxed"
+                                        style={{
+                                            borderColor: "hsl(var(--forge-border))",
+                                            backgroundColor: "hsl(var(--forge-surface-dim))",
+                                            color: "hsl(var(--forge-text))",
+                                        }}
+                                    >
+                                        {resolveInputDisplayValue(input, run.inputs)}
+                                    </div>
+                                    {input.helpText && (
+                                        <p className="text-xs" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                                            {input.helpText}
+                                        </p>
+                                    )}
                                 </div>
                             )
-                        }
-
-                        return (
-                            <div key={input.key} className="space-y-2">
+                        })
+                    ) : (
+                        <div className="space-y-3 md:col-span-2">
+                            <div>
                                 <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
-                                    {input.label}
+                                    Adjust and run again
                                 </p>
-                                <div
-                                    className="rounded-2xl border px-4 py-3 text-sm leading-relaxed"
-                                    style={{
-                                        borderColor: "hsl(var(--forge-border))",
-                                        backgroundColor: "hsl(var(--forge-surface-dim))",
-                                        color: "hsl(var(--forge-text))",
-                                    }}
-                                >
-                                    {resolveInputDisplayValue(input, run.inputs)}
-                                </div>
-                                {input.helpText && (
-                                    <p className="text-xs" style={{ color: "hsl(var(--forge-text-subtle))" }}>
-                                        {input.helpText}
-                                    </p>
-                                )}
+                                <p className="mt-1 text-sm" style={{ color: "hsl(var(--forge-text-muted))" }}>
+                                    Edit the prompt and inputs here, then rerun this same pipeline step instead of creating a duplicate.
+                                </p>
                             </div>
-                        )
-                    })}
+                            <NeuralRerunFields
+                                tool={run.tool}
+                                inputs={draftInputs}
+                                onChange={onDraftInputChange}
+                            />
+                        </div>
+                    )}
                 </div>
 
                 <div className="space-y-2">
@@ -1017,7 +1213,7 @@ function NeuralRunOverlay({
                     <p className="text-sm leading-relaxed" style={{ color: "hsl(var(--forge-text-muted))" }}>
                         {run.status === "running"
                             ? "Generation is running. The prompt is locked until this run finishes or you stop it."
-                            : run.error ?? "The first generated result is loaded into the viewer automatically."}
+                            : run.error ?? "The latest result stays in the viewer while you adjust the next prompt and rerun this same tool."}
                     </p>
                 </div>
             </div>
@@ -1039,13 +1235,13 @@ function NeuralRunOverlay({
                     ) : (
                         <button
                             type="button"
-                            onClick={onNewRun}
+                            onClick={onRunAgain}
                             className="flex-1 rounded-xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
                             style={{ backgroundColor: "hsl(var(--forge-accent))" }}
                         >
                             <span className="inline-flex items-center gap-2">
                                 <RefreshCw className="h-4 w-4" />
-                                New Run
+                                Run Again
                             </span>
                         </button>
                     )}
@@ -1113,10 +1309,10 @@ export function StudioWorkspace({
 
     if (!category) return null
 
-    const runNeuralTool = async (tool: ToolEntry, inputs: Record<string, string>) => {
+    const runNeuralTool = async (tool: ToolEntry, inputs: Record<string, string>, existingStepId?: string) => {
         if (!tool.provider) return
 
-        const stepId = onNeuralRunStart(tool, inputs)
+        const stepId = onNeuralRunStart(tool, inputs, existingStepId)
         const imageDataUrl = tool.inputs.find((input) => input.type === "image")
             ? inputs[tool.inputs.find((input) => input.type === "image")?.key ?? ""]
             : undefined
@@ -1130,6 +1326,7 @@ export function StudioWorkspace({
             stepId,
             tool,
             inputs,
+            draftInputs: inputs,
             status: "running",
             dockMode: "docked",
             viewerUrl: null,
@@ -1236,12 +1433,22 @@ export function StudioWorkspace({
         })
     }
 
-    const handleStartNewNeuralRun = () => {
+    const handleDraftInputChange = (key: string, value: string) => {
+        setNeuralRun((current) => {
+            if (!current) return current
+            return {
+                ...current,
+                draftInputs: {
+                    ...current.draftInputs,
+                    [key]: value,
+                },
+            }
+        })
+    }
+
+    const handleRunNeuralAgain = () => {
         if (!neuralRun) return
-        const nextTool = neuralRun.tool
-        setToolDrafts((prev) => ({ ...prev, [nextTool.id]: neuralRun.inputs }))
-        setNeuralRun(null)
-        setSelectedTool(nextTool)
+        void runNeuralTool(neuralRun.tool, neuralRun.draftInputs, neuralRun.stepId)
     }
 
     const handleLoadDemoSample = (sample: ViewerSample) => {
@@ -1267,7 +1474,7 @@ export function StudioWorkspace({
                     <button
                         type="button"
                         onClick={handleRestoreNeuralPanel}
-                        className="absolute left-4 top-6 z-30 inline-flex items-center gap-2 rounded-2xl border px-3 py-2 shadow-lg transition hover:opacity-90"
+                        className="absolute left-4 top-24 z-30 inline-flex items-center gap-2 rounded-2xl border px-3 py-2 shadow-lg transition hover:opacity-90"
                         style={{
                             borderColor: "hsl(var(--forge-border))",
                             backgroundColor: "rgba(255,255,255,0.96)",
@@ -1285,11 +1492,13 @@ export function StudioWorkspace({
                         run={neuralRun}
                         referenceImage={referenceImage}
                         viewerSamples={viewerSamples}
+                        draftInputs={neuralRun.draftInputs}
                         onLoadDemo={handleLoadDemoSample}
+                        onDraftInputChange={handleDraftInputChange}
                         onCollapse={handleCollapseNeuralPanel}
                         onToggleFocus={handleToggleNeuralFocus}
                         onStop={handleStopNeuralRun}
-                        onNewRun={handleStartNewNeuralRun}
+                        onRunAgain={handleRunNeuralAgain}
                     />
                 )}
 

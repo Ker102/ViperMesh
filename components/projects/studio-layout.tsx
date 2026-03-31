@@ -494,7 +494,25 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
     )
 
     const handleNeuralRunStart = useCallback(
-        (tool: ToolEntry, inputs: Record<string, string>) => {
+        (tool: ToolEntry, inputs: Record<string, string>, existingStepId?: string) => {
+            if (existingStepId) {
+                setWorkflowSteps((prev) =>
+                    prev.map((step) =>
+                        step.id === existingStepId
+                            ? {
+                                ...step,
+                                title: tool.name,
+                                toolName: tool.id,
+                                status: "running" as const,
+                                inputs,
+                                error: undefined,
+                            }
+                            : step
+                    )
+                )
+                return existingStepId
+            }
+
             const stepId = `neural-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
             const step: WorkflowTimelineStep = {
                 id: stepId,
