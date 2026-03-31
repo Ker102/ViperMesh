@@ -1,5 +1,43 @@
 # ViperMesh — Current Progress
 
+## Last Session: 2026-03-31 (TRELLIS Routing Fix + Provider Contract Verification)
+
+### What Was Done
+1. **Fixed the TRELLIS runtime routing bug:**
+   - Investigated the Studio failure `TRELLIS 2 generation failed: Cannot find module '@gradio/client'`
+   - Root cause was provider selection in `lib/neural/registry.ts`:
+     - `.env` currently uses `NEURAL_PROVIDER=runpod`
+     - that setting prevented TRELLIS from taking the intended fal path
+     - the registry then fell through to the self-hosted TRELLIS Gradio client, which requires `@gradio/client`
+
+2. **Hardened provider routing to match the actual backend mix:**
+   - Updated `lib/neural/registry.ts`
+   - `trellis` now prefers fal whenever `FAL_KEY` is available, unless the user explicitly forces `NEURAL_PROVIDER=self-hosted`
+   - `hunyuan-paint`, `hunyuan-part`, `unirig`, `momask`, and `meshanything-v2` still use RunPod when available
+   - `hunyuan-shape` deliberately stays on the current self-hosted path by default for now, so the existing Studio prompt flow is not broken before the full provider/input audit lands
+
+3. **Added the missing Gradio dependency for self-hosted fallbacks:**
+   - Installed `@gradio/client@2.1.0`
+   - This keeps the self-hosted TRELLIS / Hunyuan Part fallback clients from failing immediately on module resolution if they are selected intentionally later
+
+4. **Verified the current official provider contracts before changing the runtime:**
+   - fal `fal-ai/hunyuan3d-v21` is image-based (`input_image_url`) with optional controls like `octree_resolution` and `textured_mesh`
+   - fal `fal-ai/trellis-2` is image-to-3D
+   - Current repo/UI state now aligns correctly for TRELLIS specifically
+   - Hunyuan Shape still needs a follow-up audit because the self-hosted client path in this repo accepts prompt/image, while fal's Hunyuan 2.1 endpoint is image-based
+
+### Validation
+- `npx tsc --noEmit` ✅
+- `npm run lint` ✅
+- Verified resolved clients under current `.env`:
+  - `trellis -> FalClient`
+  - `hunyuan-shape -> HunyuanShapeClient`
+  - `hunyuan-paint -> RunPodClient`
+
+### Notes
+- This fix is intentionally narrow so TRELLIS works now without accidentally breaking the current Hunyuan Studio flow.
+- A separate neural provider/input audit is still warranted to align every tool card, route schema, and backend contract exactly with the live provider capabilities.
+
 ## Last Session: 2026-03-30 (Local Asset Production Migration Stages Saved)
 
 ### What Was Done
