@@ -14,10 +14,7 @@ interface StudioLayoutProps {
     projectId: string
 }
 
-interface NeuralStepPatch {
-    status?: WorkflowTimelineStep["status"]
-    error?: string
-}
+type NeuralStepPatch = Partial<Pick<WorkflowTimelineStep, "status" | "error" | "inputs" | "neuralState">>
 
 // ── API persistence helpers (replaces localStorage) ─────────────
 async function fetchPersistedSteps(projectId: string): Promise<WorkflowTimelineStep[]> {
@@ -42,17 +39,27 @@ async function savePersistedSteps(projectId: string, steps: WorkflowTimelineStep
     try {
         // Strip monitoring logs and base64 image data before saving to keep payload reasonable
         const slim = steps.map(({ monitoringLogs, ...rest }) => {
-            // Remove base64 image data from inputs (can be megabytes)
-            if (rest.inputs) {
-                const cleanInputs = { ...rest.inputs }
+            const sanitizeInputs = (inputs?: Record<string, string>) => {
+                if (!inputs) return inputs
+                const cleanInputs = { ...inputs }
                 for (const key of Object.keys(cleanInputs)) {
                     if (cleanInputs[key]?.startsWith("data:image/")) {
                         cleanInputs[key] = "[image attached]"
                     }
                 }
-                return { ...rest, inputs: cleanInputs }
+                return cleanInputs
             }
-            return rest
+
+            return {
+                ...rest,
+                inputs: sanitizeInputs(rest.inputs),
+                neuralState: rest.neuralState
+                    ? {
+                        ...rest.neuralState,
+                        draftInputs: sanitizeInputs(rest.neuralState.draftInputs),
+                    }
+                    : rest.neuralState,
+            }
         })
         const res = await fetch("/api/projects/studio-session", {
             method: "PUT",
@@ -85,6 +92,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
     const abortControllerRef = useRef<AbortController | null>(null)
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const initialLoadDone = useRef(false)
+    const selectedStepStorageKey = `studio-selected-step:${projectId}`
 
     // Keep ref in sync with state
     useEffect(() => {
@@ -97,12 +105,25 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         fetchPersistedSteps(projectId).then((steps) => {
             if (!cancelled) {
                 setWorkflowSteps(steps)
+                if (typeof window !== "undefined") {
+                    const restoredSelectedStepId = window.sessionStorage.getItem(selectedStepStorageKey)
+                    if (restoredSelectedStepId && steps.some((step) => step.id === restoredSelectedStepId)) {
+                        setSelectedStepId(restoredSelectedStepId)
+                        const restoredStep = steps.find((step) => step.id === restoredSelectedStepId)
+                        const restoredTool = restoredStep ? getToolById(restoredStep.toolName) : undefined
+                        if (restoredTool) {
+                            setActiveCategory(restoredTool.category)
+                        }
+                    } else if (restoredSelectedStepId) {
+                        window.sessionStorage.removeItem(selectedStepStorageKey)
+                    }
+                }
                 setStepsLoading(false)
                 initialLoadDone.current = true
             }
         })
         return () => { cancelled = true }
-    }, [projectId])
+    }, [projectId, selectedStepStorageKey])
 
     // ── Debounced save to API ────────────────────────────────────
     useEffect(() => {
@@ -115,6 +136,15 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
             if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
         }
     }, [workflowSteps, projectId])
+
+    useEffect(() => {
+        if (typeof window === "undefined") return
+        if (selectedStepId) {
+            window.sessionStorage.setItem(selectedStepStorageKey, selectedStepId)
+        } else {
+            window.sessionStorage.removeItem(selectedStepStorageKey)
+        }
+    }, [selectedStepId, selectedStepStorageKey])
 
     // ── Helpers ──────────────────────────────────────────────────
 
@@ -453,8 +483,11 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         abortControllerRef.current?.abort()
         setWorkflowSteps([])
         setSelectedStepId(null)
+        if (typeof window !== "undefined") {
+            window.sessionStorage.removeItem(selectedStepStorageKey)
+        }
         deletePersistedSteps(projectId)
-    }, [projectId])
+    }, [projectId, selectedStepStorageKey])
 
     const handleToolRunNow = useCallback(
         (tool: ToolEntry, inputs: Record<string, string>) => {

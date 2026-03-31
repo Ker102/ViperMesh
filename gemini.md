@@ -941,6 +941,12 @@
    - That continuation carries the generated model URL into the texturing tool as a prefilled `meshUrl`, and also carries forward the original reference image when available so users can move from geometry to texturing without manually reattaching inputs
    - Added basic `mesh` input handling in the Studio tool detail form so downstream tools can visibly acknowledge that a current model is attached, even before a full project-asset picker exists
    - Preserved the current plan to keep `<model-viewer>` as the polished review/result viewer while reserving more interactive engines for future tools like AI texture brushing that need real manual scene editing rather than display-oriented material swapping
+17. **Studio Neural Refresh Persistence**:
+   - Extended `WorkflowTimelineStep` with persisted `neuralState` so Studio neural pipeline tabs can retain their viewer URL, viewer label/source, generation time, and rerun draft inputs across browser refreshes instead of keeping them only in React memory
+   - Updated `StudioWorkspace` so selecting a neural pipeline step restores from either the in-memory cache or the persisted `neuralState` saved on the pipeline step, allowing generated TRELLIS/Hunyuan results to return to the model viewer after a refresh
+   - Wired neural run state changes back into the pipeline step itself on every meaningful change, so successful generated models remain attached to their pipeline tab until the tab is removed
+   - Added session-scoped selected-step restore in `StudioLayout` using `sessionStorage`, so refreshing the browser in the same tab reopens the same Studio pipeline step and category automatically without waiting for the user to click the chip again
+   - Kept this intentionally session-scoped rather than global: the open-step restore survives refresh/connection hiccups in the same tab, while closing the browser tab clears that UI selection as expected
 
 ### Validation
 - `npx tsc --noEmit`

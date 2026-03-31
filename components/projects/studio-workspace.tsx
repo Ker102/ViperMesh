@@ -13,14 +13,14 @@ import {
     type ToolEntry,
     type ToolInput,
 } from "@/lib/orchestration/tool-catalog"
-import type { WorkflowTimelineStep } from "./workflow-timeline"
+import type { WorkflowTimelineNeuralState, WorkflowTimelineStep } from "./workflow-timeline"
 
 interface StudioWorkspaceProps {
     activeCategory: string
     onToolSelect: (tool: ToolEntry, inputs: Record<string, string>) => void
     onToolRunNow: (tool: ToolEntry, inputs: Record<string, string>) => void
     onNeuralRunStart: (tool: ToolEntry, inputs: Record<string, string>, existingStepId?: string) => string
-    onNeuralRunUpdate: (stepId: string, patch: { status?: "pending" | "running" | "done" | "failed"; error?: string }) => void
+    onNeuralRunUpdate: (stepId: string, patch: Partial<Pick<WorkflowTimelineStep, "status" | "error" | "inputs" | "neuralState">>) => void
     selectedPipelineStep?: WorkflowTimelineStep | null
     onRequestCategoryChange?: (category: StudioCategory) => void
 }
@@ -55,6 +55,16 @@ interface ViewerSample {
     name: string
     source: string
     url: string
+}
+
+function buildPersistedNeuralState(run: ActiveNeuralRun): WorkflowTimelineNeuralState {
+    return {
+        draftInputs: run.draftInputs,
+        viewerUrl: run.viewerUrl,
+        viewerLabel: run.viewerLabel,
+        viewerSource: run.viewerSource,
+        generationTimeMs: run.generationTimeMs,
+    }
 }
 
 function mapTimelineStatusToNeuralStatus(status: WorkflowTimelineStep["status"]): NeuralRunStatus {
@@ -1469,7 +1479,12 @@ export function StudioWorkspace({
             ...prev,
             [neuralRun.stepId]: neuralRun,
         }))
-    }, [neuralRun])
+        onNeuralRunUpdate(neuralRun.stepId, {
+            inputs: neuralRun.inputs,
+            neuralState: buildPersistedNeuralState(neuralRun),
+            error: neuralRun.error,
+        })
+    }, [neuralRun, onNeuralRunUpdate])
 
     useEffect(() => {
         if (!selectedPipelineStep) return
@@ -1477,6 +1492,7 @@ export function StudioWorkspace({
 
         const tool = getToolById(selectedPipelineStep.toolName)
         if (!tool || tool.type !== "neural") return
+        const persistedState = selectedPipelineStep.neuralState ?? undefined
 
         setSelectedTool(null)
         setNeuralRun((current) => {
@@ -1489,14 +1505,14 @@ export function StudioWorkspace({
                 stepId: selectedPipelineStep.id,
                 tool,
                 inputs: selectedPipelineStep.inputs ?? {},
-                draftInputs: selectedPipelineStep.inputs ?? {},
+                draftInputs: persistedState?.draftInputs ?? selectedPipelineStep.inputs ?? {},
                 status: mapTimelineStatusToNeuralStatus(selectedPipelineStep.status),
                 dockMode: "focus",
-                viewerUrl: null,
-                viewerLabel: undefined,
-                viewerSource: undefined,
+                viewerUrl: persistedState?.viewerUrl ?? null,
+                viewerLabel: persistedState?.viewerLabel,
+                viewerSource: persistedState?.viewerSource,
                 error: selectedPipelineStep.error,
-                generationTimeMs: undefined,
+                generationTimeMs: persistedState?.generationTimeMs,
             }
         })
     }, [savedNeuralRuns, selectedPipelineStep, selectedTool])
