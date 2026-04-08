@@ -45,7 +45,7 @@ The AKS numbers above assume:
 
 ## Container Apps To Create
 
-Create three apps, not one combined app:
+Create these apps first:
 
 1. `hunyuan-shape-api`
 - GPU lane: `T4`
@@ -62,6 +62,8 @@ Create three apps, not one combined app:
   - `maxReplicas=1`
 - after stability:
   - `maxReplicas=2`
+
+Later:
 
 3. `hunyuan-part-api`
 - GPU lane: `T4`
@@ -82,6 +84,8 @@ Set these GitHub variables:
 - `AZURE_ACR_NAME`
 - `AZURE_CONTAINER_APP_HUNYUAN_SHAPE`
 - `AZURE_CONTAINER_APP_HUNYUAN_PAINT`
+
+Add later when the Part HTTP service exists:
 - `AZURE_CONTAINER_APP_HUNYUAN_PART`
 
 ## Runtime App Config
@@ -104,8 +108,8 @@ legacy shared Hunyuan URL only if the dedicated vars are unset.
 3. Build the future Azure HTTP image for `hunyuan-paint-api`.
 4. Deploy `hunyuan-paint-api` first and verify one successful request.
 5. Deploy `hunyuan-shape-api`.
-6. Deploy `hunyuan-part-api`.
-7. Switch ViperMesh env vars from RunPod to Azure.
+6. Switch ViperMesh env vars from RunPod to Azure for Shape/Paint.
+7. Add `hunyuan-part-api` later when that service is implemented.
 
 ## Do Not Do Yet
 

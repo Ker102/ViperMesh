@@ -94,7 +94,7 @@ Required:
 - Azure Container Apps environment in a GPU-enabled region
 - one Container App for `hunyuan-shape-api`
 - one Container App for `hunyuan-paint-api`
-- one Container App for `hunyuan-part-api`
+- later, one Container App for `hunyuan-part-api`
 
 Recommended:
 - ACR Premium
@@ -118,14 +118,14 @@ Expected repo variables:
 - `AZURE_ACR_NAME`
 - `AZURE_CONTAINER_APP_HUNYUAN_SHAPE`
 - `AZURE_CONTAINER_APP_HUNYUAN_PAINT`
-- `AZURE_CONTAINER_APP_HUNYUAN_PART`
+- later, `AZURE_CONTAINER_APP_HUNYUAN_PART`
 
 ## Runtime App Configuration
 
 Once Azure services exist, the ViperMesh app should eventually point to:
 - `HUNYUAN_SHAPE_API_URL=https://<hunyuan-shape-api-url>`
 - `HUNYUAN_PAINT_API_URL=https://<hunyuan-paint-api-url>`
-- `HUNYUAN_PART_URL=https://<hunyuan-part-api-url>`
+- later, `HUNYUAN_PART_URL=https://<hunyuan-part-api-url>`
 
 That runtime switch is intentionally separate from the current infrastructure scaffolding.
 

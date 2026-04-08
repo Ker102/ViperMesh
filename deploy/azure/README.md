@@ -43,14 +43,17 @@ Why:
 1. `hunyuan-shape-api`
 - serves Hunyuan Shape on the lighter GPU lane
 - target runtime var: `HUNYUAN_SHAPE_API_URL`
+- repo status: implemented Docker/service scaffold
 
 2. `hunyuan-paint-api`
 - serves Hunyuan Paint on the heavy GPU lane
 - target runtime var: `HUNYUAN_PAINT_API_URL`
+- repo status: implemented Docker/service scaffold
 
 3. `hunyuan-part-api`
 - serves Hunyuan Part over a normal HTTP API
 - target runtime var: `HUNYUAN_PART_URL`
+- repo status: planned, not implemented yet
 
 The app now supports:
 - `HUNYUAN_SHAPE_API_URL` with fallback to `HUNYUAN_API_URL`
@@ -70,7 +73,10 @@ Recommended flow:
 An example workflow lives at:
 - `deploy/azure/github-actions/azure-neural-container-apps.yml.example`
 
-That file is intentionally not active yet because the Azure-ready Dockerfiles do not exist yet.
+That file is intentionally not active yet because:
+- the Azure-ready HTTP Dockerfiles are only implemented for Shape and Paint
+- Part is still pending
+- the workflow should not be turned on until ACR/OIDC setup is ready
 
 ## Repo Secrets And Variables
 

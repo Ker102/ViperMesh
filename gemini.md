@@ -1107,6 +1107,11 @@
    - Added `deploy/azure/setup-checklist.md` with the exact one-time Azure setup order: region choice (`Sweden Central`), ACR Premium, Container Apps environment, managed identity/AcrPull wiring, app names, recommended `minReplicas`/`maxReplicas`, GitHub Actions variables, and rollout order
    - Added `deploy/azure/gpu-and-quota-reference.md` with the current ViperMesh GPU mapping and the exact quota labels/search terms to request for both Azure Container Apps (`Managed Environment Consumption T4 Gpus`, `Managed Environment Consumption NCA100 Gpus`) and AKS fallback (`Standard NCASv3_T4 Family vCPUs`, `Standard NCADS_A100_v4 Family vCPUs`)
    - Updated the Azure GitHub Actions example and vars/secrets template so future CI/CD is already aligned with the split-service Azure layout instead of the earlier single combined app assumption
+23. **First Azure-Ready Hunyuan Service Implementation Slice**:
+   - Implemented a real Azure-ready `deploy/azure/hunyuan-shape-api/Dockerfile` and `start.sh` that run Tencent's official `Hunyuan3D-2.1` FastAPI `api_server.py` on `0.0.0.0:${PORT:-8080}`, rather than relying on a RunPod worker entrypoint
+   - Implemented `deploy/azure/hunyuan-paint-api/app.py` as a dedicated FastAPI wrapper for the existing ViperMesh `/texturize` contract, decoding base64 mesh/image payloads, lazily loading `Hunyuan3DPaintPipeline`, and returning a binary GLB/OBJ file response
+   - Added `deploy/azure/hunyuan-paint-api/Dockerfile` and `start.sh`, including the paint-specific `custom_rasterizer` and `DifferentiableRenderer` build steps from Tencent's official Hunyuan3D 2.1 setup instructions plus the Real-ESRGAN checkpoint download required by the paint stack
+   - Updated the Azure docs to reflect the actual state of the repo: Shape and Paint now have implemented HTTP container scaffolds, while `hunyuan-part-api` remains a planned later slice and should not yet be included in the active GitHub Actions deployment workflow
 
 ### Validation
 - `npx tsc --noEmit`

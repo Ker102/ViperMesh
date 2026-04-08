@@ -14,6 +14,8 @@ Use GitHub OIDC for Azure login.
 - `AZURE_ACR_NAME`
 - `AZURE_CONTAINER_APP_HUNYUAN_SHAPE`
 - `AZURE_CONTAINER_APP_HUNYUAN_PAINT`
+
+Later, when the Part Azure HTTP service exists:
 - `AZURE_CONTAINER_APP_HUNYUAN_PART`
 
 ## Notes
@@ -28,8 +30,10 @@ These are not wired by this document, but they are the likely app-side runtime s
 
 - `HUNYUAN_SHAPE_API_URL`
 - `HUNYUAN_PAINT_API_URL`
-- `HUNYUAN_PART_URL`
 
 Legacy fallback still supported by the app:
 
 - `HUNYUAN_API_URL`
+
+Later:
+- `HUNYUAN_PART_URL`

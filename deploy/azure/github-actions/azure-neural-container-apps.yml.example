@@ -12,7 +12,6 @@ on:
           - all
           - hunyuan-shape-api
           - hunyuan-paint-api
-          - hunyuan-part-api
   push:
     branches:
       - main
@@ -29,7 +28,6 @@ env:
   RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
   CONTAINER_APP_HUNYUAN_SHAPE: ${{ vars.AZURE_CONTAINER_APP_HUNYUAN_SHAPE }}
   CONTAINER_APP_HUNYUAN_PAINT: ${{ vars.AZURE_CONTAINER_APP_HUNYUAN_PAINT }}
-  CONTAINER_APP_HUNYUAN_PART: ${{ vars.AZURE_CONTAINER_APP_HUNYUAN_PART }}
 
 jobs:
   deploy:
@@ -48,11 +46,6 @@ jobs:
             containerAppEnvName: CONTAINER_APP_HUNYUAN_PAINT
             dockerfile: deploy/azure/hunyuan-paint-api/Dockerfile
             context: deploy/azure/hunyuan-paint-api
-          - service: hunyuan-part-api
-            imageName: hunyuan-part-api
-            containerAppEnvName: CONTAINER_APP_HUNYUAN_PART
-            dockerfile: deploy/azure/hunyuan-part-api/Dockerfile
-            context: deploy/azure/hunyuan-part-api
     if: github.event_name != 'workflow_dispatch' || github.event.inputs.target == 'all' || github.event.inputs.target == matrix.service
 
     steps:
@@ -69,9 +62,6 @@ jobs:
               ;;
             "hunyuan-paint-api")
               APP_NAME="${CONTAINER_APP_HUNYUAN_PAINT}"
-              ;;
-            "hunyuan-part-api")
-              APP_NAME="${CONTAINER_APP_HUNYUAN_PART}"
               ;;
             *)
               echo "Unknown service: ${{ matrix.service }}"
