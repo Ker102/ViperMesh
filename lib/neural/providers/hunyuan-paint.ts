@@ -4,10 +4,9 @@
  * Takes an untextured mesh + reference image and generates production-ready
  * PBR textures (albedo, roughness, metallic, normal).
  *
- * Uses the same server as Hunyuan Shape (api_server.py handles both models).
- *
  * Env vars:
- *  - HUNYUAN_API_URL  (same server as Shape — runs both models)
+ *  - HUNYUAN_PAINT_API_URL  (preferred dedicated paint endpoint)
+ *  - HUNYUAN_API_URL        (legacy shared shape/paint endpoint fallback)
  */
 
 import { Neural3DClient } from "../base-client"
@@ -29,7 +28,10 @@ export class HunyuanPaintClient extends Neural3DClient {
 
     constructor() {
         super()
-        this.baseUrl = process.env.HUNYUAN_API_URL ?? "http://localhost:8080"
+        this.baseUrl =
+            process.env.HUNYUAN_PAINT_API_URL ??
+            process.env.HUNYUAN_API_URL ??
+            "http://localhost:8080"
     }
 
     async healthCheck(): Promise<boolean> {

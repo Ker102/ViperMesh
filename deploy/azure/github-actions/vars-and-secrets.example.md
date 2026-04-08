@@ -12,7 +12,8 @@ Use GitHub OIDC for Azure login.
 
 - `AZURE_RESOURCE_GROUP`
 - `AZURE_ACR_NAME`
-- `AZURE_CONTAINER_APP_HUNYUAN_API`
+- `AZURE_CONTAINER_APP_HUNYUAN_SHAPE`
+- `AZURE_CONTAINER_APP_HUNYUAN_PAINT`
 - `AZURE_CONTAINER_APP_HUNYUAN_PART`
 
 ## Notes
@@ -25,5 +26,10 @@ Use GitHub OIDC for Azure login.
 
 These are not wired by this document, but they are the likely app-side runtime switches once Azure services exist:
 
-- `HUNYUAN_API_URL`
+- `HUNYUAN_SHAPE_API_URL`
+- `HUNYUAN_PAINT_API_URL`
 - `HUNYUAN_PART_URL`
+
+Legacy fallback still supported by the app:
+
+- `HUNYUAN_API_URL`

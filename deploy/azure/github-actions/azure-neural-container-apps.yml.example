@@ -10,7 +10,8 @@ on:
         type: choice
         options:
           - all
-          - hunyuan-api
+          - hunyuan-shape-api
+          - hunyuan-paint-api
           - hunyuan-part-api
   push:
     branches:
@@ -26,7 +27,8 @@ permissions:
 env:
   ACR_NAME: ${{ vars.AZURE_ACR_NAME }}
   RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-  CONTAINER_APP_HUNYUAN_API: ${{ vars.AZURE_CONTAINER_APP_HUNYUAN_API }}
+  CONTAINER_APP_HUNYUAN_SHAPE: ${{ vars.AZURE_CONTAINER_APP_HUNYUAN_SHAPE }}
+  CONTAINER_APP_HUNYUAN_PAINT: ${{ vars.AZURE_CONTAINER_APP_HUNYUAN_PAINT }}
   CONTAINER_APP_HUNYUAN_PART: ${{ vars.AZURE_CONTAINER_APP_HUNYUAN_PART }}
 
 jobs:
@@ -36,11 +38,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - service: hunyuan-api
-            imageName: hunyuan-api
-            containerAppEnvName: CONTAINER_APP_HUNYUAN_API
-            dockerfile: deploy/azure/hunyuan-api/Dockerfile
-            context: deploy/azure/hunyuan-api
+          - service: hunyuan-shape-api
+            imageName: hunyuan-shape-api
+            containerAppEnvName: CONTAINER_APP_HUNYUAN_SHAPE
+            dockerfile: deploy/azure/hunyuan-shape-api/Dockerfile
+            context: deploy/azure/hunyuan-shape-api
+          - service: hunyuan-paint-api
+            imageName: hunyuan-paint-api
+            containerAppEnvName: CONTAINER_APP_HUNYUAN_PAINT
+            dockerfile: deploy/azure/hunyuan-paint-api/Dockerfile
+            context: deploy/azure/hunyuan-paint-api
           - service: hunyuan-part-api
             imageName: hunyuan-part-api
             containerAppEnvName: CONTAINER_APP_HUNYUAN_PART
@@ -57,8 +64,11 @@ jobs:
         run: |
           set -euo pipefail
           case "${{ matrix.service }}" in
-            "hunyuan-api")
-              APP_NAME="${CONTAINER_APP_HUNYUAN_API}"
+            "hunyuan-shape-api")
+              APP_NAME="${CONTAINER_APP_HUNYUAN_SHAPE}"
+              ;;
+            "hunyuan-paint-api")
+              APP_NAME="${CONTAINER_APP_HUNYUAN_PAINT}"
               ;;
             "hunyuan-part-api")
               APP_NAME="${CONTAINER_APP_HUNYUAN_PART}"

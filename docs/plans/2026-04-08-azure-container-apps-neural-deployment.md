@@ -49,15 +49,19 @@ It is:
 
 Phase 1 targets:
 
-1. `hunyuan-api`
-- one Azure HTTP service for Hunyuan Shape + Hunyuan Paint
-- aligns with the existing app assumption that `HUNYUAN_API_URL` serves both geometry and texturing endpoints
+1. `hunyuan-shape-api`
+- Azure HTTP service for Hunyuan Shape
 - expected routes:
   - `GET /health`
   - `POST /generate`
+
+2. `hunyuan-paint-api`
+- Azure HTTP service for Hunyuan Paint
+- expected routes:
+  - `GET /health`
   - `POST /texturize`
 
-2. `hunyuan-part-api`
+3. `hunyuan-part-api`
 - separate Azure HTTP service for Hunyuan Part
 - expected routes:
   - `GET /health`
@@ -88,13 +92,15 @@ Required:
 - Azure resource group
 - Azure Container Registry
 - Azure Container Apps environment in a GPU-enabled region
-- one Container App for `hunyuan-api`
+- one Container App for `hunyuan-shape-api`
+- one Container App for `hunyuan-paint-api`
 - one Container App for `hunyuan-part-api`
 
 Recommended:
 - ACR Premium
 - managed identity for the Container Apps
 - `minReplicas=1` for the paint service while stabilizing cold starts
+- `minReplicas=1` for the shape service if you want fast interactive geometry runs, otherwise `0`
 - `minReplicas=0 or 1` for part, depending on latency tolerance
 
 ## GitHub Configuration
@@ -110,14 +116,16 @@ Expected repo secrets:
 Expected repo variables:
 - `AZURE_RESOURCE_GROUP`
 - `AZURE_ACR_NAME`
-- `AZURE_CONTAINER_APP_HUNYUAN_API`
+- `AZURE_CONTAINER_APP_HUNYUAN_SHAPE`
+- `AZURE_CONTAINER_APP_HUNYUAN_PAINT`
 - `AZURE_CONTAINER_APP_HUNYUAN_PART`
 
 ## Runtime App Configuration
 
 Once Azure services exist, the ViperMesh app should eventually point to:
-- `HUNYUAN_API_URL=https://<hunyuan-api-container-app-url>`
-- `HUNYUAN_PART_URL=https://<hunyuan-part-container-app-url>`
+- `HUNYUAN_SHAPE_API_URL=https://<hunyuan-shape-api-url>`
+- `HUNYUAN_PAINT_API_URL=https://<hunyuan-paint-api-url>`
+- `HUNYUAN_PART_URL=https://<hunyuan-part-api-url>`
 
 That runtime switch is intentionally separate from the current infrastructure scaffolding.
 
@@ -150,7 +158,7 @@ That runtime switch is intentionally separate from the current infrastructure sc
 ## Success Criteria
 
 This migration is successful when:
-- Hunyuan Paint is served from Azure with a stable HTTP endpoint
+- Hunyuan Shape and Hunyuan Paint are served from Azure with stable HTTP endpoints
 - paint jobs start reliably without multi-minute queue stalls
 - GitHub push can publish a new image and roll a new revision without manual image pushes
 - ViperMesh runtime can target Azure through env config instead of RunPod

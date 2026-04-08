@@ -1100,6 +1100,13 @@
    - Cross-checked Tencent's official Hunyuan3D 2.1 setup guidance, which states they test with Python 3.10 and `torch==2.5.1`, `torchvision==0.20.1`, `torchaudio==2.5.1`, plus pinned `transformers==4.46.0`, `diffusers==0.30.0`, `accelerate==1.1.1`, and `huggingface-hub==0.30.2`
    - Updated `deploy/runpod/hunyuan-paint/Dockerfile` and `deploy/runpod/hunyuan-part/Dockerfile` to pin those core dependency versions instead of floating them, so future RunPod builds stop drifting into startup-crash combinations
    - Confirmed the Hugging Face repo reference itself is valid (`tencent/Hunyuan3D-2` / `tencent/Hunyuan3D-2.1`); the browser-side `404` came from checking an invalid page URL format with a colonized revision string rather than from a missing upstream model repository
+22. **Azure GPU Setup Hardening + Split Endpoint Prep**:
+   - While turning the Azure migration notes into a concrete setup checklist, identified an architectural mismatch in the first draft: the docs assumed a single `hunyuan-api` service for both Shape and Paint, but the current provider metadata and Azure GPU lanes make that a poor long-term fit because Shape belongs on the lighter lane while Paint belongs on the heavier lane
+   - Added dedicated runtime env-var support in the app clients: `lib/neural/providers/hunyuan-shape.ts` now prefers `HUNYUAN_SHAPE_API_URL` and falls back to `HUNYUAN_API_URL`, while `lib/neural/providers/hunyuan-paint.ts` now prefers `HUNYUAN_PAINT_API_URL` and falls back to the same legacy shared URL
+   - Updated the Azure migration scaffolding to recommend three services instead of one combined Hunyuan service: `hunyuan-shape-api`, `hunyuan-paint-api`, and `hunyuan-part-api`, while keeping the old combined `deploy/azure/hunyuan-api/README.md` only as a compatibility note
+   - Added `deploy/azure/setup-checklist.md` with the exact one-time Azure setup order: region choice (`Sweden Central`), ACR Premium, Container Apps environment, managed identity/AcrPull wiring, app names, recommended `minReplicas`/`maxReplicas`, GitHub Actions variables, and rollout order
+   - Added `deploy/azure/gpu-and-quota-reference.md` with the current ViperMesh GPU mapping and the exact quota labels/search terms to request for both Azure Container Apps (`Managed Environment Consumption T4 Gpus`, `Managed Environment Consumption NCA100 Gpus`) and AKS fallback (`Standard NCASv3_T4 Family vCPUs`, `Standard NCADS_A100_v4 Family vCPUs`)
+   - Updated the Azure GitHub Actions example and vars/secrets template so future CI/CD is already aligned with the split-service Azure layout instead of the earlier single combined app assumption
 
 ### Validation
 - `npx tsc --noEmit`

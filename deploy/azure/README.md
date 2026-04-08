@@ -40,12 +40,23 @@ Why:
 
 ## Initial Azure Service Layout
 
-1. `hunyuan-api`
-- serves Hunyuan Shape + Hunyuan Paint
-- matches the existing `HUNYUAN_API_URL` client contract
+1. `hunyuan-shape-api`
+- serves Hunyuan Shape on the lighter GPU lane
+- target runtime var: `HUNYUAN_SHAPE_API_URL`
 
-2. `hunyuan-part-api`
+2. `hunyuan-paint-api`
+- serves Hunyuan Paint on the heavy GPU lane
+- target runtime var: `HUNYUAN_PAINT_API_URL`
+
+3. `hunyuan-part-api`
 - serves Hunyuan Part over a normal HTTP API
+- target runtime var: `HUNYUAN_PART_URL`
+
+The app now supports:
+- `HUNYUAN_SHAPE_API_URL` with fallback to `HUNYUAN_API_URL`
+- `HUNYUAN_PAINT_API_URL` with fallback to `HUNYUAN_API_URL`
+
+So Azure can split shape and paint cleanly without breaking the current local/shared endpoint setup.
 
 ## GitHub Actions Model
 
@@ -65,6 +76,8 @@ That file is intentionally not active yet because the Azure-ready Dockerfiles do
 
 See:
 - `deploy/azure/github-actions/vars-and-secrets.example.md`
+- `deploy/azure/setup-checklist.md`
+- `deploy/azure/gpu-and-quota-reference.md`
 
 ## Operational Recommendation
 
