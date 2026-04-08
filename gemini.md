@@ -965,6 +965,12 @@
    - Upgraded `MeshAttachmentCard` to include a compact visual 3D preview using the shared `<ModelViewer>` component, replacing the previous plain-text attachment treatment for `mesh` inputs in both the inline tool form and the neural rerun panel
    - Added a visible failure banner inside the neural viewer stage when a run fails or is stopped while an earlier mesh is still displayed, so long-running paint failures are visible directly on the canvas instead of only in the side-panel status copy
    - Rebalanced the neural viewer's top overlay layout with reserved space for the built-in model-viewer controls and truncation-safe metadata chips, reducing the overlap between viewer actions and attached-model / status indicators
+21. **RunPod Paint/Part Worker Crash Diagnosis + Dependency Pinning**:
+   - Verified from the RunPod worker logs that the paint endpoint was not merely cold-starting; workers were crashing during startup with `AttributeError: module 'torch' has no attribute 'xpu'`, which explains the throttled queue and the UI-side "did not start within 5 minutes" message
+   - Confirmed the current failure mode came from a version mismatch in the serverless image: the Dockerfiles pinned `torch==2.2.0` while leaving `diffusers`, `transformers`, and `accelerate` floating, allowing an incompatible diffusers release to import APIs absent from that torch build
+   - Cross-checked Tencent's official Hunyuan3D 2.1 setup guidance, which states they test with Python 3.10 and `torch==2.5.1`, `torchvision==0.20.1`, `torchaudio==2.5.1`, plus pinned `transformers==4.46.0`, `diffusers==0.30.0`, `accelerate==1.1.1`, and `huggingface-hub==0.30.2`
+   - Updated `deploy/runpod/hunyuan-paint/Dockerfile` and `deploy/runpod/hunyuan-part/Dockerfile` to pin those core dependency versions instead of floating them, so future RunPod builds stop drifting into startup-crash combinations
+   - Confirmed the Hugging Face repo reference itself is valid (`tencent/Hunyuan3D-2` / `tencent/Hunyuan3D-2.1`); the browser-side `404` came from checking an invalid page URL format with a colonized revision string rather than from a missing upstream model repository
 
 ### Validation
 - `npx tsc --noEmit`

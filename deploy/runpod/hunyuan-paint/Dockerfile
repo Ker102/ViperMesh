@@ -22,25 +22,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN ln -sf /usr/bin/python3.10 /usr/bin/python && \
     ln -sf /usr/bin/python3.10 /usr/bin/python3
 
-# PyTorch 2.2 + CUDA 12.1
+# PyTorch / core libs aligned to Tencent's tested Hunyuan3D 2.1 stack.
 RUN pip install --no-cache-dir \
-    torch==2.2.0 torchvision==0.17.0 \
-    --index-url https://download.pytorch.org/whl/cu121
+    torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 \
+    --index-url https://download.pytorch.org/whl/cu124
 
 # RunPod SDK
 RUN pip install --no-cache-dir runpod==1.7.0
 
 # Hunyuan3D dependencies
+# Avoid floating diffusers/transformers here: newer releases can import APIs
+# (for example torch.xpu) that are absent in older torch builds and crash
+# the worker at startup.
 RUN pip install --no-cache-dir \
-    transformers>=4.40.0 \
-    diffusers>=0.27.0 \
-    accelerate>=0.28.0 \
-    safetensors \
+    transformers==4.46.0 \
+    diffusers==0.30.0 \
+    accelerate==1.1.1 \
+    huggingface-hub==0.30.2 \
+    safetensors==0.4.4 \
     trimesh \
     pillow \
-    numpy \
+    numpy==1.24.4 \
     requests \
-    pygltflib \
+    pygltflib==1.16.3 \
     xatlas
 
 # Clone and install Hunyuan3D-2
