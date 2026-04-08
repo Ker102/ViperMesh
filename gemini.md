@@ -3,6 +3,67 @@
 ## Current Session: 2026-04-08
 
 ### What Was Done
+1. **Scaffolded the Azure GPU deployment direction for neural models:**
+   - Added `docs/plans/2026-04-08-azure-container-apps-neural-deployment.md`
+   - Captured the current preferred migration path:
+     - Azure Container Apps with serverless GPUs
+     - Azure Container Registry
+     - GitHub Actions CI/CD
+   - Explicitly documented that AKS is not the first migration target
+
+2. **Documented the key portability constraint between RunPod and Azure:**
+   - Added `deploy/azure/README.md`
+   - Confirmed from the existing code that the current images under `deploy/runpod/**` are RunPod worker containers whose entrypoint ends in `runpod.serverless.start(...)`
+   - That means they are **not** direct Azure Container Apps images and should not be treated as drop-in deploy targets for ACR + ACA
+
+3. **Defined the intended Azure service split:**
+   - `hunyuan-api`
+     - future Azure HTTP service for:
+       - `POST /generate`
+       - `POST /texturize`
+       - `GET /health`
+     - aligns with the existing `HUNYUAN_API_URL` client contract
+   - `hunyuan-part-api`
+     - future Azure HTTP service for:
+       - `POST /segment`
+       - `GET /health`
+     - aligns with the existing `HUNYUAN_PART_URL` contract
+
+4. **Added Azure CI/CD examples without enabling broken workflows prematurely:**
+   - Added `deploy/azure/github-actions/azure-neural-container-apps.yml.example`
+   - The example workflow documents the desired GitHub Actions path:
+     - GitHub OIDC login to Azure
+     - build/push to ACR
+     - update existing Azure Container App revisions
+   - Kept it as an **example** rather than an active workflow because the Azure-ready HTTP Dockerfiles do not exist yet
+
+5. **Added GitHub/Azure configuration docs for the future deployment path:**
+   - Added `deploy/azure/github-actions/vars-and-secrets.example.md`
+   - Documented the expected GitHub secrets:
+     - `AZURE_CLIENT_ID`
+     - `AZURE_TENANT_ID`
+     - `AZURE_SUBSCRIPTION_ID`
+   - Documented the expected GitHub variables:
+     - `AZURE_RESOURCE_GROUP`
+     - `AZURE_ACR_NAME`
+     - `AZURE_CONTAINER_APP_HUNYUAN_API`
+     - `AZURE_CONTAINER_APP_HUNYUAN_PART`
+
+6. **Created explicit placeholders for the future Azure HTTP images:**
+   - Added:
+     - `deploy/azure/hunyuan-api/README.md`
+     - `deploy/azure/hunyuan-part-api/README.md`
+   - This gives the repo a concrete home for the future Azure container implementations instead of leaving the migration path implicit
+
+### Notes
+- The current state is **infrastructure scaffolding only**.
+- No runtime provider switch to Azure was made yet.
+- The next actual implementation step, once ACR and the Container Apps path are ready, is to build the Azure-ready HTTP service images for:
+  - `hunyuan-api`
+  - `hunyuan-part-api`
+- Only after that should an active GitHub Actions deployment workflow be moved into `.github/workflows`.
+
+### What Was Done
 1. **Applied the verified CodeRabbit review fixes for PR #28:**
    - Treated CodeRabbit comments as hypotheses and only patched the ones that were defensible against the current code and runtime behavior
    - Skipped broader or ambiguous suggestions that would have required feature-scope changes rather than review-driven corrections
