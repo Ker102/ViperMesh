@@ -145,37 +145,59 @@ export function selectBestProvider(
  * upfront (they may have heavy optional packages like @gradio/client).
  *
  * Provider routing (in priority order):
- *  1. fal.ai: hunyuan-shape, trellis (if FAL_KEY set or NEURAL_PROVIDER=fal)
- *  2. RunPod Serverless: hunyuan-paint, hunyuan-part (if RUNPOD_API_KEY set)
- *  3. Self-hosted: all providers via local endpoints
+ *  1. fal.ai: TRELLIS always prefers fal when available
+ *  2. RunPod Serverless: paint / segmentation / rigging / motion / retopo
+ *  3. Self-hosted: local endpoints and explicit self-hosted overrides
+ *
+ * Notes:
+ *  - `NEURAL_PROVIDER=runpod` should not break TRELLIS, because RunPod does
+ *    not provide a TRELLIS backend in this repo.
+ *  - Hunyuan Shape stays self-hosted by default for now to preserve the
+ *    current Studio prompt flow until the full provider/input audit lands.
  */
 export async function createNeuralClient(slug: ProviderSlug): Promise<Neural3DClient> {
-    const provider = process.env.NEURAL_PROVIDER ?? (process.env.FAL_KEY ? "fal" : "self-hosted")
-    const useFal = provider === "fal"
+    const providerPreference = (process.env.NEURAL_PROVIDER ?? "").trim().toLowerCase()
+    const hasFal = !!process.env.FAL_KEY
+    const hasRunPod = !!process.env.RUNPOD_API_KEY
+    const hasRunPodPaint = hasRunPod && !!process.env.RUNPOD_ENDPOINT_HUNYUAN_PAINT
+    const hasRunPodPart = hasRunPod && !!process.env.RUNPOD_ENDPOINT_HUNYUAN_PART
+    const forceSelfHosted = providerPreference === "self-hosted"
+    const forceFal = providerPreference === "fal"
 
-    // fal.ai routing for supported providers
-    if (useFal && (slug === "hunyuan-shape" || slug === "trellis")) {
+    // TRELLIS currently rides on fal unless the user explicitly forces
+    // self-hosted mode. This avoids breaking image-to-3D when
+    // NEURAL_PROVIDER=runpod is used for other models.
+    if (slug === "trellis" && !forceSelfHosted && hasFal) {
         const { FalClient } = await import("./providers/fal-client")
-        return new FalClient(slug)
+        return new FalClient("trellis")
+    }
+
+    // Keep Hunyuan Shape on the existing self-hosted path by default.
+    // Only switch it to fal when explicitly requested.
+    if (slug === "hunyuan-shape" && forceFal && hasFal) {
+        const { FalClient } = await import("./providers/fal-client")
+        return new FalClient("hunyuan-shape")
     }
 
     // RunPod Serverless routing for models without hosted APIs
-    const useRunPod = !!process.env.RUNPOD_API_KEY
-    if (useRunPod && (slug === "hunyuan-paint" || slug === "hunyuan-part")) {
+    if (
+        !forceSelfHosted &&
+        ((slug === "hunyuan-paint" && hasRunPodPaint) || (slug === "hunyuan-part" && hasRunPodPart))
+    ) {
         const { RunPodClient } = await import("./providers/runpod-client")
         return new RunPodClient(slug)
     }
 
     // RunPod routing for new neural models (UniRig, MoMask, MeshAnything V2)
-    if (useRunPod && slug === "unirig") {
+    if (!forceSelfHosted && hasRunPod && slug === "unirig") {
         const { UniRigClient } = await import("./providers/unirig-client")
         return new UniRigClient()
     }
-    if (useRunPod && slug === "momask") {
+    if (!forceSelfHosted && hasRunPod && slug === "momask") {
         const { MoMaskClient } = await import("./providers/momask-client")
         return new MoMaskClient()
     }
-    if (useRunPod && slug === "meshanything-v2") {
+    if (!forceSelfHosted && hasRunPod && slug === "meshanything-v2") {
         const { MeshAnythingV2Client } = await import("./providers/meshanything-v2-client")
         return new MeshAnythingV2Client()
     }

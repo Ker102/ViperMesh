@@ -49,6 +49,14 @@ export interface StepPlanData {
     errors?: string[]
 }
 
+export interface WorkflowTimelineNeuralState {
+    draftInputs?: Record<string, string>
+    viewerUrl?: string | null
+    viewerLabel?: string
+    viewerSource?: "generated" | "demo" | "input"
+    generationTimeMs?: number
+}
+
 export interface WorkflowTimelineStep {
     id: string
     title: string
@@ -72,6 +80,8 @@ export interface WorkflowTimelineStep {
     error?: string
     /** Agent stream events (tool calls, etc.) for live activity display */
     agentEvents?: AgentStreamEvent[]
+    /** Persisted neural-viewer state for Studio neural tools */
+    neuralState?: WorkflowTimelineNeuralState | null
 }
 
 // ============================================================================

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,12 +8,47 @@ import { Loader2, Box, Wand2 } from "lucide-react";
 import { ModelViewer } from "./ModelViewer";
 import { GenerationResponse } from "@/lib/generation/client";
 
+interface ViewerSample {
+    id: string;
+    name: string;
+    source: string;
+    url: string;
+}
+
 export function GenerationPanel() {
     const [prompt, setPrompt] = useState("");
     const [modelType, setModelType] = useState<"hunyuan" | "trellis">("hunyuan");
     const [isGenerating, setIsGenerating] = useState(false);
     const [result, setResult] = useState<GenerationResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [viewerSamples, setViewerSamples] = useState<ViewerSample[]>([]);
+    const [selectedSampleId, setSelectedSampleId] = useState("");
+    const [activeSample, setActiveSample] = useState<ViewerSample | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        fetch("/api/generate/3d/samples")
+            .then(async (response) => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                return response.json() as Promise<{ samples?: ViewerSample[] }>;
+            })
+            .then((data) => {
+                if (cancelled) return;
+                const samples = Array.isArray(data.samples) ? data.samples : [];
+                setViewerSamples(samples);
+                setSelectedSampleId((current) => current || samples[0]?.id || "");
+            })
+            .catch((sampleError: unknown) => {
+                console.warn("Failed to load viewer samples", sampleError);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     const handleGenerate = async () => {
         if (!prompt || isGenerating) return;
@@ -21,6 +56,7 @@ export function GenerationPanel() {
         setIsGenerating(true);
         setError(null);
         setResult(null);
+        setActiveSample(null);
 
         try {
             const response = await fetch("/api/generate/3d", {
@@ -47,6 +83,19 @@ export function GenerationPanel() {
         }
     };
 
+    const handleLoadSample = () => {
+        const sample = viewerSamples.find((item) => item.id === selectedSampleId);
+        if (!sample) return;
+
+        setError(null);
+        setResult(null);
+        setActiveSample(sample);
+    };
+
+    const handleClearSample = () => {
+        setActiveSample(null);
+    };
+
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !isGenerating) {
             e.preventDefault();
@@ -55,7 +104,7 @@ export function GenerationPanel() {
     };
 
     // Safe output URL extraction with null-safety
-    const outputUrl: string | null = (() => {
+    const generatedOutputUrl: string | null = (() => {
         if (!result?.output) return null;
         if (typeof result.output === 'string') return result.output;
         if (Array.isArray(result.output) && result.output.length > 0) {
@@ -63,6 +112,7 @@ export function GenerationPanel() {
         }
         return null;
     })();
+    const outputUrl = activeSample?.url ?? generatedOutputUrl;
 
     return (
         <div className="space-y-6">
@@ -120,6 +170,46 @@ export function GenerationPanel() {
                         </p>
                     </div>
 
+                    <div className="space-y-3 rounded-lg border border-dashed border-teal-500/30 bg-teal-500/5 p-4">
+                        <div>
+                            <p className="text-sm font-medium">Viewer Test Models</p>
+                            <p className="text-xs text-muted-foreground">
+                                Load an existing local GLB to test the viewer without spending generation credits.
+                            </p>
+                        </div>
+                        <div className="flex gap-2">
+                            <select
+                                value={selectedSampleId}
+                                onChange={(e) => setSelectedSampleId(e.target.value)}
+                                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                disabled={viewerSamples.length === 0}
+                            >
+                                {viewerSamples.length === 0 ? (
+                                    <option value="">No local sample GLBs found</option>
+                                ) : (
+                                    viewerSamples.map((sample) => (
+                                        <option key={sample.id} value={sample.id}>
+                                            {sample.name} ({sample.source})
+                                        </option>
+                                    ))
+                                )}
+                            </select>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={handleLoadSample}
+                                disabled={!selectedSampleId}
+                            >
+                                Load Sample
+                            </Button>
+                            {activeSample && (
+                                <Button type="button" variant="ghost" onClick={handleClearSample}>
+                                    Clear
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+
                     {error && (
                         <div className="p-4 bg-red-500/10 text-red-500 rounded-md text-sm border border-red-500/20" role="alert">
                             {error}
@@ -137,7 +227,9 @@ export function GenerationPanel() {
                         <ModelViewer url={outputUrl} />
                     </CardContent>
                     <CardFooter className="justify-between">
-                        <span className="text-xs text-muted-foreground">ID: {result?.id}</span>
+                        <span className="text-xs text-muted-foreground">
+                            {activeSample ? `Sample: ${activeSample.name}` : `ID: ${result?.id}`}
+                        </span>
                         <Button
                             variant="outline"
                             size="sm"

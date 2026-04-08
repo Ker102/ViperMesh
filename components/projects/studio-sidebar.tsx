@@ -2,12 +2,15 @@
 
 import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { CATEGORY_ICONS, AssistantIcon } from "./studio-icons"
+import { CATEGORY_ICONS, AssistantIcon, LibraryIcon } from "./studio-icons"
 import { CATEGORIES, type CategoryMeta, type StudioCategory } from "@/lib/orchestration/tool-catalog"
 
 interface StudioSidebarProps {
     activeCategory: string
     onCategoryChange: (category: string) => void
+    onGeneratedAssetsToggle: () => void
+    generatedAssetsOpen: boolean
+    generatedAssetCount: number
     onAssistantToggle: () => void
     assistantOpen: boolean
 }
@@ -15,6 +18,9 @@ interface StudioSidebarProps {
 export function StudioSidebar({
     activeCategory,
     onCategoryChange,
+    onGeneratedAssetsToggle,
+    generatedAssetsOpen,
+    generatedAssetCount,
     onAssistantToggle,
     assistantOpen,
 }: StudioSidebarProps) {
@@ -71,6 +77,37 @@ export function StudioSidebar({
             })}
 
             <div className="flex-1" />
+
+            <button
+                onClick={onGeneratedAssetsToggle}
+                className={cn(
+                    "mb-2 flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 relative",
+                    generatedAssetsOpen
+                        ? "text-white"
+                        : "text-[hsl(var(--forge-text-muted))] hover:text-[hsl(var(--forge-text))] hover:bg-[hsl(var(--forge-accent-subtle))]"
+                )}
+                style={
+                    generatedAssetsOpen
+                        ? { backgroundColor: "hsl(var(--forge-accent))" }
+                        : undefined
+                }
+                title="Generated Assets"
+                aria-label="Toggle generated assets shelf"
+                aria-expanded={generatedAssetsOpen}
+            >
+                <LibraryIcon size={20} />
+                {generatedAssetCount > 0 && (
+                    <span
+                        className="absolute -right-1 -top-1 min-w-[18px] rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+                        style={{
+                            backgroundColor: generatedAssetsOpen ? "white" : "hsl(var(--forge-accent))",
+                            color: generatedAssetsOpen ? "hsl(var(--forge-accent))" : "white",
+                        }}
+                    >
+                        {generatedAssetCount > 9 ? "9+" : generatedAssetCount}
+                    </span>
+                )}
+            </button>
 
             <button
                 onClick={onAssistantToggle}

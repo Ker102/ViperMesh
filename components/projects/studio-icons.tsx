@@ -149,6 +149,17 @@ export function AssistantIcon({ size, ...props }: IconProps) {
     )
 }
 
+export function LibraryIcon({ size, ...props }: IconProps) {
+    return (
+        <svg {...defaults(size)} {...props}>
+            <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H20v14H6.5A2.5 2.5 0 0 0 4 20.5v-14Z" />
+            <path d="M4 18a2 2 0 0 1 2-2h14" />
+            <path d="M8 8h7" />
+            <path d="M8 12h5" />
+        </svg>
+    )
+}
+
 export function SettingsIcon({ size, ...props }: IconProps) {
     return (
         <svg {...defaults(size)} {...props}>

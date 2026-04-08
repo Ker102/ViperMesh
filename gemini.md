@@ -1,5 +1,167 @@
 # ViperMesh — Current Progress
 
+## Current Session: 2026-04-08
+
+### What Was Done
+1. **Applied the verified CodeRabbit review fixes for PR #28:**
+   - Treated CodeRabbit comments as hypotheses and only patched the ones that were defensible against the current code and runtime behavior
+   - Skipped broader or ambiguous suggestions that would have required feature-scope changes rather than review-driven corrections
+
+2. **Hardened neural output path handling and output URLs:**
+   - Updated `lib/neural/output-files.ts`
+   - Neural output paths are now canonicalized with `realpathSync` before use
+   - Added a regular-file check to prevent directories or symlink escapes from being treated as valid outputs
+   - `buildNeuralOutputUrl()` no longer exposes absolute local filesystem paths to the client; it now emits a relative path scoped under `tmp/neural-output`
+
+3. **Tightened the authenticated neural output streaming route:**
+   - Updated `app/api/ai/neural-output/route.ts`
+   - The route now rejects any resolved neural output that is not a `.glb`
+   - This keeps the viewer transport surface aligned with the current Studio neural viewer contract
+
+4. **Fixed the generic Studio neural run route for non-geometry completions:**
+   - Updated `app/api/ai/neural-run/route.ts`
+   - The route now validates mesh-based tool runs using the normalized mesh input
+   - `/api/ai/neural-output?...` mesh inputs are resolved back to safe local paths before provider execution
+   - Completion handling now accepts successful providers whose result path lives in:
+     - `modelPath`
+     - `riggedModelPath`
+     - `retopologyPath`
+   - This avoids incorrectly rejecting valid `unirig` or `meshanything-v2` completions
+
+5. **Hardened RunPod provider selection:**
+   - Updated `lib/neural/registry.ts`
+   - `hunyuan-paint` and `hunyuan-part` now only route to `RunPodClient` when both:
+     - `RUNPOD_API_KEY` is present
+     - the corresponding endpoint env var is configured
+   - This prevents the registry from selecting RunPod and then failing later with a missing-endpoint runtime exception
+
+6. **Fixed the sample viewer route and sandbox fetch behavior:**
+   - Updated `app/api/generate/3d/samples/route.ts`
+   - Missing sample files now return `404` instead of surfacing as a route error
+   - Updated `components/generation/GenerationPanel.tsx`
+   - The viewer sample bootstrap no longer refetches repeatedly because of the selected-sample state loop
+
+7. **Improved viewer safety and accessibility polish:**
+   - Updated `components/generation/ModelViewer.tsx`
+   - Added `vbscript:` to the blocked protocol list
+   - Replaced the hardcoded `model-viewer-description` ID with a per-instance `useId()` value so multiple viewers do not share duplicate IDs
+   - Improved download naming so `/api/ai/neural-output?...` viewer URLs save as stable `.glb` filenames instead of query-string fragments
+   - Updated `lib/types/model-viewer.d.ts` so the custom-element JSX augmentation hangs off `react` rather than `react/jsx-runtime`
+
+8. **Fixed sidebar/shelf accessibility and Studio launch-state issues:**
+   - Updated `components/projects/generated-assets-shelf.tsx`
+   - The generated-assets shelf now unmounts fully when closed, so hidden buttons are no longer left mounted and tabbable
+   - Updated `components/projects/studio-sidebar.tsx`
+   - Added explicit `aria-label` and `aria-expanded` state to the icon-only Generated Assets toggle
+   - Updated `components/projects/studio-workspace.tsx`
+   - Deduplicated repeated `externalToolLaunch` handling by launch token
+   - Removed duplicated `tool.inputs.find(...)` work when resolving the active image input
+
+### Validation
+- `npx tsc --noEmit` ✅
+- `npm run lint` ✅
+
+### Notes
+- Intentionally did **not** apply every CodeRabbit suggestion. The skipped ones were either:
+  - lower-value performance nits
+  - ambiguous version-contract suggestions
+  - or broader behavior changes that should be handled as separate product work rather than folded into a review-fix pass
+- The remaining lint output is only the existing `baseline-browser-mapping` age notice, not an ESLint failure.
+
+## Last Session: 2026-03-31 (Studio Neural Paint Handoff + Viewer Header Polish)
+
+### What Was Done
+1. **Fixed the Studio neural handoff path for mesh-based tools:**
+   - Investigated the first successful TRELLIS → Hunyuan Paint handoff in Studio
+   - Found that all neural reruns were still being sent through the generic geometry-oriented `/api/ai/neural-run` request shape
+   - This caused Hunyuan Paint to fail before generation because the request schema did not accept `hunyuan-paint` or carry the required `meshUrl`
+
+2. **Expanded the shared Studio neural route to support mesh-based neural tools:**
+   - Updated `app/api/ai/neural-run/route.ts`
+   - The route now accepts:
+     - `hunyuan-shape`
+     - `trellis`
+     - `hunyuan-paint`
+     - `yvo3d`
+     - `hunyuan-part`
+     - `unirig`
+     - `meshanything-v2`
+   - Added request fields for:
+     - `meshUrl`
+     - `textureResolution`
+     - `targetFaces`
+   - Added provider-specific validation and generation-mode resolution instead of the old shape-only assumptions
+
+3. **Fixed carried mesh normalization for server-side neural clients:**
+   - The Studio handoff was storing the geometry result as the authenticated viewer URL (`/api/ai/neural-output?...`)
+   - Added route-side normalization so mesh-based providers resolve that viewer URL back to the safe local GLB path before calling the client
+   - This keeps the same generated geometry reusable across shape → paint / retopo / rigging flows without exposing the raw local path in the browser state
+
+4. **Improved Studio mesh input UX:**
+   - Replaced the plain text `A model from your current project session is attached to this tool` placeholder with a richer attached-model card in `components/projects/studio-workspace.tsx`
+   - The card now shows:
+     - attached model state
+     - resolved filename label
+     - explanatory copy about using the current project model
+   - Added the same mesh-card rendering to:
+     - first-run tool detail forms
+     - rerun overlay fields
+     - running neural overlay summaries
+
+5. **Improved viewer continuity for mesh-based neural tools:**
+   - When a neural tool starts with an attached `meshUrl`, the right-hand viewer now keeps that mesh visible during the run instead of dropping to an empty white canvas
+   - This makes shape → paint feel like a true continuation of the same asset instead of a reset between tools
+
+6. **Cleaned up Studio viewer header collisions:**
+   - Moved the neural viewer time/status badges into the left overlay chip row with the viewer label
+   - This avoids the collision between Studio viewer metadata and the top-right `Fit / Reset / Fullscreen / Download` controls inside `ModelViewer`
+
+### Validation
+- `npx tsc --noEmit` ✅
+- `npm run lint` ✅
+
+### Notes
+- This resolves the immediate TRELLIS → Hunyuan Paint Studio handoff bug.
+- There is still no full user-facing mesh picker yet; current mesh attachment is driven by the workflow continuation path. The new mesh card is a better temporary UX, but a real project asset selector is still a later step.
+
+## Last Session: 2026-03-31 (TRELLIS Routing Fix + Provider Contract Verification)
+
+### What Was Done
+1. **Fixed the TRELLIS runtime routing bug:**
+   - Investigated the Studio failure `TRELLIS 2 generation failed: Cannot find module '@gradio/client'`
+   - Root cause was provider selection in `lib/neural/registry.ts`:
+     - `.env` currently uses `NEURAL_PROVIDER=runpod`
+     - that setting prevented TRELLIS from taking the intended fal path
+     - the registry then fell through to the self-hosted TRELLIS Gradio client, which requires `@gradio/client`
+
+2. **Hardened provider routing to match the actual backend mix:**
+   - Updated `lib/neural/registry.ts`
+   - `trellis` now prefers fal whenever `FAL_KEY` is available, unless the user explicitly forces `NEURAL_PROVIDER=self-hosted`
+   - `hunyuan-paint`, `hunyuan-part`, `unirig`, `momask`, and `meshanything-v2` still use RunPod when available
+   - `hunyuan-shape` deliberately stays on the current self-hosted path by default for now, so the existing Studio prompt flow is not broken before the full provider/input audit lands
+
+3. **Added the missing Gradio dependency for self-hosted fallbacks:**
+   - Installed `@gradio/client@2.1.0`
+   - This keeps the self-hosted TRELLIS / Hunyuan Part fallback clients from failing immediately on module resolution if they are selected intentionally later
+
+4. **Verified the current official provider contracts before changing the runtime:**
+   - fal `fal-ai/hunyuan3d-v21` is image-based (`input_image_url`) with optional controls like `octree_resolution` and `textured_mesh`
+   - fal `fal-ai/trellis-2` is image-to-3D
+   - Current repo/UI state now aligns correctly for TRELLIS specifically
+   - Hunyuan Shape still needs a follow-up audit because the self-hosted client path in this repo accepts prompt/image, while fal's Hunyuan 2.1 endpoint is image-based
+
+### Validation
+- `npx tsc --noEmit` ✅
+- `npm run lint` ✅
+- Verified resolved clients under current `.env`:
+  - `trellis -> FalClient`
+  - `hunyuan-shape -> HunyuanShapeClient`
+  - `hunyuan-paint -> RunPodClient`
+
+### Notes
+- This fix is intentionally narrow so TRELLIS works now without accidentally breaking the current Hunyuan Studio flow.
+- A separate neural provider/input audit is still warranted to align every tool card, route schema, and backend contract exactly with the live provider capabilities.
+
 ## Last Session: 2026-03-30 (Local Asset Production Migration Stages Saved)
 
 ### What Was Done
@@ -789,3 +951,95 @@
    - Added a middleware guard that blocks additional `render_image` calls after one render failure in the same agent run
    - Reworked post-execution follow-up generation in `app/api/ai/chat/route.ts` to use a guarded non-streaming response, reject rubric/instruction leak text like `Fits the criteria. 2 sentences. No tool names`, and fall back to a scene-aware user-facing message
    - Render-failure follow-ups now explicitly suggest a dedicated lighter retry pass in the next run instead of silently retrying renders during the same run
+6. **Generation Viewer MVP Direction Started**:
+   - Updated the local `origin` remote to the renamed GitHub repository URL (`Ker102/ViperMesh`) so the new feature branch no longer relies on GitHub redirects
+   - Verified the current viewer research and roadmap direction: `<model-viewer>` remains the intended MVP stack for the first in-browser 3D preview milestone, while editing-heavy features like the AI texture brush stay deferred to later phases
+   - Added `@google/model-viewer` and aligned `three` / `@types/three` to `0.182.0` to match the package peer dependency cleanly with the repo's existing React 19 setup
+   - Replaced the old `@react-three/fiber`-based `components/generation/ModelViewer.tsx` implementation with a client-only `<model-viewer>` wrapper that keeps the same `url` prop contract, supports load/error states, safer URL validation, camera controls, and a reset-view action
+   - Added app-level React 19 JSX typing for the custom `<model-viewer>` element in `lib/types/model-viewer.d.ts`
+7. **Viewer Test Samples (No Generation Cost)**:
+   - Added `lib/generation/sample-models.ts` to discover local `.glb` files from the existing dev-only sample locations under `tmp/neural-output` and `tmp/local-assets-test/props`
+   - Added authenticated route `app/api/generate/3d/samples/route.ts` that lists available local sample models and streams a selected `.glb` back to the browser
+   - Extended `components/generation/GenerationPanel.tsx` with a "Viewer Test Models" section so the model viewer can be exercised with existing local GLBs instead of calling Replicate or fal
+   - This keeps `/generate` useful as a viewer sandbox while the real long-term viewer integration still targets the in-project Studio workflow after neural stages succeed
+8. **Viewer Sample Filtering Fix**:
+   - Diagnosed the sample-model runtime failure: the sandbox route was exposing tiny placeholder `.glb` files (`13` bytes and `772` bytes) that were not valid renderable scene assets
+   - Updated `lib/generation/sample-models.ts` to only surface usable GLBs by checking the file header for `glTF` magic bytes and enforcing a minimum sample size threshold
+   - The viewer sandbox now only lists the two valid neural-output GLBs, avoiding malformed sample files that caused `<model-viewer>` to fail with `this[$preparedGLTF] is undefined`
+9. **Desktop Studio Workspace Expansion**:
+   - Widened the project page shell from the old `container` + `max-w-5xl` layout to a desktop-friendly `max-w-[1760px]` workspace so Studio has enough room for future model viewer and richer tool panels
+   - Kept the page responsive by using wider desktop padding and moving the lower "Connect to Blender" and "Conversation History" sections into a responsive grid rather than leaving the whole project page cramped
+   - Increased the Studio frame height on desktop and removed the inner `max-w-2xl` cap inside `StudioWorkspace` detail view so larger forms, prompts, and future model previews can breathe
+   - Expanded Studio tool grids to allow a fourth column on very wide displays while leaving tablet/mobile breakpoints intact
+10. **Studio Neural Viewer Design + Plan**:
+   - Captured the agreed Studio neural workflow in `docs/studio-neural-viewer-design.md`: after `Run Now`, neural tools dock left, the viewer stage stays persistent on the right, prompts become read-only during generation, and collapsing the dock leaves a slim restore handle attached near the left toolbar
+   - Added the first implementation plan in `docs/plans/2026-03-31-studio-neural-viewer-implementation.md` so the split-view rollout can be built in controlled batches instead of ad hoc UI edits
+11. **Studio Neural Split View — First Working Batch**:
+   - Added authenticated neural output transport routes: `app/api/ai/neural-run/route.ts` executes neural runs via the live provider registry, and `app/api/ai/neural-output/route.ts` streams generated local GLBs back into the browser viewer through safe authenticated URLs
+   - Added `lib/neural/output-files.ts` to validate generated output paths under `tmp/neural-output` and construct viewer-safe in-app URLs for the new Studio neural viewer stage
+   - Updated `StudioLayout` so neural runs are represented in the bottom pipeline as dedicated steps rather than being misrouted through the generic chat/blender-agent path
+   - Updated `StudioWorkspace` so neural `Run Now` transitions into a split workspace: docked read-only neural panel on the left, persistent viewer stage on the right, stop action during generation, collapse-to-handle behavior, and automatic viewer loading when a generated GLB is returned
+   - Reused the existing `components/generation/ModelViewer.tsx` inside Studio, so the same viewer engine now powers both the `/generate` sandbox and the in-project neural workspace
+   - During validation, the local `HUNYUAN_API_URL` endpoint (`http://localhost:8080`) did not answer quick health probes, so real Hunyuan generation still depends on that local service actually being up even though the Studio UI and route wiring are now in place
+12. **Studio Neural Viewer Overlay Refinement**:
+   - Removed the extra nested "Viewer" window framing inside the Studio neural workspace so the model viewer now acts as the actual workspace canvas rather than living inside a second bordered panel
+   - Changed the neural side panel from a layout sibling into an overlay inspector: the viewer keeps the same width whether the panel is open or collapsed, and the left panel now floats over the viewer instead of shrinking it
+   - Added a more visible collapsed restore handle (`Tool panel`) attached near the left toolbar so the neural panel is easier to rediscover after collapse
+   - Added a focus toggle for the neural panel, allowing it to reopen as a much wider read-only inspector with prompt/config fields and tool descriptions visible again without making the prompt editable during an active run
+   - Increased the desktop Studio shell height again so the workspace dominates more of the project page and leaves less unused screen space below it
+13. **Studio Neural Canvas + Demo Preview Pass**:
+   - Removed the remaining inner padding around the Studio neural viewer stage so the model viewer now fills the workspace canvas directly instead of reading like a smaller sub-window inside the shell
+   - Changed the collapsed `Tool panel` restore action to reopen the richer focus inspector by default, making the reopened neural panel feel closer to the original full-detail tool view instead of a narrow dock
+   - Rebalanced the focus overlay width so it stays information-dense without covering nearly the entire viewer surface
+   - Moved the local sample GLB controls into a high-visibility "Viewer demo" section near the top of the neural inspector, including active demo labeling so the Studio viewer can be previewed without waiting for a real neural generation to complete
+14. **Studio Neural In-Place Rerun Flow**:
+   - Moved the collapsed `Tool panel` restore handle lower so it no longer overlaps the viewer title and model label in the top-left canvas overlay
+   - Replaced the old `New Run` behavior that spawned a duplicate pipeline entry with an in-place `Run Again` flow for neural tools
+   - Neural runs now keep editable draft inputs after a run completes, fails, or is stopped, so the user can adjust the prompt or reference image directly inside the overlay panel and rerun the same pipeline step
+   - Updated the Studio timeline integration so rerunning a neural tool reuses the existing neural step ID and refreshes that step's inputs/status instead of adding a second copy of the same tool to the pipeline
+15. **Studio Neural Pipeline Restore Fix**:
+   - Pipeline clicks now distinguish neural steps from generic agent/chat steps: clicking a neural chip in the bottom pipeline no longer opens the generic white session drawer
+   - Studio now restores the neural workspace state for that pipeline step instead, including the overlay viewer context that was cached for the step ID
+   - Added local neural run state caching keyed by pipeline step ID inside `StudioWorkspace`, so returning to the same Hunyuan/TRELLIS pipeline tab restores the last known neural viewer state instead of falling back to a blank prompt/session shell
+   - Pipeline chip selection now also switches the active Studio category to the selected tool's category, so reopening a neural step returns the user to the correct workspace mode automatically
+16. **Viewer Professionalization + Geometry Handoff**:
+   - Upgraded `components/generation/ModelViewer.tsx` with a more product-grade control layer: `Fit`, `Reset`, `Fullscreen`, and `Download` actions now live directly in the viewer stage instead of leaving the Studio neural result as a passive preview
+   - The viewer now explicitly reframes on model load using `<model-viewer>`'s staging support before jumping the camera to goal, producing a cleaner first impression for generated models
+   - Added the first cross-tool continuation affordance in Studio: once a neural geometry run finishes successfully with a real generated result, the neural side panel now shows a suggested `Continue to Hunyuan3D Paint` button
+   - That continuation carries the generated model URL into the texturing tool as a prefilled `meshUrl`, and also carries forward the original reference image when available so users can move from geometry to texturing without manually reattaching inputs
+   - Added basic `mesh` input handling in the Studio tool detail form so downstream tools can visibly acknowledge that a current model is attached, even before a full project-asset picker exists
+   - Preserved the current plan to keep `<model-viewer>` as the polished review/result viewer while reserving more interactive engines for future tools like AI texture brushing that need real manual scene editing rather than display-oriented material swapping
+17. **Studio Neural Refresh Persistence**:
+   - Extended `WorkflowTimelineStep` with persisted `neuralState` so Studio neural pipeline tabs can retain their viewer URL, viewer label/source, generation time, and rerun draft inputs across browser refreshes instead of keeping them only in React memory
+   - Updated `StudioWorkspace` so selecting a neural pipeline step restores from either the in-memory cache or the persisted `neuralState` saved on the pipeline step, allowing generated TRELLIS/Hunyuan results to return to the model viewer after a refresh
+   - Wired neural run state changes back into the pipeline step itself on every meaningful change, so successful generated models remain attached to their pipeline tab until the tab is removed
+   - Added session-scoped selected-step restore in `StudioLayout` using `sessionStorage`, so refreshing the browser in the same tab reopens the same Studio pipeline step and category automatically without waiting for the user to click the chip again
+   - Kept this intentionally session-scoped rather than global: the open-step restore survives refresh/connection hiccups in the same tab, while closing the browser tab clears that UI selection as expected
+18. **Studio Generated Assets Shelf (Project-Scoped First Slice)**:
+   - Added a dedicated `Generated Assets` shelf panel off the Studio sidebar so persisted neural outputs from the current project can be reopened without scrolling through the pipeline or relying only on the in-view continuation button
+   - The shelf is derived from persisted `WorkflowTimelineStep.neuralState`, so it survives refreshes and only includes successful generated neural outputs with a real viewer URL
+   - Each asset card can reopen the original pipeline step in the viewer, and geometry outputs from shape tools can be pushed directly into `Hunyuan3D Paint` from the shelf using the saved mesh URL plus the carried reference image when available
+   - Added an explicit generated-assets sidebar button with a count badge, while keeping this first version project-scoped and step-backed rather than introducing a separate user asset table before the UX is validated
+   - Added a lightweight external-tool launch path in `StudioWorkspace`, so shelf-driven handoffs can open downstream tool forms with prefilled `meshUrl` inputs without spawning duplicate pipeline tabs
+19. **Generated Asset Picker Planning + Shared Setup**:
+   - Added the next-batch implementation plan at `docs/plans/2026-03-31-generated-assets-picker-and-library.md`, covering the shared picker for all `meshUrl` tools, richer visual attachment cards, and the later saved-user-library DB phase
+   - Kept the DB/storage phase explicitly separate from the immediate picker work because the next UX slice can be built entirely on top of the already-persisted `studio_sessions.steps` JSON
+   - Extracted the generated-asset domain logic into `components/projects/generated-assets.ts`, creating a shared `GeneratedAssetItem` model plus `extractGeneratedAssets()` so the sidebar shelf and the future inline picker do not diverge
+   - Updated `StudioLayout` and `GeneratedAssetsShelf` to use that shared helper as the source of truth, which is the first low-risk setup slice before wiring `Attach from Generated Assets` into every `mesh` input
+20. **Neural Paint Failure Clarity + Attachment Preview Pass**:
+   - Diagnosed the first `TRELLIS → Hunyuan3D Paint` failure path from the local server logs: the RunPod job stayed queued for the full five-minute polling window and never reached a worker, so the failure was a queue/warmup timeout rather than a malformed handoff payload
+   - Updated `lib/neural/providers/runpod-client.ts` to replace the generic timeout path with RunPod-specific polling, so queue-stalled jobs now return a clearer user-facing message distinguishing "never started" from "started but did not finish"
+   - Fixed `getAssetDisplayLabel()` in `components/projects/studio-workspace.tsx` so relative in-app viewer URLs like `/api/ai/neural-output?path=...` resolve to clean filenames instead of leaking raw encoded transport/query strings into the UI
+   - Upgraded `MeshAttachmentCard` to include a compact visual 3D preview using the shared `<ModelViewer>` component, replacing the previous plain-text attachment treatment for `mesh` inputs in both the inline tool form and the neural rerun panel
+   - Added a visible failure banner inside the neural viewer stage when a run fails or is stopped while an earlier mesh is still displayed, so long-running paint failures are visible directly on the canvas instead of only in the side-panel status copy
+   - Rebalanced the neural viewer's top overlay layout with reserved space for the built-in model-viewer controls and truncation-safe metadata chips, reducing the overlap between viewer actions and attached-model / status indicators
+21. **RunPod Paint/Part Worker Crash Diagnosis + Dependency Pinning**:
+   - Verified from the RunPod worker logs that the paint endpoint was not merely cold-starting; workers were crashing during startup with `AttributeError: module 'torch' has no attribute 'xpu'`, which explains the throttled queue and the UI-side "did not start within 5 minutes" message
+   - Confirmed the current failure mode came from a version mismatch in the serverless image: the Dockerfiles pinned `torch==2.2.0` while leaving `diffusers`, `transformers`, and `accelerate` floating, allowing an incompatible diffusers release to import APIs absent from that torch build
+   - Cross-checked Tencent's official Hunyuan3D 2.1 setup guidance, which states they test with Python 3.10 and `torch==2.5.1`, `torchvision==0.20.1`, `torchaudio==2.5.1`, plus pinned `transformers==4.46.0`, `diffusers==0.30.0`, `accelerate==1.1.1`, and `huggingface-hub==0.30.2`
+   - Updated `deploy/runpod/hunyuan-paint/Dockerfile` and `deploy/runpod/hunyuan-part/Dockerfile` to pin those core dependency versions instead of floating them, so future RunPod builds stop drifting into startup-crash combinations
+   - Confirmed the Hugging Face repo reference itself is valid (`tencent/Hunyuan3D-2` / `tencent/Hunyuan3D-2.1`); the browser-side `404` came from checking an invalid page URL format with a colonized revision string rather than from a missing upstream model repository
+
+### Validation
+- `npx tsc --noEmit`
+- `npm run lint` (passes; only the existing `baseline-browser-mapping` age notice remains)

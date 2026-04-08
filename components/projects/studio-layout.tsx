@@ -1,17 +1,22 @@
 "use client"
 
-import { useState, useCallback, useRef, useEffect } from "react"
+import { useState, useCallback, useRef, useEffect, useMemo } from "react"
 import { StudioSidebar } from "./studio-sidebar"
 import { StudioWorkspace } from "./studio-workspace"
 import { StudioAdvisor } from "./studio-advisor"
 import { WorkflowTimeline, type WorkflowTimelineStep, type StepMonitoringLog, type StepPlanData, type StepCommandResult } from "./workflow-timeline"
 import { StepSessionDrawer } from "./step-session-drawer"
+import { GeneratedAssetsShelf } from "./generated-assets-shelf"
+import { extractGeneratedAssets, type GeneratedAssetItem } from "./generated-assets"
 import type { ToolEntry } from "@/lib/orchestration/tool-catalog"
+import { getToolById } from "@/lib/orchestration/tool-catalog"
 import type { AgentStreamEvent } from "@/lib/orchestration/types"
 
 interface StudioLayoutProps {
     projectId: string
 }
+
+type NeuralStepPatch = Partial<Pick<WorkflowTimelineStep, "status" | "error" | "inputs" | "neuralState">>
 
 // ── API persistence helpers (replaces localStorage) ─────────────
 async function fetchPersistedSteps(projectId: string): Promise<WorkflowTimelineStep[]> {
@@ -36,17 +41,27 @@ async function savePersistedSteps(projectId: string, steps: WorkflowTimelineStep
     try {
         // Strip monitoring logs and base64 image data before saving to keep payload reasonable
         const slim = steps.map(({ monitoringLogs, ...rest }) => {
-            // Remove base64 image data from inputs (can be megabytes)
-            if (rest.inputs) {
-                const cleanInputs = { ...rest.inputs }
+            const sanitizeInputs = (inputs?: Record<string, string>) => {
+                if (!inputs) return inputs
+                const cleanInputs = { ...inputs }
                 for (const key of Object.keys(cleanInputs)) {
                     if (cleanInputs[key]?.startsWith("data:image/")) {
                         cleanInputs[key] = "[image attached]"
                     }
                 }
-                return { ...rest, inputs: cleanInputs }
+                return cleanInputs
             }
-            return rest
+
+            return {
+                ...rest,
+                inputs: sanitizeInputs(rest.inputs),
+                neuralState: rest.neuralState
+                    ? {
+                        ...rest.neuralState,
+                        draftInputs: sanitizeInputs(rest.neuralState.draftInputs),
+                    }
+                    : rest.neuralState,
+            }
         })
         const res = await fetch("/api/projects/studio-session", {
             method: "PUT",
@@ -71,6 +86,7 @@ async function deletePersistedSteps(projectId: string) {
 
 export function StudioLayout({ projectId }: StudioLayoutProps) {
     const [activeCategory, setActiveCategory] = useState("shape")
+    const [generatedAssetsOpen, setGeneratedAssetsOpen] = useState(false)
     const [assistantOpen, setAssistantOpen] = useState(false)
     const [workflowSteps, setWorkflowSteps] = useState<WorkflowTimelineStep[]>([])
     const workflowStepsRef = useRef<WorkflowTimelineStep[]>(workflowSteps)
@@ -79,6 +95,12 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
     const abortControllerRef = useRef<AbortController | null>(null)
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const initialLoadDone = useRef(false)
+    const selectedStepStorageKey = `studio-selected-step:${projectId}`
+    const [externalToolLaunch, setExternalToolLaunch] = useState<{
+        token: string
+        toolId: string
+        inputs: Record<string, string>
+    } | null>(null)
 
     // Keep ref in sync with state
     useEffect(() => {
@@ -91,12 +113,25 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         fetchPersistedSteps(projectId).then((steps) => {
             if (!cancelled) {
                 setWorkflowSteps(steps)
+                if (typeof window !== "undefined") {
+                    const restoredSelectedStepId = window.sessionStorage.getItem(selectedStepStorageKey)
+                    if (restoredSelectedStepId && steps.some((step) => step.id === restoredSelectedStepId)) {
+                        setSelectedStepId(restoredSelectedStepId)
+                        const restoredStep = steps.find((step) => step.id === restoredSelectedStepId)
+                        const restoredTool = restoredStep ? getToolById(restoredStep.toolName) : undefined
+                        if (restoredTool) {
+                            setActiveCategory(restoredTool.category)
+                        }
+                    } else if (restoredSelectedStepId) {
+                        window.sessionStorage.removeItem(selectedStepStorageKey)
+                    }
+                }
                 setStepsLoading(false)
                 initialLoadDone.current = true
             }
         })
         return () => { cancelled = true }
-    }, [projectId])
+    }, [projectId, selectedStepStorageKey])
 
     // ── Debounced save to API ────────────────────────────────────
     useEffect(() => {
@@ -109,6 +144,20 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
             if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
         }
     }, [workflowSteps, projectId])
+
+    useEffect(() => {
+        if (typeof window === "undefined") return
+        if (selectedStepId) {
+            window.sessionStorage.setItem(selectedStepStorageKey, selectedStepId)
+        } else {
+            window.sessionStorage.removeItem(selectedStepStorageKey)
+        }
+    }, [selectedStepId, selectedStepStorageKey])
+
+    const generatedAssets = useMemo<GeneratedAssetItem[]>(
+        () => extractGeneratedAssets(workflowSteps),
+        [workflowSteps]
+    )
 
     // ── Helpers ──────────────────────────────────────────────────
 
@@ -447,8 +496,41 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         abortControllerRef.current?.abort()
         setWorkflowSteps([])
         setSelectedStepId(null)
+        setGeneratedAssetsOpen(false)
+        if (typeof window !== "undefined") {
+            window.sessionStorage.removeItem(selectedStepStorageKey)
+        }
         deletePersistedSteps(projectId)
-    }, [projectId])
+    }, [projectId, selectedStepStorageKey])
+
+    const handleOpenGeneratedAsset = useCallback((stepId: string) => {
+        const step = workflowStepsRef.current.find((item) => item.id === stepId)
+        const tool = step ? getToolById(step.toolName) : undefined
+        if (tool) {
+            setActiveCategory(tool.category)
+        }
+        setSelectedStepId(stepId)
+        setGeneratedAssetsOpen(false)
+        setAssistantOpen(false)
+    }, [])
+
+    const handleContinueGeneratedAssetToPaint = useCallback((asset: GeneratedAssetItem) => {
+        const paintTool = getToolById("hunyuan-paint")
+        if (!paintTool) return
+
+        setSelectedStepId(null)
+        setAssistantOpen(false)
+        setGeneratedAssetsOpen(false)
+        setActiveCategory(paintTool.category)
+        setExternalToolLaunch({
+            token: `${asset.stepId}:${Date.now()}`,
+            toolId: paintTool.id,
+            inputs: {
+                meshUrl: asset.viewerUrl,
+                ...(asset.referenceImage ? { imageUrl: asset.referenceImage } : {}),
+            },
+        })
+    }, [])
 
     const handleToolRunNow = useCallback(
         (tool: ToolEntry, inputs: Record<string, string>) => {
@@ -488,7 +570,53 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         [executeStep]
     )
 
+    const handleNeuralRunStart = useCallback(
+        (tool: ToolEntry, inputs: Record<string, string>, existingStepId?: string) => {
+            if (existingStepId) {
+                setWorkflowSteps((prev) =>
+                    prev.map((step) =>
+                        step.id === existingStepId
+                            ? {
+                                ...step,
+                                title: tool.name,
+                                toolName: tool.id,
+                                status: "running" as const,
+                                inputs,
+                                error: undefined,
+                            }
+                            : step
+                    )
+                )
+                return existingStepId
+            }
+
+            const stepId = `neural-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+            const step: WorkflowTimelineStep = {
+                id: stepId,
+                title: tool.name,
+                toolName: tool.id,
+                status: "running",
+                inputs,
+            }
+            setWorkflowSteps((prev) => [...prev, step])
+            return stepId
+        },
+        []
+    )
+
+    const handleNeuralRunUpdate = useCallback(
+        (stepId: string, patch: NeuralStepPatch) => {
+            updateStep(stepId, patch)
+        },
+        [updateStep]
+    )
+
     const handleStepClick = useCallback((stepId: string) => {
+        const step = workflowStepsRef.current.find((item) => item.id === stepId)
+        const tool = step ? getToolById(step.toolName) : undefined
+        if (tool) {
+            setActiveCategory(tool.category)
+        }
         setSelectedStepId((prev) => (prev === stepId ? null : stepId))
     }, [])
 
@@ -516,15 +644,16 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
     // ── Render ──────────────────────────────────────────────────
 
     const selectedStep = workflowSteps.find((s) => s.id === selectedStepId) ?? null
+    const selectedStepTool = selectedStep ? getToolById(selectedStep.toolName) : undefined
+    const selectedNeuralStep = selectedStep && selectedStepTool?.type === "neural" ? selectedStep : null
 
     return (
         <div
-            className="flex flex-col rounded-2xl border overflow-hidden"
+            className="flex min-h-[700px] flex-col overflow-hidden rounded-[28px] border xl:min-h-[960px]"
             style={{
                 borderColor: "hsl(var(--forge-border))",
                 backgroundColor: "hsl(var(--forge-surface))",
-                height: "calc(100vh - 200px)",
-                minHeight: "500px",
+                height: "clamp(700px, calc(100vh - 48px), 1280px)",
             }}
         >
             {/* Main content area — relative for drawer overlay */}
@@ -532,14 +661,36 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                 <StudioSidebar
                     activeCategory={activeCategory}
                     onCategoryChange={setActiveCategory}
-                    onAssistantToggle={() => setAssistantOpen((o) => !o)}
+                    onGeneratedAssetsToggle={() => {
+                        setGeneratedAssetsOpen((open) => !open)
+                        setAssistantOpen(false)
+                    }}
+                    generatedAssetsOpen={generatedAssetsOpen}
+                    generatedAssetCount={generatedAssets.length}
+                    onAssistantToggle={() => {
+                        setAssistantOpen((o) => !o)
+                        setGeneratedAssetsOpen(false)
+                    }}
                     assistantOpen={assistantOpen}
+                />
+
+                <GeneratedAssetsShelf
+                    open={generatedAssetsOpen}
+                    assets={generatedAssets}
+                    onClose={() => setGeneratedAssetsOpen(false)}
+                    onOpenAsset={handleOpenGeneratedAsset}
+                    onContinueToPaint={handleContinueGeneratedAssetToPaint}
                 />
 
                 <StudioWorkspace
                     activeCategory={activeCategory}
                     onToolSelect={handleToolSelect}
                     onToolRunNow={handleToolRunNow}
+                    onNeuralRunStart={handleNeuralRunStart}
+                    onNeuralRunUpdate={handleNeuralRunUpdate}
+                    selectedPipelineStep={selectedNeuralStep}
+                    onRequestCategoryChange={setActiveCategory}
+                    externalToolLaunch={externalToolLaunch}
                 />
 
                 <StudioAdvisor
@@ -549,7 +700,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                 />
 
                 {/* Session drawer — overlays workspace when a step is selected */}
-                {selectedStep && (
+                {selectedStep && !selectedNeuralStep && (
                     <StepSessionDrawer
                         step={selectedStep}
                         onClose={() => setSelectedStepId(null)}
