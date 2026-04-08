@@ -159,6 +159,8 @@ export async function createNeuralClient(slug: ProviderSlug): Promise<Neural3DCl
     const providerPreference = (process.env.NEURAL_PROVIDER ?? "").trim().toLowerCase()
     const hasFal = !!process.env.FAL_KEY
     const hasRunPod = !!process.env.RUNPOD_API_KEY
+    const hasRunPodPaint = hasRunPod && !!process.env.RUNPOD_ENDPOINT_HUNYUAN_PAINT
+    const hasRunPodPart = hasRunPod && !!process.env.RUNPOD_ENDPOINT_HUNYUAN_PART
     const forceSelfHosted = providerPreference === "self-hosted"
     const forceFal = providerPreference === "fal"
 
@@ -178,7 +180,10 @@ export async function createNeuralClient(slug: ProviderSlug): Promise<Neural3DCl
     }
 
     // RunPod Serverless routing for models without hosted APIs
-    if (!forceSelfHosted && hasRunPod && (slug === "hunyuan-paint" || slug === "hunyuan-part")) {
+    if (
+        !forceSelfHosted &&
+        ((slug === "hunyuan-paint" && hasRunPodPaint) || (slug === "hunyuan-part" && hasRunPodPart))
+    ) {
         const { RunPodClient } = await import("./providers/runpod-client")
         return new RunPodClient(slug)
     }

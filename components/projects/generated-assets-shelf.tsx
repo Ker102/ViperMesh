@@ -18,17 +18,17 @@ export function GeneratedAssetsShelf({
     onOpenAsset,
     onContinueToPaint,
 }: GeneratedAssetsShelfProps) {
+    if (!open) {
+        return null
+    }
+
     return (
         <aside
             className="flex h-full w-[340px] shrink-0 flex-col border-r transition-all duration-300"
             style={{
-                width: open ? 340 : 0,
-                opacity: open ? 1 : 0,
-                pointerEvents: open ? "auto" : "none",
                 borderColor: "hsl(var(--forge-border))",
                 backgroundColor: "hsl(var(--forge-surface))",
             }}
-            aria-hidden={!open}
         >
             <div
                 className="flex items-center justify-between border-b px-5 py-4"

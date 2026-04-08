@@ -97,6 +97,10 @@ function resolveInputDisplayValue(input: ToolInput, inputs: Record<string, strin
     return rawValue
 }
 
+function getImageInputKey(tool: ToolEntry): string | undefined {
+    return tool.inputs.find((input) => input.type === "image")?.key
+}
+
 function PreviewImage(props: React.ImgHTMLAttributes<HTMLImageElement> & { alt: string }) {
     const { alt, ...imgProps } = props
 
@@ -1513,6 +1517,7 @@ export function StudioWorkspace({
     const [savedNeuralRuns, setSavedNeuralRuns] = useState<Record<string, ActiveNeuralRun>>({})
     const [viewerSamples, setViewerSamples] = useState<ViewerSample[]>([])
     const neuralAbortRef = useRef<AbortController | null>(null)
+    const handledExternalLaunchTokenRef = useRef<string | null>(null)
     const category = CATEGORIES.find(
         (c: CategoryMeta) => c.id === activeCategory
     )
@@ -1581,9 +1586,12 @@ export function StudioWorkspace({
 
     useEffect(() => {
         if (!externalToolLaunch) return
+        if (handledExternalLaunchTokenRef.current === externalToolLaunch.token) return
+
         const tool = getToolById(externalToolLaunch.toolId)
         if (!tool) return
 
+        handledExternalLaunchTokenRef.current = externalToolLaunch.token
         neuralAbortRef.current?.abort()
         setNeuralRun(null)
         setToolDrafts((prev) => ({
@@ -1626,9 +1634,8 @@ export function StudioWorkspace({
         if (!tool.provider) return
 
         const stepId = onNeuralRunStart(tool, inputs, existingStepId)
-        const imageDataUrl = tool.inputs.find((input) => input.type === "image")
-            ? inputs[tool.inputs.find((input) => input.type === "image")?.key ?? ""]
-            : undefined
+        const imageInputKey = getImageInputKey(tool)
+        const imageDataUrl = imageInputKey ? inputs[imageInputKey] : undefined
         const resolutionValue = inputs.resolution ? Number(inputs.resolution) : undefined
         const targetFacesValue = inputs.targetFaces ? Number(inputs.targetFaces) : undefined
         const carriedViewerUrl = inputs.meshUrl || null
@@ -1809,7 +1816,7 @@ export function StudioWorkspace({
 
     // ── Detail view ──
     if (neuralRun) {
-        const referenceImageKey = neuralRun.tool.inputs.find((input) => input.type === "image")?.key
+        const referenceImageKey = getImageInputKey(neuralRun.tool)
         const referenceImage = referenceImageKey ? neuralRun.inputs[referenceImageKey] : undefined
 
         return (

@@ -2,7 +2,7 @@
 
 import type { ModelViewerElement } from "@google/model-viewer";
 import { Download, Loader2, Maximize2, RotateCcw } from "lucide-react";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface ModelViewerProps {
@@ -32,7 +32,7 @@ function getSafeModelUrl(urlString: string): string | null {
                 ? window.location.origin
                 : "http://127.0.0.1";
         const url = new URL(urlString, baseUrl);
-        const blockedProtocols = ["data:", "blob:", "javascript:", "file:"];
+        const blockedProtocols = ["data:", "blob:", "javascript:", "vbscript:", "file:"];
 
         if (blockedProtocols.includes(url.protocol)) {
             console.warn("ModelViewer: Blocked unsafe protocol:", url.protocol);
@@ -94,6 +94,7 @@ export function ModelViewer({
 }: ModelViewerProps) {
     const viewerRef = useRef<ModelViewerElement | null>(null);
     const frameRef = useRef<HTMLDivElement | null>(null);
+    const descriptionId = useId();
     const [isRegistered, setIsRegistered] = useState<boolean>(() => {
         if (typeof window === "undefined") return false;
         return customElements.get("model-viewer") != null;
@@ -198,12 +199,32 @@ export function ModelViewer({
         await frameRef.current.requestFullscreen();
     };
 
+    const getDownloadFilename = () => {
+        if (!safeUrl) return "model.glb";
+
+        try {
+            const parsed = new URL(safeUrl, typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1");
+            const queryPath = parsed.searchParams.get("path");
+            const candidate = queryPath
+                ? decodeURIComponent(queryPath).split(/[\\/]/).filter(Boolean).at(-1)
+                : parsed.pathname.split("/").filter(Boolean).at(-1);
+
+            if (!candidate) {
+                return "model.glb";
+            }
+
+            return candidate.toLowerCase().endsWith(".glb") ? candidate : `${candidate}.glb`;
+        } catch {
+            return "model.glb";
+        }
+    };
+
     const handleDownload = () => {
         if (!safeUrl) return;
 
         const anchor = document.createElement("a");
         anchor.href = safeUrl;
-        anchor.download = safeUrl.split("/").pop() ?? "model.glb";
+        anchor.download = getDownloadFilename();
         document.body.appendChild(anchor);
         anchor.click();
         anchor.remove();
@@ -239,7 +260,7 @@ export function ModelViewer({
             role="img"
             aria-label="Interactive 3D model viewer. Drag to rotate, scroll to zoom, and right-click drag to pan."
         >
-            <div id="model-viewer-description" className="sr-only">
+            <div id={descriptionId} className="sr-only">
                 A 3D model viewer displaying a generated asset. Drag to orbit the camera,
                 scroll to zoom, and right-click drag to pan around the model.
             </div>
@@ -257,7 +278,7 @@ export function ModelViewer({
                 exposure="1"
                 className="h-full w-full"
                 style={{ backgroundColor: "transparent" }}
-                aria-describedby="model-viewer-description"
+                aria-describedby={descriptionId}
             />
 
             {status === "booting" && <LoadingState message="Initializing 3D viewer..." />}

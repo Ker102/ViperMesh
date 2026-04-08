@@ -39,9 +39,7 @@ export function GenerationPanel() {
                 if (cancelled) return;
                 const samples = Array.isArray(data.samples) ? data.samples : [];
                 setViewerSamples(samples);
-                if (!selectedSampleId && samples.length > 0) {
-                    setSelectedSampleId(samples[0].id);
-                }
+                setSelectedSampleId((current) => current || samples[0]?.id || "");
             })
             .catch((sampleError: unknown) => {
                 console.warn("Failed to load viewer samples", sampleError);
@@ -50,7 +48,7 @@ export function GenerationPanel() {
         return () => {
             cancelled = true;
         };
-    }, [selectedSampleId]);
+    }, []);
 
     const handleGenerate = async () => {
         if (!prompt || isGenerating) return;

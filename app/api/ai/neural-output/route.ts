@@ -19,6 +19,9 @@ export async function GET(request: NextRequest) {
     if (!safePath) {
         return NextResponse.json({ error: "Invalid model path" }, { status: 400 })
     }
+    if (path.extname(safePath).toLowerCase() !== ".glb") {
+        return NextResponse.json({ error: "Only .glb neural outputs can be streamed" }, { status: 400 })
+    }
 
     try {
         const buffer = await readFile(safePath)

@@ -92,6 +92,8 @@ export function StudioSidebar({
                         : undefined
                 }
                 title="Generated Assets"
+                aria-label="Toggle generated assets shelf"
+                aria-expanded={generatedAssetsOpen}
             >
                 <LibraryIcon size={20} />
                 {generatedAssetCount > 0 && (

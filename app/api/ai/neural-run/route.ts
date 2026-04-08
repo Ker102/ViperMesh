@@ -86,9 +86,9 @@ function resolveMeshInput(meshUrl?: string): string | undefined {
         const parsed = new URL(meshUrl, "http://127.0.0.1")
         if (parsed.pathname === "/api/ai/neural-output") {
             const rawPath = parsed.searchParams.get("path")
-            if (!rawPath) return meshUrl
+            if (!rawPath) return undefined
             const safePath = resolveNeuralOutputPath(rawPath)
-            return safePath ?? meshUrl
+            return safePath ?? undefined
         }
     } catch {
         // Fall through to raw value handling
@@ -120,13 +120,17 @@ export async function POST(request: Request) {
 
     const { provider, prompt, imageDataUrl, meshUrl, resolution, textureResolution, targetFaces } = parsed.data
     const resolvedMeshUrl = resolveMeshInput(meshUrl)
+    const normalizedPayload = {
+        ...parsed.data,
+        meshUrl: resolvedMeshUrl,
+    }
 
-    const validationError = validateRequest(provider, parsed.data)
+    const validationError = validateRequest(provider, normalizedPayload)
     if (validationError) {
         return NextResponse.json({ error: validationError }, { status: 400 })
     }
 
-    const mode = resolveMode(provider, parsed.data)
+    const mode = resolveMode(provider, normalizedPayload)
 
     try {
         const client = await createNeuralClient(provider as ProviderSlug)
@@ -142,17 +146,17 @@ export async function POST(request: Request) {
             outputFormat: "glb",
         })
 
-        if (result.status !== "completed" || !result.modelPath) {
+        const viewerUrl = resolveViewerUrl(result)
+
+        if (result.status !== "completed" || !viewerUrl) {
             return NextResponse.json(
                 {
                     ...result,
-                    viewerUrl: null,
+                    viewerUrl,
                 },
                 { status: 422 },
             )
         }
-
-        const viewerUrl = resolveViewerUrl(result)
 
         return NextResponse.json({
             ...result,

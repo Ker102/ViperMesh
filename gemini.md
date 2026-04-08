@@ -1,5 +1,73 @@
 # ViperMesh — Current Progress
 
+## Current Session: 2026-04-08
+
+### What Was Done
+1. **Applied the verified CodeRabbit review fixes for PR #28:**
+   - Treated CodeRabbit comments as hypotheses and only patched the ones that were defensible against the current code and runtime behavior
+   - Skipped broader or ambiguous suggestions that would have required feature-scope changes rather than review-driven corrections
+
+2. **Hardened neural output path handling and output URLs:**
+   - Updated `lib/neural/output-files.ts`
+   - Neural output paths are now canonicalized with `realpathSync` before use
+   - Added a regular-file check to prevent directories or symlink escapes from being treated as valid outputs
+   - `buildNeuralOutputUrl()` no longer exposes absolute local filesystem paths to the client; it now emits a relative path scoped under `tmp/neural-output`
+
+3. **Tightened the authenticated neural output streaming route:**
+   - Updated `app/api/ai/neural-output/route.ts`
+   - The route now rejects any resolved neural output that is not a `.glb`
+   - This keeps the viewer transport surface aligned with the current Studio neural viewer contract
+
+4. **Fixed the generic Studio neural run route for non-geometry completions:**
+   - Updated `app/api/ai/neural-run/route.ts`
+   - The route now validates mesh-based tool runs using the normalized mesh input
+   - `/api/ai/neural-output?...` mesh inputs are resolved back to safe local paths before provider execution
+   - Completion handling now accepts successful providers whose result path lives in:
+     - `modelPath`
+     - `riggedModelPath`
+     - `retopologyPath`
+   - This avoids incorrectly rejecting valid `unirig` or `meshanything-v2` completions
+
+5. **Hardened RunPod provider selection:**
+   - Updated `lib/neural/registry.ts`
+   - `hunyuan-paint` and `hunyuan-part` now only route to `RunPodClient` when both:
+     - `RUNPOD_API_KEY` is present
+     - the corresponding endpoint env var is configured
+   - This prevents the registry from selecting RunPod and then failing later with a missing-endpoint runtime exception
+
+6. **Fixed the sample viewer route and sandbox fetch behavior:**
+   - Updated `app/api/generate/3d/samples/route.ts`
+   - Missing sample files now return `404` instead of surfacing as a route error
+   - Updated `components/generation/GenerationPanel.tsx`
+   - The viewer sample bootstrap no longer refetches repeatedly because of the selected-sample state loop
+
+7. **Improved viewer safety and accessibility polish:**
+   - Updated `components/generation/ModelViewer.tsx`
+   - Added `vbscript:` to the blocked protocol list
+   - Replaced the hardcoded `model-viewer-description` ID with a per-instance `useId()` value so multiple viewers do not share duplicate IDs
+   - Improved download naming so `/api/ai/neural-output?...` viewer URLs save as stable `.glb` filenames instead of query-string fragments
+   - Updated `lib/types/model-viewer.d.ts` so the custom-element JSX augmentation hangs off `react` rather than `react/jsx-runtime`
+
+8. **Fixed sidebar/shelf accessibility and Studio launch-state issues:**
+   - Updated `components/projects/generated-assets-shelf.tsx`
+   - The generated-assets shelf now unmounts fully when closed, so hidden buttons are no longer left mounted and tabbable
+   - Updated `components/projects/studio-sidebar.tsx`
+   - Added explicit `aria-label` and `aria-expanded` state to the icon-only Generated Assets toggle
+   - Updated `components/projects/studio-workspace.tsx`
+   - Deduplicated repeated `externalToolLaunch` handling by launch token
+   - Removed duplicated `tool.inputs.find(...)` work when resolving the active image input
+
+### Validation
+- `npx tsc --noEmit` ✅
+- `npm run lint` ✅
+
+### Notes
+- Intentionally did **not** apply every CodeRabbit suggestion. The skipped ones were either:
+  - lower-value performance nits
+  - ambiguous version-contract suggestions
+  - or broader behavior changes that should be handled as separate product work rather than folded into a review-fix pass
+- The remaining lint output is only the existing `baseline-browser-mapping` age notice, not an ESLint failure.
+
 ## Last Session: 2026-03-31 (Studio Neural Paint Handoff + Viewer Header Polish)
 
 ### What Was Done

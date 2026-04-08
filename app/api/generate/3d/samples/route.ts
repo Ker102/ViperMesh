@@ -31,7 +31,12 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Sample model not found" }, { status: 404 });
     }
 
-    const buffer = await readFile(sample.filePath);
+    let buffer: Buffer
+    try {
+        buffer = await readFile(sample.filePath)
+    } catch {
+        return NextResponse.json({ error: "Sample model not found" }, { status: 404 })
+    }
 
     return new NextResponse(new Uint8Array(buffer), {
         headers: {

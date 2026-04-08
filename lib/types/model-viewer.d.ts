@@ -17,7 +17,7 @@ type ModelViewerIntrinsicProps = React.DetailedHTMLProps<
     "environment-image"?: string;
 };
 
-declare module "react/jsx-runtime" {
+declare module "react" {
     namespace JSX {
         interface IntrinsicElements {
             "model-viewer": ModelViewerIntrinsicProps;
