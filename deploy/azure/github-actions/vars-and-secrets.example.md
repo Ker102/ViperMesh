@@ -1,6 +1,8 @@
 # Azure GitHub Configuration
 
-Use GitHub OIDC for Azure login.
+The active workflow supports either:
+- `AZURE_CREDENTIALS` as a service-principal JSON secret
+- or Azure OIDC with `AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID`
 
 ## Required GitHub Secrets
 
@@ -14,6 +16,9 @@ Use GitHub OIDC for Azure login.
 - `AZURE_ACR_NAME`
 - `AZURE_CONTAINER_APP_HUNYUAN_SHAPE`
 - `AZURE_CONTAINER_APP_HUNYUAN_PAINT`
+- `AZURE_CONTAINER_APP_ENVIRONMENT`
+- `AZURE_T4_WORKLOAD_PROFILE`
+- `AZURE_A100_WORKLOAD_PROFILE`
 
 Later, when the Part Azure HTTP service exists:
 - `AZURE_CONTAINER_APP_HUNYUAN_PART`
@@ -22,7 +27,8 @@ Later, when the Part Azure HTTP service exists:
 
 - `AZURE_ACR_NAME` should be the registry name only, not the full `.azurecr.io` hostname
 - the Container App variables should be the exact Azure Container App resource names
-- the example workflow assumes the Container Apps already exist and are already configured to pull from ACR
+- the active workflow can build and push without the Container Apps existing yet
+- if deploy is requested, the workflow assumes the target Container Apps already exist
 
 ## Future Runtime Variables
 
@@ -37,3 +43,17 @@ Legacy fallback still supported by the app:
 
 Later:
 - `HUNYUAN_PART_URL`
+
+## Current ViperMesh Azure Values
+
+For the current Azure setup, these are the expected values:
+
+- `AZURE_RESOURCE_GROUP=gpumodels`
+- `AZURE_ACR_NAME=vipershreg`
+- `AZURE_CONTAINER_APP_ENVIRONMENT=managedEnvironment-gpumodels-970d`
+- `AZURE_T4_WORKLOAD_PROFILE=T4profile`
+- `AZURE_A100_WORKLOAD_PROFILE=a100profile`
+
+Suggested app names:
+- `AZURE_CONTAINER_APP_HUNYUAN_SHAPE=vipermesh-shape-api`
+- `AZURE_CONTAINER_APP_HUNYUAN_PAINT=vipermesh-paint-api`

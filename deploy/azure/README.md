@@ -30,6 +30,15 @@ Why:
 - easier Container Apps integration
 - better fit for private GPU images than Docker Hub
 
+Current ViperMesh Azure state:
+- registry: `vipershreg`
+- `publicNetworkAccess` is enabled
+- `anonymousPullEnabled` is currently `false`
+
+Important:
+- public network access does not make the registry anonymously pullable
+- if you keep the current registry settings, Container Apps still need registry auth
+
 ### Compute
 Use Azure Container Apps GPU first.
 
@@ -70,13 +79,15 @@ Recommended flow:
 4. push to ACR
 5. update Azure Container App revision
 
-An example workflow lives at:
+Workflow files:
 - `deploy/azure/github-actions/azure-neural-container-apps.yml.example`
+- `.github/workflows/deploy-azure-neural-gpu.yml`
 
-That file is intentionally not active yet because:
-- the Azure-ready HTTP Dockerfiles are only implemented for Shape and Paint
-- Part is still pending
-- the workflow should not be turned on until ACR/OIDC setup is ready
+The active workflow now covers:
+- build + push for Shape and Paint
+- optional manual deploy to existing Container Apps
+
+Part is still pending and intentionally excluded from the active workflow.
 
 ## Repo Secrets And Variables
 
@@ -84,6 +95,9 @@ See:
 - `deploy/azure/github-actions/vars-and-secrets.example.md`
 - `deploy/azure/setup-checklist.md`
 - `deploy/azure/gpu-and-quota-reference.md`
+
+Current helper script:
+- `deploy/azure/create-container-apps.ps1`
 
 ## Operational Recommendation
 

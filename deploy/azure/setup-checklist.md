@@ -84,6 +84,9 @@ Set these GitHub variables:
 - `AZURE_ACR_NAME`
 - `AZURE_CONTAINER_APP_HUNYUAN_SHAPE`
 - `AZURE_CONTAINER_APP_HUNYUAN_PAINT`
+- `AZURE_CONTAINER_APP_ENVIRONMENT`
+- `AZURE_T4_WORKLOAD_PROFILE`
+- `AZURE_A100_WORKLOAD_PROFILE`
 
 Add later when the Part HTTP service exists:
 - `AZURE_CONTAINER_APP_HUNYUAN_PART`
@@ -101,15 +104,33 @@ Backward-compatible fallback:
 The app now supports the dedicated shape/paint URLs first and falls back to the
 legacy shared Hunyuan URL only if the dedicated vars are unset.
 
+## Current Azure Values
+
+Current known ViperMesh Azure resources:
+- resource group: `gpumodels`
+- container apps environment: `managedEnvironment-gpumodels-970d`
+- container registry: `vipershreg`
+- T4 workload profile: `T4profile`
+- A100 workload profile: `a100profile`
+
+Current registry note:
+- `vipershreg` has `anonymousPullEnabled=false`
+- unless you explicitly change that, Container Apps still need registry auth
+
+Suggested initial app names:
+- `vipermesh-shape-api`
+- `vipermesh-paint-api`
+
 ## Deployment Order
 
 1. Stabilize ACR and Azure login from GitHub Actions.
-2. Build the future Azure HTTP image for `hunyuan-shape-api`.
-3. Build the future Azure HTTP image for `hunyuan-paint-api`.
-4. Deploy `hunyuan-paint-api` first and verify one successful request.
-5. Deploy `hunyuan-shape-api`.
-6. Switch ViperMesh env vars from RunPod to Azure for Shape/Paint.
-7. Add `hunyuan-part-api` later when that service is implemented.
+2. Use the active GitHub Actions workflow to build and push `hunyuan-shape-api`.
+3. Use the active GitHub Actions workflow to build and push `hunyuan-paint-api`.
+4. Create the Container Apps with `deploy/azure/create-container-apps.ps1` or equivalent Azure CLI commands.
+5. Deploy `hunyuan-paint-api` first and verify one successful request.
+6. Deploy `hunyuan-shape-api`.
+7. Switch ViperMesh env vars from RunPod to Azure for Shape/Paint.
+8. Add `hunyuan-part-api` later when that service is implemented.
 
 ## Do Not Do Yet
 

@@ -1112,6 +1112,11 @@
    - Implemented `deploy/azure/hunyuan-paint-api/app.py` as a dedicated FastAPI wrapper for the existing ViperMesh `/texturize` contract, decoding base64 mesh/image payloads, lazily loading `Hunyuan3DPaintPipeline`, and returning a binary GLB/OBJ file response
    - Added `deploy/azure/hunyuan-paint-api/Dockerfile` and `start.sh`, including the paint-specific `custom_rasterizer` and `DifferentiableRenderer` build steps from Tencent's official Hunyuan3D 2.1 setup instructions plus the Real-ESRGAN checkpoint download required by the paint stack
    - Updated the Azure docs to reflect the actual state of the repo: Shape and Paint now have implemented HTTP container scaffolds, while `hunyuan-part-api` remains a planned later slice and should not yet be included in the active GitHub Actions deployment workflow
+24. **Azure CI/CD Activation + Current Environment Wiring**:
+   - Added the real workflow at `.github/workflows/deploy-azure-neural-gpu.yml`, activating build-and-push for `hunyuan-shape-api` and `hunyuan-paint-api` and supporting both Azure auth modes: `AZURE_CREDENTIALS` service-principal JSON or the OIDC-style `AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID`
+   - Added `deploy/azure/create-container-apps.ps1`, a PowerShell helper that targets the live Azure environment (`gpumodels`, `managedEnvironment-gpumodels-970d`, `vipershreg`, `T4profile`, `a100profile`) and can create or update the Shape and Paint Container Apps against the ACR images
+   - Verified with Azure CLI that the current registry is not anonymously pullable: `vipershreg` has `publicNetworkAccess=Enabled` but `anonymousPullEnabled=false`, so Container Apps still need registry auth unless anonymous pull is explicitly enabled later
+   - Updated the Azure setup docs and GitHub variable template with the current concrete Azure resource names plus the extra repository variables used by the new workflow and helper script
 
 ### Validation
 - `npx tsc --noEmit`
