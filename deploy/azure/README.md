@@ -100,6 +100,16 @@ Recommended setup:
 - Azure Container App secret/env:
   - `API_BEARER_TOKEN`
 
+Use the Azure Container App HTTPS FQDNs in the backend runtime:
+- `HUNYUAN_SHAPE_API_URL=https://<shape-app>.<region>.azurecontainerapps.io`
+- `HUNYUAN_PAINT_API_URL=https://<paint-app>.<region>.azurecontainerapps.io`
+
+Important:
+- local development defaults may still use `http://localhost:8080`
+- Azure production calls should use the external HTTPS endpoint URLs
+- the bearer token is application-level auth enforced by the container service itself
+- it is separate from Azure RBAC, managed identity, and ACR pull auth
+
 Current behavior:
 - the ViperMesh backend sends `Authorization: Bearer ...` when the corresponding
   `HUNYUAN_*_API_TOKEN` env var is set
@@ -109,6 +119,14 @@ Current behavior:
 
 The helper script `deploy/azure/create-container-apps.ps1` can inject the token
 into each Container App as a secret-backed environment variable.
+It also applies explicit HTTP health probes so the Shape/Paint services get a
+long enough startup window for heavy model initialization on Azure.
+It also sets explicit CPU and memory values for the GPU services so Azure
+doesn't fall back to the generic `0.5 CPU / 1Gi` default.
+
+If you prefer the Azure portal instead of CLI, configure `API_BEARER_TOKEN`
+under the Container App's secrets and reference it from the container
+environment variables. The CLI helper already does this automatically.
 
 ## Repo Secrets And Variables
 

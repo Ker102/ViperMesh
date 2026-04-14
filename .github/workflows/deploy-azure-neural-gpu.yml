@@ -44,11 +44,11 @@ jobs:
           - service: hunyuan-shape-api
             imageName: hunyuan-shape-api
             dockerfile: deploy/azure/hunyuan-shape-api/Dockerfile
-            context: deploy/azure/hunyuan-shape-api
+            context: .
           - service: hunyuan-paint-api
             imageName: hunyuan-paint-api
             dockerfile: deploy/azure/hunyuan-paint-api/Dockerfile
-            context: deploy/azure/hunyuan-paint-api
+            context: .
     if: github.event_name != 'workflow_dispatch' || github.event.inputs.target == 'all' || github.event.inputs.target == matrix.service
 
     steps:

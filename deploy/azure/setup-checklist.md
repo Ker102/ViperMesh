@@ -103,6 +103,15 @@ Preferred runtime env vars:
 - `HUNYUAN_SHAPE_API_TOKEN`
 - `HUNYUAN_PAINT_API_TOKEN`
 
+Use HTTPS Container App URLs for Azure, for example:
+- `HUNYUAN_SHAPE_API_URL=https://vipermesh-shape-api.<suffix>.azurecontainerapps.io`
+- `HUNYUAN_PAINT_API_URL=https://vipermesh-paint-api.<suffix>.azurecontainerapps.io`
+
+The bearer tokens are application-level secrets enforced by the Shape/Paint
+containers. They are not Azure identity credentials and should be stored as:
+- ViperMesh backend runtime secrets for outbound calls
+- Container App secrets referenced by `API_BEARER_TOKEN`
+
 Backward-compatible fallback:
 - `HUNYUAN_API_URL`
 
@@ -133,6 +142,8 @@ Suggested initial app names:
 3. Use the active GitHub Actions workflow to build and push `hunyuan-paint-api`.
 4. Create the Container Apps with `deploy/azure/create-container-apps.ps1` or equivalent Azure CLI commands.
    - pass `-ShapeApiToken` and `-PaintApiToken`, or set the matching environment variables before running the script
+   - keep the helper-managed health probes; the Shape container needs an extended startup window
+   - do not rely on Azure's tiny default container size; the helper now sets explicit CPU/memory for Shape/Paint
 5. Deploy `hunyuan-paint-api` first and verify one successful request.
 6. Deploy `hunyuan-shape-api`.
 7. Switch ViperMesh env vars from RunPod to Azure for Shape/Paint.

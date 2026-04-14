@@ -9,6 +9,10 @@ param(
     [string]$ImageTag = "latest",
     [string]$ShapeApiToken = $env:HUNYUAN_SHAPE_API_TOKEN,
     [string]$PaintApiToken = $env:HUNYUAN_PAINT_API_TOKEN,
+    [string]$ShapeCpu = "2.0",
+    [string]$ShapeMemory = "4Gi",
+    [string]$PaintCpu = "2.0",
+    [string]$PaintMemory = "4Gi",
     [int]$ShapeMinReplicas = 0,
     [int]$ShapeMaxReplicas = 3,
     [int]$PaintMinReplicas = 0,
@@ -45,12 +49,52 @@ function Ensure-SystemIdentityAndRegistry {
     }
 }
 
+function Set-ContainerAppProbes {
+    param(
+        [string]$AppName,
+        [object[]]$Probes
+    )
+
+    if (-not $Probes -or $Probes.Count -eq 0) {
+        return
+    }
+
+    $tmpYaml = Join-Path $env:TEMP "$AppName-containerapp.yaml"
+    $tmpJson = Join-Path $env:TEMP "$AppName-probes.json"
+
+    try {
+        az containerapp show --name $AppName --resource-group $ResourceGroup -o yaml | Set-Content -Path $tmpYaml
+        $Probes | ConvertTo-Json -Depth 10 | Set-Content -Path $tmpJson
+
+        $pythonPatch = @"
+import json
+import pathlib
+import yaml
+
+yaml_path = pathlib.Path(r'''$tmpYaml''')
+json_path = pathlib.Path(r'''$tmpJson''')
+
+data = yaml.safe_load(yaml_path.read_text())
+data['properties']['template']['containers'][0]['probes'] = json.loads(json_path.read_text())
+yaml_path.write_text(yaml.safe_dump(data, sort_keys=False))
+"@
+
+        python -c $pythonPatch
+        az containerapp update --name $AppName --resource-group $ResourceGroup --yaml $tmpYaml --only-show-errors 1>$null
+    } finally {
+        Remove-Item $tmpYaml -Force -ErrorAction SilentlyContinue
+        Remove-Item $tmpJson -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Ensure-ContainerApp {
     param(
         [string]$AppName,
         [string]$Image,
         [string]$WorkloadProfile,
         [string]$ApiToken,
+        [string]$Cpu,
+        [string]$Memory,
         [int]$MinReplicas,
         [int]$MaxReplicas,
         [string[]]$EnvVars
@@ -77,6 +121,8 @@ function Ensure-ContainerApp {
             "--resource-group", $ResourceGroup,
             "--image", $Image,
             "--workload-profile-name", $WorkloadProfile,
+            "--cpu", $Cpu,
+            "--memory", $Memory,
             "--min-replicas", "$MinReplicas",
             "--max-replicas", "$MaxReplicas",
             "--set-env-vars"
@@ -101,6 +147,8 @@ function Ensure-ContainerApp {
             "--ingress", "external",
             "--target-port", "8080",
             "--transport", "auto",
+            "--cpu", $Cpu,
+            "--memory", $Memory,
             "--min-replicas", "$MinReplicas",
             "--max-replicas", "$MaxReplicas",
             "--workload-profile-name", $WorkloadProfile
@@ -136,11 +184,79 @@ $script:RegistryId = $registry.id
 $shapeImage = "$($script:RegistryServer)/vipermesh/hunyuan-shape-api:$ImageTag"
 $paintImage = "$($script:RegistryServer)/vipermesh/hunyuan-paint-api:$ImageTag"
 
+$shapeProbes = @(
+    @{
+        type = "Startup"
+        httpGet = @{
+            path = "/health"
+            port = 8080
+        }
+        initialDelaySeconds = 60
+        periodSeconds = 10
+        failureThreshold = 30
+    },
+    @{
+        type = "Readiness"
+        httpGet = @{
+            path = "/health"
+            port = 8080
+        }
+        initialDelaySeconds = 60
+        periodSeconds = 15
+        failureThreshold = 8
+    },
+    @{
+        type = "Liveness"
+        httpGet = @{
+            path = "/health"
+            port = 8080
+        }
+        initialDelaySeconds = 60
+        periodSeconds = 30
+        failureThreshold = 3
+    }
+)
+
+$paintProbes = @(
+    @{
+        type = "Startup"
+        httpGet = @{
+            path = "/health"
+            port = 8080
+        }
+        initialDelaySeconds = 30
+        periodSeconds = 10
+        failureThreshold = 24
+    },
+    @{
+        type = "Readiness"
+        httpGet = @{
+            path = "/health"
+            port = 8080
+        }
+        initialDelaySeconds = 30
+        periodSeconds = 15
+        failureThreshold = 6
+    },
+    @{
+        type = "Liveness"
+        httpGet = @{
+            path = "/health"
+            port = 8080
+        }
+        initialDelaySeconds = 60
+        periodSeconds = 30
+        failureThreshold = 3
+    }
+)
+
 Ensure-ContainerApp `
     -AppName $ShapeAppName `
     -Image $shapeImage `
     -WorkloadProfile $ShapeWorkloadProfile `
     -ApiToken $ShapeApiToken `
+    -Cpu $ShapeCpu `
+    -Memory $ShapeMemory `
     -MinReplicas $ShapeMinReplicas `
     -MaxReplicas $ShapeMaxReplicas `
     -EnvVars @(
@@ -149,12 +265,15 @@ Ensure-ContainerApp `
         "ENABLE_FLASHVDM=0",
         "ENABLE_COMPILE=0"
     )
+Set-ContainerAppProbes -AppName $ShapeAppName -Probes $shapeProbes
 
 Ensure-ContainerApp `
     -AppName $PaintAppName `
     -Image $paintImage `
     -WorkloadProfile $PaintWorkloadProfile `
     -ApiToken $PaintApiToken `
+    -Cpu $PaintCpu `
+    -Memory $PaintMemory `
     -MinReplicas $PaintMinReplicas `
     -MaxReplicas $PaintMaxReplicas `
     -EnvVars @(
@@ -162,5 +281,6 @@ Ensure-ContainerApp `
         "PAINT_MAX_NUM_VIEW=6",
         "PAINT_RESOLUTION=512"
     )
+Set-ContainerAppProbes -AppName $PaintAppName -Probes $paintProbes
 
 Write-Host "Shape and Paint Container Apps are configured."

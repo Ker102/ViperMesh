@@ -1,24 +1,52 @@
+import base64
+import binascii
+import io
 import os
 import secrets
+import sys
+import tempfile
+import threading
+import uuid
+from pathlib import Path
+from typing import Optional
 
-import httpx
-from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel, Field
+from PIL import Image
 
 
-INTERNAL_API_PORT = int(os.environ.get("SHAPE_INTERNAL_PORT", "8081"))
-INTERNAL_API_BASE_URL = os.environ.get(
-    "SHAPE_INTERNAL_API_URL",
-    f"http://127.0.0.1:{INTERNAL_API_PORT}",
-)
+REPO_DIR = Path(os.environ.get("HUNYUAN_REPO_DIR", "/app/hunyuan3d"))
+HY3DSHAPE_DIR = REPO_DIR / "hy3dshape"
+TEMP_ROOT = Path(os.environ.get("SHAPE_WORK_DIR", tempfile.mkdtemp(prefix="azure_shape_")))
+MODEL_PATH = os.environ.get("MODEL_PATH", "tencent/Hunyuan3D-2.1")
 API_BEARER_TOKEN = os.environ.get("API_BEARER_TOKEN", "").strip()
+ENABLE_FLASHVDM = os.environ.get("ENABLE_FLASHVDM", "0") == "1"
+ENABLE_COMPILE = os.environ.get("ENABLE_COMPILE", "0") == "1"
+FLASHVDM_MC_ALGO = os.environ.get("FLASHVDM_MC_ALGO", "mc")
+
+if str(HY3DSHAPE_DIR) not in sys.path:
+    sys.path.insert(0, str(HY3DSHAPE_DIR))
+
+from hy3dshape.pipelines import Hunyuan3DDiTFlowMatchingPipeline  # noqa: E402
+from hy3dshape.rembg import BackgroundRemover  # noqa: E402
 
 
-app = FastAPI(
-    title="Hunyuan Shape API",
-    description="Azure-friendly bearer-auth proxy for Hunyuan3D Shape 2.1",
-    version="0.1.0",
-)
+class ShapeRequest(BaseModel):
+    image: Optional[str] = Field(
+        default=None,
+        description="Input image as a data URL or base64 string.",
+    )
+    text: Optional[str] = Field(
+        default=None,
+        description="Optional prompt. The self-hosted shape service currently requires an image.",
+    )
+    output_format: str = Field(default="glb", pattern="^(glb)$")
+
+
+MODEL = None
+BACKGROUND_REMOVER = None
+MODEL_LOCK = threading.Lock()
 
 
 def require_auth(authorization: str | None) -> None:
@@ -33,43 +61,99 @@ def require_auth(authorization: str | None) -> None:
         raise HTTPException(status_code=401, detail="Invalid bearer token")
 
 
+def _decode_base64_payload(value: str) -> bytes:
+    payload = value.split(",", 1)[1] if value.startswith("data:") and "," in value else value
+    try:
+        return base64.b64decode(payload)
+    except (ValueError, binascii.Error) as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid base64 payload: {exc}") from exc
+
+
+def _load_model():
+    global MODEL, BACKGROUND_REMOVER
+    if MODEL is not None and BACKGROUND_REMOVER is not None:
+        return MODEL, BACKGROUND_REMOVER
+
+    with MODEL_LOCK:
+        if MODEL is None:
+            MODEL = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(MODEL_PATH)
+            if ENABLE_FLASHVDM:
+                MODEL.enable_flashvdm(mc_algo=FLASHVDM_MC_ALGO)
+            if ENABLE_COMPILE:
+                MODEL.compile()
+
+        if BACKGROUND_REMOVER is None:
+            BACKGROUND_REMOVER = BackgroundRemover()
+
+    return MODEL, BACKGROUND_REMOVER
+
+
+def _prepare_image(image_value: str) -> Image.Image:
+    image_bytes = _decode_base64_payload(image_value)
+    try:
+        source = Image.open(io.BytesIO(image_bytes))
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid image payload: {exc}") from exc
+
+    had_alpha = "A" in source.getbands()
+    source = source.convert("RGBA")
+    _, background_remover = _load_model()
+    if not had_alpha:
+        return background_remover(source)
+    return source
+
+
+def _export_mesh(mesh, output_path: Path) -> Path:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    mesh.export(output_path)
+    if not output_path.exists():
+        raise HTTPException(status_code=500, detail="Shape pipeline completed without producing an output file.")
+    return output_path
+
+
+app = FastAPI(
+    title="Hunyuan Shape API",
+    description="Azure-friendly image-to-shape wrapper for Hunyuan3D Shape 2.1",
+    version="0.2.0",
+)
+
+
 @app.get("/health")
 async def health():
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get(f"{INTERNAL_API_BASE_URL}/health")
-        return JSONResponse(
-            {
-                "status": "healthy" if response.is_success else "degraded",
-                "upstream_status": response.status_code,
-                "token_configured": bool(API_BEARER_TOKEN),
-            },
-            status_code=200 if response.is_success else 503,
-        )
-    except Exception as exc:
-        return JSONResponse(
-            {
-                "status": "unhealthy",
-                "token_configured": bool(API_BEARER_TOKEN),
-                "error": str(exc),
-            },
-            status_code=503,
-        )
+    return JSONResponse(
+        {
+            "status": "healthy",
+            "model_loaded": MODEL is not None,
+            "token_configured": bool(API_BEARER_TOKEN),
+            "model_path": MODEL_PATH,
+        },
+        status_code=200,
+    )
 
 
 @app.post("/generate")
-async def generate(request: Request, authorization: str | None = Header(default=None)):
+async def generate(request: ShapeRequest, authorization: str | None = Header(default=None)):
     require_auth(authorization)
 
-    async with httpx.AsyncClient(timeout=None) as client:
-        response = await client.post(
-            f"{INTERNAL_API_BASE_URL}/generate",
-            content=await request.body(),
-            headers={"Content-Type": request.headers.get("content-type", "application/json")},
+    if not request.image:
+        raise HTTPException(
+            status_code=400,
+            detail="The self-hosted Hunyuan Shape service currently requires a reference image.",
         )
 
-    return Response(
-        content=response.content,
-        status_code=response.status_code,
-        media_type=response.headers.get("content-type"),
-    )
+    shape_pipeline, _ = _load_model()
+    image = _prepare_image(request.image)
+    output_path = TEMP_ROOT / f"shape_{uuid.uuid4().hex[:10]}.{request.output_format}"
+
+    try:
+        mesh = shape_pipeline(image=image)[0]
+        final_output = _export_mesh(mesh, output_path)
+        return FileResponse(
+            str(final_output),
+            media_type="model/gltf-binary",
+            filename=final_output.name,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Hunyuan Shape failed: {exc}") from exc
