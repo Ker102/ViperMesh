@@ -44,6 +44,26 @@ Legacy fallback still supported by the app:
 Later:
 - `HUNYUAN_PART_URL`
 
+## Runtime Secrets For The App
+
+These are not GitHub deploy secrets. They are the backend runtime secrets that
+ViperMesh itself should use when calling the Azure services:
+
+- `HUNYUAN_SHAPE_API_TOKEN`
+- `HUNYUAN_PAINT_API_TOKEN`
+
+The matching Azure Container Apps should receive:
+
+- `API_BEARER_TOKEN`
+
+The helper script supports this automatically via:
+- `-ShapeApiToken`
+- `-PaintApiToken`
+
+or the caller's environment variables:
+- `HUNYUAN_SHAPE_API_TOKEN`
+- `HUNYUAN_PAINT_API_TOKEN`
+
 ## Current ViperMesh Azure Values
 
 For the current Azure setup, these are the expected values:

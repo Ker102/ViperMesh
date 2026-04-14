@@ -42,6 +42,9 @@ The AKS numbers above assume:
 6. Decide whether model weights will be:
    - baked into the image, or
    - mounted from Azure storage/cache
+7. Generate strong bearer tokens for backend-only service access.
+   - one token for Shape
+   - one token for Paint
 
 ## Container Apps To Create
 
@@ -97,6 +100,8 @@ Preferred runtime env vars:
 - `HUNYUAN_SHAPE_API_URL`
 - `HUNYUAN_PAINT_API_URL`
 - `HUNYUAN_PART_URL`
+- `HUNYUAN_SHAPE_API_TOKEN`
+- `HUNYUAN_PAINT_API_TOKEN`
 
 Backward-compatible fallback:
 - `HUNYUAN_API_URL`
@@ -127,6 +132,7 @@ Suggested initial app names:
 2. Use the active GitHub Actions workflow to build and push `hunyuan-shape-api`.
 3. Use the active GitHub Actions workflow to build and push `hunyuan-paint-api`.
 4. Create the Container Apps with `deploy/azure/create-container-apps.ps1` or equivalent Azure CLI commands.
+   - pass `-ShapeApiToken` and `-PaintApiToken`, or set the matching environment variables before running the script
 5. Deploy `hunyuan-paint-api` first and verify one successful request.
 6. Deploy `hunyuan-shape-api`.
 7. Switch ViperMesh env vars from RunPod to Azure for Shape/Paint.

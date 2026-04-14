@@ -1117,6 +1117,15 @@
    - Added `deploy/azure/create-container-apps.ps1`, a PowerShell helper that targets the live Azure environment (`gpumodels`, `managedEnvironment-gpumodels-970d`, `vipershreg`, `T4profile`, `a100profile`) and can create or update the Shape and Paint Container Apps against the ACR images
    - Verified with Azure CLI that the current registry is not anonymously pullable: `vipershreg` has `publicNetworkAccess=Enabled` but `anonymousPullEnabled=false`, so Container Apps still need registry auth unless anonymous pull is explicitly enabled later
    - Updated the Azure setup docs and GitHub variable template with the current concrete Azure resource names plus the extra repository variables used by the new workflow and helper script
+25. **Azure Service Bearer Auth + OIDC Fix**:
+   - Added backend-only bearer token support to the Azure Shape and Paint paths so the services are no longer protected only by undisclosed URLs
+   - Implemented `deploy/azure/hunyuan-shape-api/app.py` as an authenticated FastAPI proxy in front of Tencent's local `api_server.py`, leaving `/health` open while protecting `/generate`
+   - Updated `deploy/azure/hunyuan-paint-api/app.py` to enforce an optional `API_BEARER_TOKEN` on `/texturize`, again leaving `/health` open for readiness checks
+   - Updated `lib/neural/providers/hunyuan-shape.ts` and `lib/neural/providers/hunyuan-paint.ts` to send `Authorization: Bearer ...` when `HUNYUAN_SHAPE_API_TOKEN` / `HUNYUAN_PAINT_API_TOKEN` are configured on the ViperMesh backend
+   - Updated `lib/neural/registry.ts` so dedicated Azure Shape/Paint endpoints take precedence over RunPod when `HUNYUAN_SHAPE_API_URL` / `HUNYUAN_PAINT_API_URL` are set
+   - Extended `deploy/azure/create-container-apps.ps1` so it can inject the service tokens into each Container App as secret-backed `API_BEARER_TOKEN` environment variables
+   - Verified and fixed the GitHub OIDC Azure app setup: the federated credential subject originally targeted `refs/heads/Main`, but the repo default branch is `main`, so the credential was replaced with `repo:Ker102/ViperMesh:ref:refs/heads/main`
+   - Added the missing GitHub secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` for the OIDC-based Azure deploy workflow
 
 ### Validation
 - `npx tsc --noEmit`

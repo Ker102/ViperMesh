@@ -161,6 +161,8 @@ export async function createNeuralClient(slug: ProviderSlug): Promise<Neural3DCl
     const hasRunPod = !!process.env.RUNPOD_API_KEY
     const hasRunPodPaint = hasRunPod && !!process.env.RUNPOD_ENDPOINT_HUNYUAN_PAINT
     const hasRunPodPart = hasRunPod && !!process.env.RUNPOD_ENDPOINT_HUNYUAN_PART
+    const hasDedicatedShapeEndpoint = !!process.env.HUNYUAN_SHAPE_API_URL
+    const hasDedicatedPaintEndpoint = !!process.env.HUNYUAN_PAINT_API_URL
     const forceSelfHosted = providerPreference === "self-hosted"
     const forceFal = providerPreference === "fal"
 
@@ -177,6 +179,16 @@ export async function createNeuralClient(slug: ProviderSlug): Promise<Neural3DCl
     if (slug === "hunyuan-shape" && forceFal && hasFal) {
         const { FalClient } = await import("./providers/fal-client")
         return new FalClient("hunyuan-shape")
+    }
+
+    // Dedicated Azure/self-hosted endpoints should win over RunPod when set.
+    if (slug === "hunyuan-shape" && hasDedicatedShapeEndpoint) {
+        const { HunyuanShapeClient } = await import("./providers/hunyuan-shape")
+        return new HunyuanShapeClient()
+    }
+    if (slug === "hunyuan-paint" && hasDedicatedPaintEndpoint) {
+        const { HunyuanPaintClient } = await import("./providers/hunyuan-paint")
+        return new HunyuanPaintClient()
     }
 
     // RunPod Serverless routing for models without hosted APIs

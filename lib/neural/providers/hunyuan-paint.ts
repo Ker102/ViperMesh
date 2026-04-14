@@ -6,6 +6,7 @@
  *
  * Env vars:
  *  - HUNYUAN_PAINT_API_URL  (preferred dedicated paint endpoint)
+ *  - HUNYUAN_PAINT_API_TOKEN (optional bearer token for dedicated paint endpoint)
  *  - HUNYUAN_API_URL        (legacy shared shape/paint endpoint fallback)
  */
 
@@ -25,6 +26,7 @@ export class HunyuanPaintClient extends Neural3DClient {
     readonly meta: Neural3DProviderMeta = PROVIDERS["hunyuan-paint"]
 
     private readonly baseUrl: string
+    private readonly apiToken?: string
 
     constructor() {
         super()
@@ -32,12 +34,25 @@ export class HunyuanPaintClient extends Neural3DClient {
             process.env.HUNYUAN_PAINT_API_URL ??
             process.env.HUNYUAN_API_URL ??
             "http://localhost:8080"
+        this.apiToken = process.env.HUNYUAN_PAINT_API_TOKEN?.trim() || undefined
+    }
+
+    private buildHeaders(contentType?: string): HeadersInit {
+        const headers: Record<string, string> = {}
+        if (contentType) {
+            headers["Content-Type"] = contentType
+        }
+        if (this.apiToken) {
+            headers.Authorization = `Bearer ${this.apiToken}`
+        }
+        return headers
     }
 
     async healthCheck(): Promise<boolean> {
         try {
             const res = await fetch(`${this.baseUrl}/health`, {
                 method: "GET",
+                headers: this.buildHeaders(),
                 signal: AbortSignal.timeout(5_000),
             })
             return res.ok
@@ -92,7 +107,7 @@ export class HunyuanPaintClient extends Neural3DClient {
 
             const response = await fetch(`${this.baseUrl}/texturize`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: this.buildHeaders("application/json"),
                 body: JSON.stringify(payload),
             })
 

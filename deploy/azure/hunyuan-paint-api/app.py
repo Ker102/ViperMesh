@@ -1,6 +1,7 @@
 import base64
 import binascii
 import os
+import secrets
 import sys
 import tempfile
 import threading
@@ -8,7 +9,7 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
@@ -16,6 +17,7 @@ from pydantic import BaseModel, Field
 REPO_DIR = Path(os.environ.get("HUNYUAN_REPO_DIR", "/app/hunyuan3d"))
 PAINT_DIR = REPO_DIR / "hy3dpaint"
 TEMP_ROOT = Path(os.environ.get("PAINT_WORK_DIR", tempfile.mkdtemp(prefix="azure_paint_")))
+API_BEARER_TOKEN = os.environ.get("API_BEARER_TOKEN", "").strip()
 
 if str(PAINT_DIR) not in sys.path:
     sys.path.insert(0, str(PAINT_DIR))
@@ -34,6 +36,18 @@ class PaintRequest(BaseModel):
 
 MODEL = None
 MODEL_LOCK = threading.Lock()
+
+
+def require_auth(authorization: str | None) -> None:
+    if not API_BEARER_TOKEN:
+        return
+
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+
+    provided_token = authorization.removeprefix("Bearer ").strip()
+    if not secrets.compare_digest(provided_token, API_BEARER_TOKEN):
+        raise HTTPException(status_code=401, detail="Invalid bearer token")
 
 
 def _decode_base64_payload(value: str) -> bytes:
@@ -121,13 +135,16 @@ async def health():
             "status": "healthy",
             "model_loaded": MODEL is not None,
             "repo_dir": str(REPO_DIR),
+            "token_configured": bool(API_BEARER_TOKEN),
         },
         status_code=200,
     )
 
 
 @app.post("/texturize")
-async def texturize(request: PaintRequest):
+async def texturize(request: PaintRequest, authorization: str | None = Header(default=None)):
+    require_auth(authorization)
+
     mesh_bytes = _decode_base64_payload(request.mesh)
     image_bytes = _decode_base64_payload(request.image) if request.image else None
 

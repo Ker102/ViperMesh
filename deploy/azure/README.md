@@ -89,6 +89,27 @@ The active workflow now covers:
 
 Part is still pending and intentionally excluded from the active workflow.
 
+## Service Authentication
+
+Shape and Paint now support optional backend-only bearer authentication.
+
+Recommended setup:
+- ViperMesh backend env vars:
+  - `HUNYUAN_SHAPE_API_TOKEN`
+  - `HUNYUAN_PAINT_API_TOKEN`
+- Azure Container App secret/env:
+  - `API_BEARER_TOKEN`
+
+Current behavior:
+- the ViperMesh backend sends `Authorization: Bearer ...` when the corresponding
+  `HUNYUAN_*_API_TOKEN` env var is set
+- the Azure Shape/Paint services enforce the token only when `API_BEARER_TOKEN`
+  is configured
+- `/health` remains open for readiness checks
+
+The helper script `deploy/azure/create-container-apps.ps1` can inject the token
+into each Container App as a secret-backed environment variable.
+
 ## Repo Secrets And Variables
 
 See:

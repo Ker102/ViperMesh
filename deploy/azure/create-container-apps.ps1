@@ -7,6 +7,8 @@ param(
     [string]$ShapeWorkloadProfile = "T4profile",
     [string]$PaintWorkloadProfile = "a100profile",
     [string]$ImageTag = "latest",
+    [string]$ShapeApiToken = $env:HUNYUAN_SHAPE_API_TOKEN,
+    [string]$PaintApiToken = $env:HUNYUAN_PAINT_API_TOKEN,
     [int]$ShapeMinReplicas = 0,
     [int]$ShapeMaxReplicas = 3,
     [int]$PaintMinReplicas = 0,
@@ -48,13 +50,27 @@ function Ensure-ContainerApp {
         [string]$AppName,
         [string]$Image,
         [string]$WorkloadProfile,
+        [string]$ApiToken,
         [int]$MinReplicas,
         [int]$MaxReplicas,
         [string[]]$EnvVars
     )
 
+    $effectiveEnvVars = @($EnvVars)
+    if ($ApiToken) {
+        $effectiveEnvVars += "API_BEARER_TOKEN=secretref:apitoken"
+    }
+
     if (Test-ContainerAppExists -Name $AppName) {
         Write-Host "Updating Container App $AppName..."
+        if ($ApiToken) {
+            az containerapp secret set `
+                --name $AppName `
+                --resource-group $ResourceGroup `
+                --secrets "apitoken=$ApiToken" `
+                --only-show-errors 1>$null
+        }
+
         $args = @(
             "containerapp", "update",
             "--name", $AppName,
@@ -64,7 +80,7 @@ function Ensure-ContainerApp {
             "--min-replicas", "$MinReplicas",
             "--max-replicas", "$MaxReplicas",
             "--set-env-vars"
-        ) + $EnvVars
+        ) + $effectiveEnvVars
 
         az @args --only-show-errors
         az containerapp ingress enable `
@@ -87,9 +103,15 @@ function Ensure-ContainerApp {
             "--transport", "auto",
             "--min-replicas", "$MinReplicas",
             "--max-replicas", "$MaxReplicas",
-            "--workload-profile-name", $WorkloadProfile,
-            "--env-vars"
-        ) + $EnvVars
+            "--workload-profile-name", $WorkloadProfile
+        )
+
+        if ($ApiToken) {
+            $args += @("--secrets", "apitoken=$ApiToken")
+        }
+
+        $args += @("--env-vars")
+        $args += $effectiveEnvVars
 
         if (-not $UseAnonymousRegistryPull.IsPresent) {
             $args += @("--system-assigned", "--registry-server", $script:RegistryServer, "--registry-identity", "system")
@@ -118,6 +140,7 @@ Ensure-ContainerApp `
     -AppName $ShapeAppName `
     -Image $shapeImage `
     -WorkloadProfile $ShapeWorkloadProfile `
+    -ApiToken $ShapeApiToken `
     -MinReplicas $ShapeMinReplicas `
     -MaxReplicas $ShapeMaxReplicas `
     -EnvVars @(
@@ -131,6 +154,7 @@ Ensure-ContainerApp `
     -AppName $PaintAppName `
     -Image $paintImage `
     -WorkloadProfile $PaintWorkloadProfile `
+    -ApiToken $PaintApiToken `
     -MinReplicas $PaintMinReplicas `
     -MaxReplicas $PaintMaxReplicas `
     -EnvVars @(

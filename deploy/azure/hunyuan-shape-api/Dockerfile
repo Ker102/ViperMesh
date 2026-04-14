@@ -21,6 +21,8 @@ RUN pip install \
     torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 \
     --index-url https://download.pytorch.org/whl/cu124
 
+RUN pip install fastapi==0.115.5 uvicorn[standard]==0.32.1 httpx==0.28.1
+
 RUN git clone --depth 1 https://github.com/Tencent-Hunyuan/Hunyuan3D-2.1.git ${HUNYUAN_REPO_DIR}
 
 WORKDIR ${HUNYUAN_REPO_DIR}
@@ -28,6 +30,7 @@ WORKDIR ${HUNYUAN_REPO_DIR}
 RUN pip install -r requirements.txt && \
     pip install -e . 2>/dev/null || true
 
+COPY app.py /app/app.py
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
