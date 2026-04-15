@@ -15,7 +15,7 @@ param(
     [string]$PaintMemory = "4Gi",
     [int]$ShapeMinReplicas = 0,
     [int]$ShapeMaxReplicas = 3,
-    [int]$PaintMinReplicas = 0,
+    [int]$PaintMinReplicas = 1,
     [int]$PaintMaxReplicas = 1,
     [switch]$UseAnonymousRegistryPull
 )

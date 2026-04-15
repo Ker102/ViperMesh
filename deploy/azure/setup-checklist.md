@@ -63,6 +63,8 @@ Create these apps first:
 - start with:
   - `minReplicas=1`
   - `maxReplicas=1`
+- avoid `minReplicas=0` during interactive testing; the large GPU image can
+  return transient `503 error activating deployment` responses while cold-starting
 - after stability:
   - `maxReplicas=2`
 
