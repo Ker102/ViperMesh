@@ -4,12 +4,8 @@
  * Splits a 3D mesh into semantic sub-parts (gears, connectors, housings, etc.).
  * Useful for mechanical objects, kitbashing, or preparing models for rigging.
  *
- * Can connect to:
- *  - Self-hosted Gradio app
- *  - HuggingFace Space (tencent/Hunyuan3D-Part)
- *
  * Env vars:
- *  - HUNYUAN_PART_URL  (e.g. http://localhost:7861 or HF Space URL)
+ *  - HUNYUAN_PART_URL  (required, e.g. http://localhost:7861)
  */
 
 import { Neural3DClient } from "../base-client"
@@ -31,11 +27,11 @@ export class HunyuanPartClient extends Neural3DClient {
 
     constructor() {
         super()
-        this.baseUrl =
-            process.env.HUNYUAN_PART_URL ?? "https://tencent-hunyuan3d-part.hf.space"
+        this.baseUrl = (process.env.HUNYUAN_PART_URL ?? "").trim()
     }
 
     async healthCheck(): Promise<boolean> {
+        if (!this.baseUrl) return false
         try {
             const res = await fetch(this.baseUrl, {
                 method: "GET",
@@ -51,6 +47,15 @@ export class HunyuanPartClient extends Neural3DClient {
         const startTime = Date.now()
 
         try {
+            if (!this.baseUrl) {
+                return {
+                    status: "failed",
+                    provider: this.slug,
+                    stage: "segmentation",
+                    error: "HUNYUAN_PART_URL is not configured.",
+                }
+            }
+
             if (!request.meshUrl) {
                 return {
                     status: "failed",
