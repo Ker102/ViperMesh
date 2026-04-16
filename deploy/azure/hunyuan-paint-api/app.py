@@ -19,8 +19,18 @@ PAINT_DIR = REPO_DIR / "hy3dpaint"
 TEMP_ROOT = Path(os.environ.get("PAINT_WORK_DIR", tempfile.mkdtemp(prefix="azure_paint_")))
 API_BEARER_TOKEN = os.environ.get("API_BEARER_TOKEN", "").strip()
 
+if str(REPO_DIR) not in sys.path:
+    sys.path.insert(0, str(REPO_DIR))
 if str(PAINT_DIR) not in sys.path:
     sys.path.insert(0, str(PAINT_DIR))
+
+try:
+    from torchvision_fix import apply_fix as apply_torchvision_fix  # noqa: E402
+except ImportError:
+    apply_torchvision_fix = None
+
+if apply_torchvision_fix is not None:
+    apply_torchvision_fix()
 
 from convert_utils import create_glb_with_pbr_materials  # noqa: E402
 from textureGenPipeline import Hunyuan3DPaintConfig, Hunyuan3DPaintPipeline  # noqa: E402
