@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
-import { stripe } from "@/lib/stripe"
+import { STRIPE_ENABLED, stripe } from "@/lib/stripe"
 import { prisma } from "@/lib/db"
 import Stripe from "stripe"
 
 export async function POST(req: Request) {
+  if (!STRIPE_ENABLED || !stripe) {
+    return NextResponse.json(
+      { error: "Stripe webhooks are not configured in this environment" },
+      { status: 503 }
+    )
+  }
+
   const body = await req.text()
   const headerList = await headers()
   const signature = headerList.get("stripe-signature")
