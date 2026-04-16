@@ -48,9 +48,10 @@ RUN pip install -r /tmp/hunyuan-paint-requirements.txt
 RUN python -c "from pathlib import Path; path = Path('hy3dpaint/DifferentiableRenderer/mesh_utils.py'); text = path.read_text(); text = text.replace('import bpy\\n', 'try:\\n    import bpy\\nexcept ImportError:\\n    bpy = None\\n\\n'); text = text.replace('def convert_obj_to_glb(\\n', 'def convert_obj_to_glb(\\n'); text = text.replace('    \"\"\"Convert OBJ file to GLB format using Blender.\"\"\"\\n    try:\\n', '    \"\"\"Convert OBJ file to GLB format using Blender.\"\"\"\\n    if bpy is None:\\n        return False\\n    try:\\n'); path.write_text(text)"
 
 RUN cd hy3dpaint/custom_rasterizer && pip install --no-build-isolation -e . && \
-    cd ../DifferentiableRenderer && bash compile_mesh_painter.sh && \
-    mkdir -p hy3dpaint/ckpt && \
-    wget https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth -P hy3dpaint/ckpt
+    cd ../DifferentiableRenderer && bash compile_mesh_painter.sh
+
+RUN mkdir -p ${HUNYUAN_REPO_DIR}/hy3dpaint/ckpt && \
+    wget https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth -P ${HUNYUAN_REPO_DIR}/hy3dpaint/ckpt
 
 COPY deploy/azure/hunyuan-paint-api/app.py /app/app.py
 COPY deploy/azure/hunyuan-paint-api/start.sh /app/start.sh
