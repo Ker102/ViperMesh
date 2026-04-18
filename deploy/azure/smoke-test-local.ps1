@@ -113,6 +113,7 @@ try {
         Write-Host "Paint health endpoint is ready."
 
         docker compose @composeArgs exec -T hunyuan-paint-api python -c "from pathlib import Path; p = Path('/app/hunyuan3d/hy3dpaint/ckpt/RealESRGAN_x4plus.pth'); assert p.exists(), p; print(p)"
+        docker compose @composeArgs exec -T hunyuan-paint-api python -c "from pathlib import Path; p = Path('/app/hunyuan3d/hy3dpaint/cfgs/hunyuan-paint-pbr.yaml'); assert p.exists(), p; print(p)"
 
         if ($PaintMeshPath) {
             $paintOut = Join-Path $env:TEMP "paint-smoke-$(Get-Date -Format 'yyyyMMddHHmmss').glb"

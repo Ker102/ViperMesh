@@ -1132,6 +1132,13 @@
    - The Paint smoke path now explicitly verifies that `RealESRGAN_x4plus.pth` exists at `/app/hunyuan3d/hy3dpaint/ckpt/RealESRGAN_x4plus.pth`, which would have caught the previous Azure checkpoint-path bug before the image was pushed
    - The same script supports optional end-to-end local requests when a real input image or mesh path is provided, so we can choose between a fast boot/path smoke test and a heavier full request test
    - Updated `deploy/azure/README.md` and `deploy/azure/setup-checklist.md` so the local Compose smoke test is now part of the expected pre-rollout path rather than tribal knowledge
+27. **Azure Paint Config Path Regression Fix**:
+   - Reproduced the latest Paint regression locally through the new Docker Compose smoke path instead of guessing from Azure-only failures
+   - Confirmed Tencent's `Hunyuan3DPaintConfig` defaults `multiview_cfg_path` to the relative path `hy3dpaint/cfgs/hunyuan-paint-pbr.yaml`, which only resolves if the process starts from the repository root
+   - Identified that the Azure wrapper runs from `/app`, so requests were failing at runtime with `No such file or directory: '/app/hy3dpaint/cfgs/hunyuan-paint-pbr.yaml'` even though the config file actually exists at `/app/hunyuan3d/hy3dpaint/cfgs/hunyuan-paint-pbr.yaml`
+   - Updated `deploy/azure/hunyuan-paint-api/app.py` so `load_model()` now overrides `config.multiview_cfg_path` to the absolute repo-aware path before constructing `Hunyuan3DPaintPipeline`
+   - Tightened `deploy/azure/smoke-test-local.ps1` to verify both required runtime assets for Paint: the RealESRGAN checkpoint and the `hunyuan-paint-pbr.yaml` config file, so this class of path regression is caught before the next Azure rollout
+   - Updated `deploy/azure/README.md` to document that both runtime assets are part of the expected local Paint smoke test
 
 ### Validation
 - `npx tsc --noEmit`

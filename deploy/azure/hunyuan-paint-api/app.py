@@ -88,6 +88,7 @@ def load_model():
         max_num_view = int(os.environ.get("PAINT_MAX_NUM_VIEW", "6"))
         resolution = int(os.environ.get("PAINT_RESOLUTION", "512"))
         config = Hunyuan3DPaintConfig(max_num_view=max_num_view, resolution=resolution)
+        config.multiview_cfg_path = str(REPO_DIR / "hy3dpaint" / "cfgs" / "hunyuan-paint-pbr.yaml")
         config.realesrgan_ckpt_path = str(REPO_DIR / "hy3dpaint" / "ckpt" / "RealESRGAN_x4plus.pth")
         MODEL = Hunyuan3DPaintPipeline(config)
         return MODEL

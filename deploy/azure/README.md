@@ -113,7 +113,10 @@ Those commands:
 - build the requested Azure-targeted image locally
 - start the service with Docker Compose
 - wait for `/health`
-- for Paint, verify `RealESRGAN_x4plus.pth` exists at the runtime path
+- for Paint, verify both:
+  - `RealESRGAN_x4plus.pth`
+  - `hy3dpaint/cfgs/hunyuan-paint-pbr.yaml`
+  exist at the runtime paths the wrapper depends on
 
 Optional full-request smoke tests:
 
