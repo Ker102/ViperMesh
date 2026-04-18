@@ -1126,6 +1126,12 @@
    - Extended `deploy/azure/create-container-apps.ps1` so it can inject the service tokens into each Container App as secret-backed `API_BEARER_TOKEN` environment variables
    - Verified and fixed the GitHub OIDC Azure app setup: the federated credential subject originally targeted `refs/heads/Main`, but the repo default branch is `main`, so the credential was replaced with `repo:Ker102/ViperMesh:ref:refs/heads/main`
    - Added the missing GitHub secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` for the OIDC-based Azure deploy workflow
+26. **Local Azure Container Smoke-Test Harness**:
+   - Added `deploy/azure/docker-compose.local.yml` to run the Azure-targeted `hunyuan-shape-api` and `hunyuan-paint-api` images locally, without having to wait for another ACR build or Azure Container Apps rollout
+   - Added `deploy/azure/smoke-test-local.ps1`, a PowerShell smoke script that can build and launch the selected local service, wait for `/health`, and perform cheap contract checks before a cloud deployment
+   - The Paint smoke path now explicitly verifies that `RealESRGAN_x4plus.pth` exists at `/app/hunyuan3d/hy3dpaint/ckpt/RealESRGAN_x4plus.pth`, which would have caught the previous Azure checkpoint-path bug before the image was pushed
+   - The same script supports optional end-to-end local requests when a real input image or mesh path is provided, so we can choose between a fast boot/path smoke test and a heavier full request test
+   - Updated `deploy/azure/README.md` and `deploy/azure/setup-checklist.md` so the local Compose smoke test is now part of the expected pre-rollout path rather than tribal knowledge
 
 ### Validation
 - `npx tsc --noEmit`

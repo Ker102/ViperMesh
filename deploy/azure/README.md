@@ -89,6 +89,42 @@ The active workflow now covers:
 
 Part is still pending and intentionally excluded from the active workflow.
 
+## Local Smoke Test Path
+
+Use the local Compose harness before pushing Azure image changes when you need to
+validate:
+- container boot
+- `/health` responses
+- paint checkpoint/layout assumptions
+- optional end-to-end local Shape/Paint requests
+
+Files:
+- `deploy/azure/docker-compose.local.yml`
+- `deploy/azure/smoke-test-local.ps1`
+
+Recommended quick checks:
+
+```powershell
+.\deploy\azure\smoke-test-local.ps1 -Service paint -Build
+.\deploy\azure\smoke-test-local.ps1 -Service shape -Build
+```
+
+Those commands:
+- build the requested Azure-targeted image locally
+- start the service with Docker Compose
+- wait for `/health`
+- for Paint, verify `RealESRGAN_x4plus.pth` exists at the runtime path
+
+Optional full-request smoke tests:
+
+```powershell
+.\deploy\azure\smoke-test-local.ps1 -Service shape -Build -ShapeImagePath C:\path\to\reference.png
+.\deploy\azure\smoke-test-local.ps1 -Service paint -Build -PaintMeshPath C:\path\to\mesh.glb -PaintImagePath C:\path\to\style.png
+```
+
+By default the script tears the stack down after the smoke check. Use
+`-KeepRunning` if you want the local containers to stay up for manual inspection.
+
 ## Service Authentication
 
 Shape and Paint now support optional backend-only bearer authentication.

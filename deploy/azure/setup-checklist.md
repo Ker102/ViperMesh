@@ -151,6 +151,30 @@ Suggested initial app names:
 7. Switch ViperMesh env vars from RunPod to Azure for Shape/Paint.
 8. Add `hunyuan-part-api` later when that service is implemented.
 
+## Local Validation Before Azure Rollout
+
+Before pushing image changes to ACR, run the local smoke path for the service you
+changed:
+
+```powershell
+.\deploy\azure\smoke-test-local.ps1 -Service paint -Build
+.\deploy\azure\smoke-test-local.ps1 -Service shape -Build
+```
+
+Use the optional path arguments when you want a real local request instead of
+only a boot/health smoke test:
+
+```powershell
+.\deploy\azure\smoke-test-local.ps1 -Service shape -Build -ShapeImagePath C:\path\to\reference.png
+.\deploy\azure\smoke-test-local.ps1 -Service paint -Build -PaintMeshPath C:\path\to\mesh.glb -PaintImagePath C:\path\to\style.png
+```
+
+This catches container-specific issues earlier, such as:
+- import/runtime compatibility problems
+- missing checkpoint files
+- wrong working-directory assumptions
+- broken `/health` or request contracts
+
 ## Do Not Do Yet
 
 - Do not point Azure directly at `deploy/runpod/**`.

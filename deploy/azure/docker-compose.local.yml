@@ -1,0 +1,27 @@
+services:
+  hunyuan-shape-api:
+    build:
+      context: ../..
+      dockerfile: deploy/azure/hunyuan-shape-api/Dockerfile
+    image: vipermesh/hunyuan-shape-api:local
+    environment:
+      PORT: "8080"
+      API_BEARER_TOKEN: "${LOCAL_SHAPE_API_TOKEN:-local-shape-token}"
+      LOW_VRAM_MODE: "1"
+      ENABLE_FLASHVDM: "0"
+      ENABLE_COMPILE: "0"
+    ports:
+      - "18080:8080"
+
+  hunyuan-paint-api:
+    build:
+      context: ../..
+      dockerfile: deploy/azure/hunyuan-paint-api/Dockerfile
+    image: vipermesh/hunyuan-paint-api:local
+    environment:
+      PORT: "8080"
+      API_BEARER_TOKEN: "${LOCAL_PAINT_API_TOKEN:-local-paint-token}"
+      PAINT_MAX_NUM_VIEW: "6"
+      PAINT_RESOLUTION: "512"
+    ports:
+      - "18081:8080"
