@@ -47,6 +47,7 @@ class PaintRequest(BaseModel):
 
 MODEL = None
 MODEL_LOCK = threading.Lock()
+INFERENCE_LOCK = threading.Lock()
 
 
 def require_auth(authorization: str | None) -> None:
@@ -125,13 +126,14 @@ def _run_paint_pipeline(mesh_path: Path, image_path: Optional[Path], output_path
     if image_path is not None:
         kwargs["image_path"] = str(image_path)
 
-    try:
-        return model(mesh_path=str(mesh_path), output_mesh_path=str(output_path), save_glb=False, **kwargs)
-    except TypeError:
+    with INFERENCE_LOCK:
         try:
-            return model(str(mesh_path), output_mesh_path=str(output_path), save_glb=False, **kwargs)
+            return model(mesh_path=str(mesh_path), output_mesh_path=str(output_path), save_glb=False, **kwargs)
         except TypeError:
-            return model(str(mesh_path), **kwargs)
+            try:
+                return model(str(mesh_path), output_mesh_path=str(output_path), save_glb=False, **kwargs)
+            except TypeError:
+                return model(str(mesh_path), **kwargs)
 
 
 def _convert_obj_output_to_glb(obj_path: Path, output_path: Path) -> Path:
@@ -172,7 +174,7 @@ async def health():
 
 
 @app.post("/texturize")
-async def texturize(request: PaintRequest, authorization: str | None = Header(default=None)):
+def texturize(request: PaintRequest, authorization: str | None = Header(default=None)):
     require_auth(authorization)
 
     mesh_bytes = _decode_base64_payload(request.mesh)

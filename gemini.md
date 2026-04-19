@@ -1139,6 +1139,12 @@
    - Updated `deploy/azure/hunyuan-paint-api/app.py` so `load_model()` now overrides `config.multiview_cfg_path` to the absolute repo-aware path before constructing `Hunyuan3DPaintPipeline`
    - Tightened `deploy/azure/smoke-test-local.ps1` to verify both required runtime assets for Paint: the RealESRGAN checkpoint and the `hunyuan-paint-pbr.yaml` config file, so this class of path regression is caught before the next Azure rollout
    - Updated `deploy/azure/README.md` to document that both runtime assets are part of the expected local Paint smoke test
+28. **Azure Paint Health-Probe Concurrency Fix**:
+   - Investigated a later `503 upstream connect error or disconnect/reset before headers` failure and correlated it with a `~63.7s` request time plus a delayed container restart in Azure metrics, which did not match the documented Azure Container Apps ingress timeout (`240s`) and instead pointed to the app becoming unresponsive during inference
+   - Confirmed the paint wrapper used `async def /texturize` while performing long synchronous GPU/model work on the main event loop, which blocks `/health` responses during inference and lets Azure health probes mark the replica unhealthy even though the revision later recovers
+   - Updated `deploy/azure/hunyuan-paint-api/app.py` so `/texturize` is now a synchronous FastAPI handler, allowing FastAPI/Uvicorn to run the heavy work in the threadpool rather than on the event loop
+   - Added an `INFERENCE_LOCK` around the paint pipeline call to keep model access serialized inside the single replica while still allowing `/health` to respond concurrently
+   - This change is intended to stop long Paint requests from starving the health probes and triggering ingress-level upstream resets during otherwise valid inference runs
 
 ### Validation
 - `npx tsc --noEmit`
