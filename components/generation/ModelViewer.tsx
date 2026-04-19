@@ -11,7 +11,8 @@ interface ModelViewerProps {
     showControls?: boolean;
     showFooter?: boolean;
     interactive?: boolean;
-    inspectionMode?: "material" | "clay";
+    inspectionMode?: "material" | "geometry" | "clay";
+    inspectionTint?: "neutral" | "violet" | "cyan";
 }
 
 type ViewerStatus = "booting" | "loading" | "ready" | "error";
@@ -106,6 +107,7 @@ export function ModelViewer({
     showFooter = true,
     interactive = true,
     inspectionMode = "material",
+    inspectionTint = "neutral",
 }: ModelViewerProps) {
     const viewerRef = useRef<ModelViewerElement | null>(null);
     const frameRef = useRef<HTMLDivElement | null>(null);
@@ -275,16 +277,23 @@ export function ModelViewer({
         const snapshot = materialSnapshotRef.current;
         if (!snapshot) return;
 
+        const tintPalette: Record<NonNullable<ModelViewerProps["inspectionTint"]>, number[]> = {
+            neutral: [0.83, 0.84, 0.86, 1],
+            violet: [0.9, 0.8, 0.98, 1],
+            cyan: [0.79, 0.93, 0.97, 1],
+        };
+        const tint = tintPalette[inspectionTint];
+
         for (const entry of snapshot) {
-            if (inspectionMode === "clay") {
+            if (inspectionMode === "clay" || inspectionMode === "geometry") {
                 entry.material.pbrMetallicRoughness.baseColorTexture?.setTexture(null);
                 entry.material.pbrMetallicRoughness.metallicRoughnessTexture?.setTexture(null);
-                entry.material.normalTexture?.setTexture(null);
-                entry.material.occlusionTexture?.setTexture(null);
                 entry.material.emissiveTexture?.setTexture(null);
-                entry.material.pbrMetallicRoughness.setBaseColorFactor([0.83, 0.84, 0.86, 1]);
+                entry.material.pbrMetallicRoughness.setBaseColorFactor(tint);
                 entry.material.pbrMetallicRoughness.setMetallicFactor(0);
-                entry.material.pbrMetallicRoughness.setRoughnessFactor(1);
+                entry.material.pbrMetallicRoughness.setRoughnessFactor(inspectionMode === "geometry" ? 0.68 : 1);
+                entry.material.normalTexture?.setTexture(inspectionMode === "geometry" ? entry.normalTexture : null);
+                entry.material.occlusionTexture?.setTexture(inspectionMode === "geometry" ? entry.occlusionTexture : null);
                 entry.material.setEmissiveFactor([0, 0, 0]);
                 continue;
             }
@@ -299,7 +308,7 @@ export function ModelViewer({
             entry.material.emissiveTexture?.setTexture(entry.emissiveTexture);
             entry.material.setEmissiveFactor(entry.emissiveFactor);
         }
-    }, [inspectionMode, status]);
+    }, [inspectionMode, inspectionTint, status]);
 
     const handleDownload = async () => {
         if (!safeUrl) return;
