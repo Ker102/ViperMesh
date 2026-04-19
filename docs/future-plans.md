@@ -9,9 +9,9 @@
 ## P0 — In Progress / Immediate Next
 
 1. ~~**Debug Test 13 failure**~~ — ✅ Resolved: Created `rigging-guide.md`, `animation-guide.md`, `weight-painting-guide.md` tool guides, fixed `auto_rigify.py`.
-2. **Verify AgentActivity streaming UI** — Component is wired (`agent-activity.tsx`) but unconfirmed in live runs.
-3. **Run Tests 14-16** — UniRig AI auto-rigging, keyframe animation, MoMask text-to-motion.
-4. **Follow-up question quality** — Post-execution follow-up questions are weak/irrelevant. Needs prompt engineering in `route.ts`.
+2. ~~**Verify AgentActivity streaming UI**~~ — ✅ Resolved: Streaming activity UI and Studio follow-through were verified through the live workflow/debug passes.
+3. ~~**Run Tests 14-16**~~ — ✅ Resolved: The immediate neural/Studio validation batch was completed and the roadmap priority has moved to viewer/workflow polish rather than these placeholder test items.
+4. ~~**Follow-up question quality**~~ — ✅ Resolved: The current Studio execution flow now prioritizes stage-aware workflow guidance and downstream actions instead of weak generic follow-up prompts.
 5. **Viewer inspection follow-up: secondary heavy viewer path** — After the current `<model-viewer>` inspection/workflow polish batch is complete, build the next viewer implementation as a heavier diagnostic/editor surface for true wireframe, flat-vs-smooth shading inspection, and deeper geometry debugging that the current MVP stack cannot represent cleanly.
 
 ---
@@ -101,6 +101,7 @@ Inspired by Tripo Studio and Modiff:
 3. **Fine-tuning pipeline** — Custom Qwen3 for Blender code (269+ training pairs exist)
 4. **Revenue/monetization** — Credits + tiers system (Free/Starter/Pro)
 5. **Production pipeline completeness** — Concept → Export in one session
+6. **Blender agent toolification layer** — Replace repeated full-length freeform Blender Python generation with a curated tool layer that maps agent intents onto prebuilt Python snippets/scripts, parameterized runners, and reusable API wrappers so the agent can act faster, hallucinate less, and produce more reliable deterministic edits.
 
 ### 🤖 Autopilot: Neural Model Agent Integration (Far Future)
 Connect the Blender agent to neural models so it can command the full 3D pipeline autonomously.
