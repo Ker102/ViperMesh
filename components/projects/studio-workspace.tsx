@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react"
 import { Box, Loader2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, RefreshCw, Square } from "lucide-react"
 import { ModelViewer } from "@/components/generation/ModelViewer"
 import { cn } from "@/lib/utils"
-import { extractNeuralOutputRelativePath } from "@/lib/neural/output-files"
 import {
     CATEGORIES,
     getToolsForCategory,
@@ -142,6 +141,20 @@ function buildAssetStatsSeed(tool: ToolEntry): AssetInspectionStats {
 function findGeneratedAssetByUrl(assets: GeneratedAssetItem[], viewerUrl?: string | null): GeneratedAssetItem | null {
     if (!viewerUrl) return null
     return assets.find((asset) => asset.viewerUrl === viewerUrl) ?? null
+}
+
+function extractNeuralOutputRelativePath(candidateUrl: string): string | null {
+    try {
+        const baseUrl =
+            typeof window !== "undefined"
+                ? window.location.origin
+                : "http://127.0.0.1"
+        const parsed = new URL(candidateUrl, baseUrl)
+        const relativePath = parsed.searchParams.get("path")
+        return relativePath ? decodeURIComponent(relativePath) : null
+    } catch {
+        return null
+    }
 }
 
 function mergeAssetStats(
