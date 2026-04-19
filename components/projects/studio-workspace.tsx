@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Box, Loader2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, RefreshCw, Square } from "lucide-react"
+import { Loader2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, RefreshCw, Square } from "lucide-react"
 import { ModelViewer } from "@/components/generation/ModelViewer"
 import { cn } from "@/lib/utils"
 import {
@@ -13,8 +13,12 @@ import {
     type ToolEntry,
     type ToolInput,
 } from "@/lib/orchestration/tool-catalog"
-import { AssetStatsPanel, AssetStatsPills } from "./asset-inspection"
-import type { GeneratedAssetItem, GeneratedAssetSuggestion } from "./generated-assets"
+import { AssetPreviewTile, AssetStatsPanel, AssetStatsPills } from "./asset-inspection"
+import {
+    buildNextSuggestionsForAsset,
+    isRenderablePreviewImage,
+    type GeneratedAssetItem,
+} from "./generated-assets"
 import type { AssetInspectionStats, WorkflowTimelineNeuralState, WorkflowTimelineStep } from "./workflow-timeline"
 
 interface StudioWorkspaceProps {
@@ -173,10 +177,19 @@ function mergeAssetStats(
     }
 }
 
-function getMeshPreviewImage(tool: ToolEntry, inputs: Record<string, string>): string | undefined {
+function getMeshPreviewImage(
+    tool: ToolEntry,
+    inputs: Record<string, string>,
+    linkedAsset?: GeneratedAssetItem | null,
+): string | undefined {
+    if (isRenderablePreviewImage(linkedAsset?.previewImageUrl)) {
+        return linkedAsset.previewImageUrl
+    }
+
     const imageKey = getImageInputKey(tool)
     if (!imageKey) return undefined
-    return inputs[imageKey] || undefined
+    const candidate = inputs[imageKey]
+    return isRenderablePreviewImage(candidate) ? candidate : undefined
 }
 
 function PreviewImage(props: React.ImgHTMLAttributes<HTMLImageElement> & { alt: string }) {
@@ -276,20 +289,13 @@ function MeshAttachmentCard({
                             "radial-gradient(circle at top, rgba(45,212,191,0.22), rgba(15,23,42,0.92) 65%)",
                     }}
                 >
-                    {previewImageUrl ? (
-                        <PreviewImage
-                            src={previewImageUrl}
-                            alt="Attached model preview"
-                            className="h-full w-full object-cover"
-                        />
-                    ) : (
-                        <div className="flex flex-col items-center gap-2 text-center text-white/90">
-                            <Box className="h-8 w-8" />
-                            <span className="px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/70">
-                                3D asset
-                            </span>
-                        </div>
-                    )}
+                    <AssetPreviewTile
+                        imageUrl={previewImageUrl}
+                        alt="Attached model preview"
+                        stageLabel={stageLabel}
+                        providerLabel={providerLabel}
+                        className="h-full w-full"
+                    />
                 </div>
                 <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
@@ -714,7 +720,11 @@ function ToolDetailView({
                                     <MeshAttachmentCard
                                         value={inputs[input.key]}
                                         emptyMessage="No model is attached yet. Continue from a generated result or a future asset selector to populate this field."
-                                        previewImageUrl={getMeshPreviewImage(tool, inputs)}
+                                        previewImageUrl={getMeshPreviewImage(
+                                            tool,
+                                            inputs,
+                                            findGeneratedAssetByUrl(generatedAssets, inputs[input.key]),
+                                        )}
                                         assetStats={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.assetStats}
                                         stageLabel={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.stageLabel}
                                         providerLabel={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.providerLabel}
@@ -908,79 +918,6 @@ function NeuralRunStatusBadge({ status }: { status: NeuralRunStatus }) {
             {current.label}
         </span>
     )
-}
-
-function buildNextSuggestionsForTool(tool: ToolEntry): GeneratedAssetSuggestion[] {
-    if (tool.category === "shape") {
-        const paintTool = getToolById("hunyuan-paint")
-        const cleanupTool = getToolById("meshanything-v2")
-        const suggestions: GeneratedAssetSuggestion[] = []
-        if (paintTool) {
-            suggestions.push({
-                toolId: paintTool.id,
-                label: `Continue to ${paintTool.name}`,
-                description: "Carry this geometry into AI texturing without re-uploading the mesh.",
-                variant: "primary" as const,
-            })
-        }
-        if (cleanupTool) {
-            suggestions.push({
-                toolId: cleanupTool.id,
-                label: `Continue to ${cleanupTool.name}`,
-                description: "Retopologize the mesh into cleaner, lower-poly quads.",
-                variant: "secondary" as const,
-            })
-        }
-        return suggestions
-    }
-
-    if (tool.category === "paint") {
-        const cleanupTool = getToolById("meshanything-v2")
-        const rigTool = getToolById("unirig")
-        const suggestions: GeneratedAssetSuggestion[] = []
-        if (cleanupTool) {
-            suggestions.push({
-                toolId: cleanupTool.id,
-                label: `Continue to ${cleanupTool.name}`,
-                description: "Prepare a cleaner, animation-ready mesh after texturing.",
-                variant: "primary" as const,
-            })
-        }
-        if (rigTool) {
-            suggestions.push({
-                toolId: rigTool.id,
-                label: `Continue to ${rigTool.name}`,
-                description: "If this asset is a character or creature, move directly into rigging.",
-                variant: "secondary" as const,
-            })
-        }
-        return suggestions
-    }
-
-    if (tool.category === "cleanup") {
-        const rigTool = getToolById("unirig")
-        const exportTool = getToolById("blender-agent-export")
-        const suggestions: GeneratedAssetSuggestion[] = []
-        if (rigTool) {
-            suggestions.push({
-                toolId: rigTool.id,
-                label: `Continue to ${rigTool.name}`,
-                description: "Use the cleaned mesh as the input for auto-rigging.",
-                variant: "primary" as const,
-            })
-        }
-        if (exportTool) {
-            suggestions.push({
-                toolId: exportTool.id,
-                label: `Continue to ${exportTool.name}`,
-                description: "Export the model once geometry cleanup is complete.",
-                variant: "secondary" as const,
-            })
-        }
-        return suggestions
-    }
-
-    return []
 }
 
 function buildToolLaunchInputs(tool: ToolEntry, meshUrl: string, referenceImage?: string): Record<string, string> {
@@ -1339,7 +1276,11 @@ function NeuralRerunFields({
                         <MeshAttachmentCard
                             value={inputs[input.key]}
                             emptyMessage="No model is attached yet. Continue from a generated result or a future asset selector to populate this field."
-                            previewImageUrl={getMeshPreviewImage(tool, inputs)}
+                            previewImageUrl={getMeshPreviewImage(
+                                tool,
+                                inputs,
+                                findGeneratedAssetByUrl(generatedAssets, inputs[input.key]),
+                            )}
                             assetStats={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.assetStats}
                             stageLabel={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.stageLabel}
                             providerLabel={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.providerLabel}
@@ -1458,7 +1399,7 @@ function NeuralRunOverlay({
 }) {
     const isFocus = run.dockMode === "focus"
     const nextSuggestions = run.status === "ready" && run.viewerUrl && run.viewerSource === "generated"
-        ? buildNextSuggestionsForTool(run.tool)
+        ? buildNextSuggestionsForAsset(run.tool.id, run.inputs)
         : []
 
     return (
@@ -1694,7 +1635,11 @@ function NeuralRunOverlay({
                                         <MeshAttachmentCard
                                             value={value}
                                             emptyMessage="No model is attached yet."
-                                            previewImageUrl={getMeshPreviewImage(run.tool, run.inputs)}
+                                            previewImageUrl={getMeshPreviewImage(
+                                                run.tool,
+                                                run.inputs,
+                                                findGeneratedAssetByUrl(generatedAssets, value),
+                                            )}
                                             assetStats={findGeneratedAssetByUrl(generatedAssets, value)?.assetStats}
                                             stageLabel={findGeneratedAssetByUrl(generatedAssets, value)?.stageLabel}
                                             providerLabel={findGeneratedAssetByUrl(generatedAssets, value)?.providerLabel}

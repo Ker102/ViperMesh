@@ -26,6 +26,11 @@ export interface GeneratedAssetItem {
     nextSuggestions: GeneratedAssetSuggestion[]
 }
 
+type AssetKind = "character" | "environment" | "object" | "unknown"
+
+const CHARACTER_HINT_PATTERN = /\b(character|creature|person|human|humanoid|hero|npc|robot|samurai|warrior|animal|monster|dragon|avatar)\b/i
+const ENVIRONMENT_HINT_PATTERN = /\b(scene|environment|interior|exterior|room|building|architecture|landscape|terrain|forest|city|castle|house|street|dungeon)\b/i
+
 function formatStageLabel(category: string): string {
     switch (category) {
         case "shape":
@@ -50,9 +55,46 @@ function formatProviderLabel(rawProvider?: string): string | undefined {
     return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
-function buildNextSuggestions(step: WorkflowTimelineStep): GeneratedAssetSuggestion[] {
-    const tool = getToolById(step.toolName)
+export function isRenderablePreviewImage(candidate?: string | null): candidate is string {
+    if (!candidate) return false
+    if (candidate === "[image attached]") return false
+    return (
+        candidate.startsWith("data:image/") ||
+        candidate.startsWith("blob:") ||
+        candidate.startsWith("/") ||
+        /^https?:\/\//i.test(candidate)
+    )
+}
+
+function inferAssetKind(toolName: string, inputs?: Record<string, string>): AssetKind {
+    const tool = getToolById(toolName)
+    if (tool?.category === "skeleton") {
+        return "character"
+    }
+
+    const promptSeed = [inputs?.prompt, inputs?.description, inputs?.subject]
+        .filter(Boolean)
+        .join(" ")
+
+    if (!promptSeed) {
+        return "unknown"
+    }
+
+    if (CHARACTER_HINT_PATTERN.test(promptSeed)) {
+        return "character"
+    }
+
+    if (ENVIRONMENT_HINT_PATTERN.test(promptSeed)) {
+        return "environment"
+    }
+
+    return "object"
+}
+
+export function buildNextSuggestionsForAsset(toolName: string, inputs?: Record<string, string>): GeneratedAssetSuggestion[] {
+    const tool = getToolById(toolName)
     if (!tool) return []
+    const assetKind = inferAssetKind(toolName, inputs)
 
     if (tool.category === "shape") {
         const paintTool = getToolById("hunyuan-paint")
@@ -80,20 +122,36 @@ function buildNextSuggestions(step: WorkflowTimelineStep): GeneratedAssetSuggest
     if (tool.category === "paint") {
         const cleanupTool = getToolById("meshanything-v2")
         const rigTool = getToolById("unirig")
+        const exportTool = getToolById("blender-agent-export")
         const suggestions: GeneratedAssetSuggestion[] = []
+        if (assetKind === "character" && rigTool) {
+            suggestions.push({
+                toolId: rigTool.id,
+                label: `Continue to ${rigTool.name}`,
+                description: "This looks character-oriented. Move the textured mesh into auto-rigging next.",
+                variant: "primary" as const,
+            })
+        }
         if (cleanupTool) {
             suggestions.push({
                 toolId: cleanupTool.id,
                 label: `Continue to ${cleanupTool.name}`,
-                description: "Prepare a cleaner mesh for game-ready or animation-ready topology.",
-                variant: "primary" as const,
+                description: "Clean or retopologize the textured mesh before export or downstream editing.",
+                variant: assetKind === "character" ? "secondary" as const : "primary" as const,
             })
         }
-        if (rigTool) {
+        if (assetKind !== "character" && exportTool) {
             suggestions.push({
-                toolId: rigTool.id,
-                label: `Continue to ${rigTool.name}`,
-                description: "If this is a character or creature, move into auto-rigging next.",
+                toolId: exportTool.id,
+                label: `Continue to ${exportTool.name}`,
+                description: "If the textured asset is already presentation-ready, export it directly.",
+                variant: "secondary" as const,
+            })
+        } else if (assetKind === "character" && exportTool) {
+            suggestions.push({
+                toolId: exportTool.id,
+                label: `Continue to ${exportTool.name}`,
+                description: "Export the textured mesh directly if rigging is not needed.",
                 variant: "secondary" as const,
             })
         }
@@ -104,11 +162,11 @@ function buildNextSuggestions(step: WorkflowTimelineStep): GeneratedAssetSuggest
         const rigTool = getToolById("unirig")
         const exportTool = getToolById("blender-agent-export")
         const suggestions: GeneratedAssetSuggestion[] = []
-        if (rigTool) {
+        if (assetKind === "character" && rigTool) {
             suggestions.push({
                 toolId: rigTool.id,
                 label: `Continue to ${rigTool.name}`,
-                description: "Take a cleaned mesh into rigging for animation.",
+                description: "The cleaned mesh looks ready for auto-rigging and animation prep.",
                 variant: "primary" as const,
             })
         }
@@ -116,7 +174,15 @@ function buildNextSuggestions(step: WorkflowTimelineStep): GeneratedAssetSuggest
             suggestions.push({
                 toolId: exportTool.id,
                 label: `Continue to ${exportTool.name}`,
-                description: "Export the finished asset once the geometry is ready.",
+                description: "Export once cleanup is complete and the mesh is ready for the target pipeline.",
+                variant: assetKind === "character" ? "secondary" as const : "primary" as const,
+            })
+        }
+        if (assetKind !== "character" && rigTool) {
+            suggestions.push({
+                toolId: rigTool.id,
+                label: `Continue to ${rigTool.name}`,
+                description: "If this cleaned asset is actually a character, move it into rigging next.",
                 variant: "secondary" as const,
             })
         }
@@ -135,6 +201,9 @@ export function extractGeneratedAssets(steps: WorkflowTimelineStep[]): Generated
             }
 
             const tool = getToolById(step.toolName)
+            const referenceImage = isRenderablePreviewImage(step.inputs?.imageUrl ?? step.inputs?.referenceImage)
+                ? step.inputs?.imageUrl ?? step.inputs?.referenceImage
+                : undefined
             return [{
                 id: `${step.id}:${neuralState.viewerUrl}`,
                 stepId: step.id,
@@ -145,10 +214,10 @@ export function extractGeneratedAssets(steps: WorkflowTimelineStep[]): Generated
                 viewerLabel: neuralState.viewerLabel,
                 providerLabel: neuralState.assetStats?.sourceProvider ?? formatProviderLabel(tool?.provider),
                 stageLabel: neuralState.assetStats?.stageLabel ?? (tool ? formatStageLabel(tool.category) : undefined),
-                previewImageUrl: step.inputs?.imageUrl ?? step.inputs?.referenceImage,
+                previewImageUrl: referenceImage,
                 assetStats: neuralState.assetStats,
-                referenceImage: step.inputs?.imageUrl ?? step.inputs?.referenceImage,
-                nextSuggestions: buildNextSuggestions(step),
+                referenceImage,
+                nextSuggestions: buildNextSuggestionsForAsset(step.toolName, step.inputs),
             }]
         })
         .reverse()

@@ -1,6 +1,7 @@
 "use client"
 
 import type { AssetInspectionStats } from "./workflow-timeline"
+import { isRenderablePreviewImage } from "./generated-assets"
 
 function formatCompactCount(value?: number): string | null {
     if (typeof value !== "number" || Number.isNaN(value) || value <= 0) {
@@ -69,6 +70,61 @@ export function AssetStatsPills({
             {values.map((item) => (
                 <StatPill key={item.label} label={item.label} value={item.value} />
             ))}
+        </div>
+    )
+}
+
+function getPreviewInitials(stageLabel?: string, providerLabel?: string) {
+    if (stageLabel) {
+        return stageLabel.slice(0, 2).toUpperCase()
+    }
+    if (providerLabel) {
+        return providerLabel.slice(0, 2).toUpperCase()
+    }
+    return "3D"
+}
+
+export function AssetPreviewTile({
+    imageUrl,
+    alt,
+    stageLabel,
+    providerLabel,
+    className,
+}: {
+    imageUrl?: string | null
+    alt: string
+    stageLabel?: string
+    providerLabel?: string
+    className?: string
+}) {
+    if (isRenderablePreviewImage(imageUrl)) {
+        // Uploaded or remote previews are already browser-safe at this point.
+        // eslint-disable-next-line @next/next/no-img-element
+        return <img src={imageUrl} alt={alt} className={className ?? "h-full w-full object-cover"} />
+    }
+
+    return (
+        <div
+            className={className ?? "flex h-full w-full flex-col justify-between p-3"}
+            style={{
+                background:
+                    "radial-gradient(circle at top, rgba(45,212,191,0.28), rgba(15,23,42,0.94) 65%)",
+            }}
+        >
+            <span
+                className="inline-flex w-fit rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/80"
+                style={{ backgroundColor: "rgba(255,255,255,0.12)" }}
+            >
+                {stageLabel ?? "Asset"}
+            </span>
+            <div className="flex flex-1 items-center justify-center">
+                <span className="text-2xl font-semibold tracking-[0.12em] text-white/90">
+                    {getPreviewInitials(stageLabel, providerLabel)}
+                </span>
+            </div>
+            <span className="truncate text-[10px] font-medium uppercase tracking-[0.16em] text-white/65">
+                {providerLabel ?? "Project asset"}
+            </span>
         </div>
     )
 }

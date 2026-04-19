@@ -1,7 +1,7 @@
 "use client"
 
 import { getToolById } from "@/lib/orchestration/tool-catalog"
-import { AssetStatsPills } from "./asset-inspection"
+import { AssetPreviewTile, AssetStatsPills } from "./asset-inspection"
 import type { GeneratedAssetItem } from "./generated-assets"
 
 interface GeneratedAssetsShelfProps {
@@ -101,18 +101,13 @@ export function GeneratedAssetsShelf({
                                                     "radial-gradient(circle at top, rgba(45,212,191,0.18), rgba(15,23,42,0.92) 65%)",
                                             }}
                                         >
-                                            {asset.previewImageUrl ? (
-                                                // eslint-disable-next-line @next/next/no-img-element
-                                                <img
-                                                    src={asset.previewImageUrl}
-                                                    alt={asset.viewerLabel ?? asset.title}
-                                                    className="h-full w-full object-cover"
-                                                />
-                                            ) : (
-                                                <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/80">
-                                                    3D asset
-                                                </span>
-                                            )}
+                                            <AssetPreviewTile
+                                                imageUrl={asset.previewImageUrl}
+                                                alt={asset.viewerLabel ?? asset.title}
+                                                stageLabel={asset.stageLabel}
+                                                providerLabel={asset.providerLabel}
+                                                className="h-full w-full"
+                                            />
                                         </div>
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-start justify-between gap-3">
