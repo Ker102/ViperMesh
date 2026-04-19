@@ -1,6 +1,6 @@
 # ViperMesh — Future Plans & Roadmap
 
-> **Last Updated:** 2026-03-20
+> **Last Updated:** 2026-04-20
 > **Rule:** This file is the single source of truth for planned features. Do NOT merge these into gemini.md.
 > **Competitive Analysis:** See `tripo_competitive_analysis.md` artifact for detailed Tripo P1.0 breakdown.
 
@@ -12,6 +12,7 @@
 2. **Verify AgentActivity streaming UI** — Component is wired (`agent-activity.tsx`) but unconfirmed in live runs.
 3. **Run Tests 14-16** — UniRig AI auto-rigging, keyframe animation, MoMask text-to-motion.
 4. **Follow-up question quality** — Post-execution follow-up questions are weak/irrelevant. Needs prompt engineering in `route.ts`.
+5. **Viewer inspection follow-up: secondary heavy viewer path** — After the current `<model-viewer>` inspection/workflow polish batch is complete, build the next viewer implementation as a heavier diagnostic/editor surface for true wireframe, flat-vs-smooth shading inspection, and deeper geometry debugging that the current MVP stack cannot represent cleanly.
 
 ---
 
@@ -27,6 +28,11 @@ Competitors (Tripo, Modiff, Meshy) all have in-browser 3D viewers.
 - Download in multiple formats
 - Side-by-side comparison of variants
 - **Alternative:** Three.js for more control, Babylon.js for full PBR pipeline
+
+**Current implementation reality (2026-04-20):**
+- ViperMesh is already using `<model-viewer>` as the active Studio viewer surface for result inspection, download, clay/geometry-style inspection, and metadata overlays
+- This remains the right MVP/review viewer
+- **Next viewer implementation after the current Studio polish batch:** add a secondary heavier viewer path for true wireframe, flat/smooth shading diagnostics, and deeper material/geometry debugging that should not be faked inside the MVP stack
 
 ### 🟠 Tripo P1.0 API Integration
 Tripo P1.0 generates production-ready assets in **2 seconds** (mesh) / **60 seconds** (PBR). ~$0.20/model.
