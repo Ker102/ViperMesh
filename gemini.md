@@ -1145,6 +1145,13 @@
    - Updated `deploy/azure/hunyuan-paint-api/app.py` so `/texturize` is now a synchronous FastAPI handler, allowing FastAPI/Uvicorn to run the heavy work in the threadpool rather than on the event loop
    - Added an `INFERENCE_LOCK` around the paint pipeline call to keep model access serialized inside the single replica while still allowing `/health` to respond concurrently
    - This change is intended to stop long Paint requests from starving the health probes and triggering ingress-level upstream resets during otherwise valid inference runs
+29. **Azure Paint Memory Lift + Attachment Viewer Simplification**:
+   - Investigated the next failure round where Azure restarted the Paint replica again and the Studio input model preview reported `webglcontextlost`, even after the probe-starvation fix landed
+   - Confirmed from Azure metrics that the failing Paint request still ran for about `63.4s`, drove `MemoryPercentage` to `99%`, and then restarted the replica, shifting the likely root cause from ingress/probe starvation to process memory exhaustion during model load or inference
+   - Updated `deploy/azure/hunyuan-paint-api/app.py` to preload the paint model during FastAPI startup, so the Azure revision now has to prove it can hold the model before traffic is routed to it instead of failing only on the first user request
+   - Updated `deploy/azure/create-container-apps.ps1` defaults for Paint to a larger runtime envelope (`4 CPU`, `24Gi` memory) and reduced `PAINT_MAX_NUM_VIEW` from `6` to `4` to lower runtime pressure on the A100 lane
+   - Rolled the live Paint app to `vipershreg.azurecr.io/vipermesh/hunyuan-paint-api:memfix-20260419190251` and updated the active Azure revision to `vipermesh-paint-api--memfix20260419190251`
+   - Removed the nested `ModelViewer` from `MeshAttachmentCard` in `components/projects/studio-workspace.tsx`, replacing it with a lightweight asset preview card so the side panel no longer competes with the main stage for another WebGL context while the source mesh is already visible in the primary viewer
 
 ### Validation
 - `npx tsc --noEmit`

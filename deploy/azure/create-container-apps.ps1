@@ -11,8 +11,8 @@ param(
     [string]$PaintApiToken = $env:HUNYUAN_PAINT_API_TOKEN,
     [string]$ShapeCpu = "2.0",
     [string]$ShapeMemory = "4Gi",
-    [string]$PaintCpu = "2.0",
-    [string]$PaintMemory = "4Gi",
+    [string]$PaintCpu = "4.0",
+    [string]$PaintMemory = "24Gi",
     [int]$ShapeMinReplicas = 0,
     [int]$ShapeMaxReplicas = 3,
     [int]$PaintMinReplicas = 1,
@@ -278,7 +278,7 @@ Ensure-ContainerApp `
     -MaxReplicas $PaintMaxReplicas `
     -EnvVars @(
         "PORT=8080",
-        "PAINT_MAX_NUM_VIEW=6",
+        "PAINT_MAX_NUM_VIEW=4",
         "PAINT_RESOLUTION=512"
     )
 Set-ContainerAppProbes -AppName $PaintAppName -Probes $paintProbes

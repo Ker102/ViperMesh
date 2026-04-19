@@ -160,6 +160,11 @@ app = FastAPI(
 )
 
 
+@app.on_event("startup")
+def preload_model():
+    load_model()
+
+
 @app.get("/health")
 async def health():
     return JSONResponse(

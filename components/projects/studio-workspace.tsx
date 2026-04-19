@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Loader2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, RefreshCw, Square } from "lucide-react"
+import { Box, Loader2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, RefreshCw, Square } from "lucide-react"
 import { ModelViewer } from "@/components/generation/ModelViewer"
 import { cn } from "@/lib/utils"
 import {
@@ -183,19 +183,19 @@ function MeshAttachmentCard({
         >
             <div className="flex items-start gap-4">
                 <div
-                    className="h-24 w-24 shrink-0 overflow-hidden rounded-2xl border"
+                    className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border"
                     style={{
                         borderColor: "hsl(var(--forge-border))",
-                        backgroundColor: "hsl(var(--forge-surface))",
+                        background:
+                            "radial-gradient(circle at top, rgba(45,212,191,0.22), rgba(15,23,42,0.92) 65%)",
                     }}
                 >
-                    <ModelViewer
-                        url={value}
-                        className="h-full w-full rounded-none border-0"
-                        showControls={false}
-                        showFooter={false}
-                        interactive={false}
-                    />
+                    <div className="flex flex-col items-center gap-2 text-center text-white/90">
+                        <Box className="h-8 w-8" />
+                        <span className="px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/70">
+                            3D asset
+                        </span>
+                    </div>
                 </div>
                 <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
