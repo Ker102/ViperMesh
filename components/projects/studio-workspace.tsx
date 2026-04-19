@@ -956,6 +956,7 @@ function NeuralViewerStage({
         viewerSource === "input" && viewerUrl
             ? getAssetDisplayLabel(viewerUrl)
             : viewerLabel
+    const metadataSummary = [assetStats?.stageLabel, assetStats?.sourceProvider].filter(Boolean).join(" • ")
 
     return (
         <div
@@ -1079,6 +1080,19 @@ function NeuralViewerStage({
                         )}
                         <NeuralRunStatusBadge status={status} />
                     </div>
+                    {(metadataSummary || assetStats) && (
+                        <div className="pointer-events-auto mt-3 max-w-[44rem] space-y-2">
+                            {metadataSummary && (
+                                <p
+                                    className="text-xs font-medium"
+                                    style={{ color: "hsl(var(--forge-text-muted))" }}
+                                >
+                                    {metadataSummary}
+                                </p>
+                            )}
+                            <AssetStatsPills stats={assetStats} className="flex flex-wrap gap-2" />
+                        </div>
+                    )}
                 </div>
             </div>
 
