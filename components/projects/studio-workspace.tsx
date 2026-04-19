@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { Box, Loader2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, RefreshCw, Square } from "lucide-react"
 import { ModelViewer } from "@/components/generation/ModelViewer"
 import { cn } from "@/lib/utils"
+import { extractNeuralOutputRelativePath } from "@/lib/neural/output-files"
 import {
     CATEGORIES,
     getToolsForCategory,
@@ -13,7 +14,9 @@ import {
     type ToolEntry,
     type ToolInput,
 } from "@/lib/orchestration/tool-catalog"
-import type { WorkflowTimelineNeuralState, WorkflowTimelineStep } from "./workflow-timeline"
+import { AssetStatsPanel, AssetStatsPills } from "./asset-inspection"
+import type { GeneratedAssetItem, GeneratedAssetSuggestion } from "./generated-assets"
+import type { AssetInspectionStats, WorkflowTimelineNeuralState, WorkflowTimelineStep } from "./workflow-timeline"
 
 interface StudioWorkspaceProps {
     activeCategory: string
@@ -23,6 +26,7 @@ interface StudioWorkspaceProps {
     onNeuralRunUpdate: (stepId: string, patch: Partial<Pick<WorkflowTimelineStep, "status" | "error" | "inputs" | "neuralState">>) => void
     selectedPipelineStep?: WorkflowTimelineStep | null
     onRequestCategoryChange?: (category: StudioCategory) => void
+    generatedAssets: GeneratedAssetItem[]
     externalToolLaunch?: {
         token: string
         toolId: string
@@ -46,6 +50,7 @@ interface ActiveNeuralRun {
     viewerSource?: NeuralViewerSource
     error?: string
     generationTimeMs?: number
+    assetStats?: AssetInspectionStats | null
 }
 
 interface NeuralRunResponse {
@@ -69,6 +74,7 @@ function buildPersistedNeuralState(run: ActiveNeuralRun): WorkflowTimelineNeural
         viewerLabel: run.viewerLabel,
         viewerSource: run.viewerSource,
         generationTimeMs: run.generationTimeMs,
+        assetStats: run.assetStats ?? null,
     }
 }
 
@@ -99,6 +105,59 @@ function resolveInputDisplayValue(input: ToolInput, inputs: Record<string, strin
 
 function getImageInputKey(tool: ToolEntry): string | undefined {
     return tool.inputs.find((input) => input.type === "image")?.key
+}
+
+function formatStageLabel(category: string): string {
+    switch (category) {
+        case "shape":
+            return "Geometry"
+        case "cleanup":
+            return "Cleanup"
+        case "paint":
+            return "Texturing"
+        case "skeleton":
+            return "Rigging"
+        case "export":
+            return "Export"
+        default:
+            return category.charAt(0).toUpperCase() + category.slice(1)
+    }
+}
+
+function formatProviderLabel(rawProvider?: string): string | undefined {
+    if (!rawProvider) return undefined
+    const normalized = rawProvider.replace(/-/g, " ")
+    return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function buildAssetStatsSeed(tool: ToolEntry): AssetInspectionStats {
+    return {
+        sourceToolId: tool.id,
+        sourceToolLabel: tool.name,
+        sourceProvider: formatProviderLabel(tool.provider),
+        stageLabel: formatStageLabel(tool.category),
+    }
+}
+
+function findGeneratedAssetByUrl(assets: GeneratedAssetItem[], viewerUrl?: string | null): GeneratedAssetItem | null {
+    if (!viewerUrl) return null
+    return assets.find((asset) => asset.viewerUrl === viewerUrl) ?? null
+}
+
+function mergeAssetStats(
+    tool: ToolEntry,
+    stats?: Partial<AssetInspectionStats> | null,
+    linkedAsset?: GeneratedAssetItem | null,
+): AssetInspectionStats {
+    return {
+        ...buildAssetStatsSeed(tool),
+        ...(linkedAsset?.assetStats ?? {}),
+        sourceToolId: linkedAsset?.assetStats?.sourceToolId ?? linkedAsset?.toolName ?? tool.id,
+        sourceToolLabel: linkedAsset?.assetStats?.sourceToolLabel ?? linkedAsset?.toolLabel ?? tool.name,
+        sourceProvider: linkedAsset?.assetStats?.sourceProvider ?? linkedAsset?.providerLabel ?? formatProviderLabel(tool.provider),
+        stageLabel: linkedAsset?.assetStats?.stageLabel ?? linkedAsset?.stageLabel ?? formatStageLabel(tool.category),
+        ...(stats ?? {}),
+    }
 }
 
 function getMeshPreviewImage(tool: ToolEntry, inputs: Record<string, string>): string | undefined {
@@ -160,11 +219,17 @@ function MeshAttachmentCard({
     emptyMessage,
     description,
     previewImageUrl,
+    assetStats,
+    stageLabel,
+    providerLabel,
 }: {
     value?: string
     emptyMessage: string
     description?: string
     previewImageUrl?: string
+    assetStats?: AssetInspectionStats | null
+    stageLabel?: string
+    providerLabel?: string
 }) {
     if (!value) {
         return (
@@ -220,9 +285,15 @@ function MeshAttachmentCard({
                     <p className="mt-1 text-sm font-medium" style={{ color: "hsl(var(--forge-text))" }}>
                         {getAssetDisplayLabel(value)}
                     </p>
+                    {(stageLabel || providerLabel) && (
+                        <p className="mt-1 text-xs" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                            {[stageLabel, providerLabel].filter(Boolean).join(" • ")}
+                        </p>
+                    )}
                     <p className="mt-1 text-xs leading-relaxed" style={{ color: "hsl(var(--forge-text-muted))" }}>
                         {description ?? "This tool will use the current project model as its source mesh."}
                     </p>
+                    <AssetStatsPills stats={assetStats} className="mt-3 flex flex-wrap gap-2" />
                 </div>
             </div>
         </div>
@@ -373,12 +444,14 @@ function ToolDetailView({
     onSubmit,
     onRunNow,
     initialInputs,
+    generatedAssets,
 }: {
     tool: ToolEntry
     onBack: () => void
     onSubmit: (tool: ToolEntry, inputs: Record<string, string>) => void
     onRunNow: (tool: ToolEntry, inputs: Record<string, string>) => void
     initialInputs?: Record<string, string>
+    generatedAssets: GeneratedAssetItem[]
 }) {
     const [inputs, setInputs] = useState<Record<string, string>>(initialInputs ?? {})
 
@@ -629,6 +702,9 @@ function ToolDetailView({
                                         value={inputs[input.key]}
                                         emptyMessage="No model is attached yet. Continue from a generated result or a future asset selector to populate this field."
                                         previewImageUrl={getMeshPreviewImage(tool, inputs)}
+                                        assetStats={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.assetStats}
+                                        stageLabel={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.stageLabel}
+                                        providerLabel={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.providerLabel}
                                     />
                                 )}
 
@@ -821,6 +897,90 @@ function NeuralRunStatusBadge({ status }: { status: NeuralRunStatus }) {
     )
 }
 
+function buildNextSuggestionsForTool(tool: ToolEntry): GeneratedAssetSuggestion[] {
+    if (tool.category === "shape") {
+        const paintTool = getToolById("hunyuan-paint")
+        const cleanupTool = getToolById("meshanything-v2")
+        const suggestions: GeneratedAssetSuggestion[] = []
+        if (paintTool) {
+            suggestions.push({
+                toolId: paintTool.id,
+                label: `Continue to ${paintTool.name}`,
+                description: "Carry this geometry into AI texturing without re-uploading the mesh.",
+                variant: "primary" as const,
+            })
+        }
+        if (cleanupTool) {
+            suggestions.push({
+                toolId: cleanupTool.id,
+                label: `Continue to ${cleanupTool.name}`,
+                description: "Retopologize the mesh into cleaner, lower-poly quads.",
+                variant: "secondary" as const,
+            })
+        }
+        return suggestions
+    }
+
+    if (tool.category === "paint") {
+        const cleanupTool = getToolById("meshanything-v2")
+        const rigTool = getToolById("unirig")
+        const suggestions: GeneratedAssetSuggestion[] = []
+        if (cleanupTool) {
+            suggestions.push({
+                toolId: cleanupTool.id,
+                label: `Continue to ${cleanupTool.name}`,
+                description: "Prepare a cleaner, animation-ready mesh after texturing.",
+                variant: "primary" as const,
+            })
+        }
+        if (rigTool) {
+            suggestions.push({
+                toolId: rigTool.id,
+                label: `Continue to ${rigTool.name}`,
+                description: "If this asset is a character or creature, move directly into rigging.",
+                variant: "secondary" as const,
+            })
+        }
+        return suggestions
+    }
+
+    if (tool.category === "cleanup") {
+        const rigTool = getToolById("unirig")
+        const exportTool = getToolById("blender-agent-export")
+        const suggestions: GeneratedAssetSuggestion[] = []
+        if (rigTool) {
+            suggestions.push({
+                toolId: rigTool.id,
+                label: `Continue to ${rigTool.name}`,
+                description: "Use the cleaned mesh as the input for auto-rigging.",
+                variant: "primary" as const,
+            })
+        }
+        if (exportTool) {
+            suggestions.push({
+                toolId: exportTool.id,
+                label: `Continue to ${exportTool.name}`,
+                description: "Export the model once geometry cleanup is complete.",
+                variant: "secondary" as const,
+            })
+        }
+        return suggestions
+    }
+
+    return []
+}
+
+function buildToolLaunchInputs(tool: ToolEntry, meshUrl: string, referenceImage?: string): Record<string, string> {
+    const inputs: Record<string, string> = {}
+    if (tool.inputs.some((input) => input.type === "mesh")) {
+        inputs.meshUrl = meshUrl
+    }
+    if (referenceImage && tool.inputs.some((input) => input.type === "image")) {
+        inputs.imageUrl = referenceImage
+    }
+    return inputs
+}
+
 function NeuralViewerStage({
     title,
     status,
@@ -829,6 +989,7 @@ function NeuralViewerStage({
     viewerSource,
     error,
     generationTimeMs,
+    assetStats,
 }: {
     title: string
     status: NeuralRunStatus
@@ -837,7 +998,9 @@ function NeuralViewerStage({
     viewerSource?: NeuralViewerSource
     error?: string
     generationTimeMs?: number
+    assetStats?: AssetInspectionStats | null
 }) {
+    const [inspectionMode, setInspectionMode] = useState<"material" | "clay" | "stats">("material")
     const displayViewerLabel =
         viewerSource === "input" && viewerUrl
             ? getAssetDisplayLabel(viewerUrl)
@@ -854,6 +1017,7 @@ function NeuralViewerStage({
                 <ModelViewer
                     url={viewerUrl}
                     className="h-full min-h-0 rounded-none border-0"
+                    inspectionMode={inspectionMode === "stats" ? "material" : inspectionMode}
                 />
             ) : (
                 <div
@@ -879,6 +1043,14 @@ function NeuralViewerStage({
                                 ? "The viewer stage stays in place while the neural model runs. The first result will appear here automatically."
                                 : error ?? "This area will render the first generated GLB as soon as it is available."}
                         </p>
+                    </div>
+                </div>
+            )}
+
+            {inspectionMode === "stats" && viewerUrl && (
+                <div className="pointer-events-none absolute inset-x-0 bottom-24 z-20 flex justify-center px-4">
+                    <div className="pointer-events-auto w-[min(340px,calc(100%-2rem))]">
+                        <AssetStatsPanel stats={assetStats} />
                     </div>
                 </div>
             )}
@@ -957,6 +1129,44 @@ function NeuralViewerStage({
                     </div>
                 </div>
             </div>
+
+            {viewerUrl && (
+                <div className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex justify-center px-6">
+                    <div
+                        className="pointer-events-auto inline-flex items-center gap-1 rounded-full border px-1 py-1 shadow-lg backdrop-blur"
+                        style={{
+                            borderColor: "hsl(var(--forge-border))",
+                            backgroundColor: "rgba(15, 23, 42, 0.78)",
+                        }}
+                    >
+                        {[
+                            { id: "material", label: "Material" },
+                            { id: "clay", label: "Clay" },
+                            { id: "stats", label: "Stats" },
+                        ].map((mode) => {
+                            const active = inspectionMode === mode.id
+                            return (
+                                <button
+                                    key={mode.id}
+                                    type="button"
+                                    onClick={() => setInspectionMode(mode.id as "material" | "clay" | "stats")}
+                                    className="rounded-full px-4 py-2 text-xs font-semibold transition"
+                                    style={active
+                                        ? {
+                                            backgroundColor: "rgba(255,255,255,0.18)",
+                                            color: "white",
+                                        }
+                                        : {
+                                            color: "rgba(226,232,240,0.86)",
+                                        }}
+                                >
+                                    {mode.label}
+                                </button>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
@@ -964,10 +1174,12 @@ function NeuralViewerStage({
 function NeuralRerunFields({
     tool,
     inputs,
+    generatedAssets,
     onChange,
 }: {
     tool: ToolEntry
     inputs: Record<string, string>
+    generatedAssets: GeneratedAssetItem[]
     onChange: (key: string, value: string) => void
 }) {
     return (
@@ -1047,6 +1259,9 @@ function NeuralRerunFields({
                             value={inputs[input.key]}
                             emptyMessage="No model is attached yet. Continue from a generated result or a future asset selector to populate this field."
                             previewImageUrl={getMeshPreviewImage(tool, inputs)}
+                            assetStats={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.assetStats}
+                            stageLabel={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.stageLabel}
+                            providerLabel={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.providerLabel}
                         />
                     )}
 
@@ -1138,9 +1353,10 @@ function NeuralRunOverlay({
     referenceImage,
     viewerSamples,
     draftInputs,
+    generatedAssets,
     onLoadDemo,
     onDraftInputChange,
-    onContinueToNextTool,
+    onContinueToSuggestedTool,
     onCollapse,
     onToggleFocus,
     onStop,
@@ -1150,15 +1366,19 @@ function NeuralRunOverlay({
     referenceImage?: string
     viewerSamples: ViewerSample[]
     draftInputs: Record<string, string>
+    generatedAssets: GeneratedAssetItem[]
     onLoadDemo: (sample: ViewerSample) => void
     onDraftInputChange: (key: string, value: string) => void
-    onContinueToNextTool: () => void
+    onContinueToSuggestedTool: (toolId: string) => void
     onCollapse: () => void
     onToggleFocus: () => void
     onStop: () => void
     onRunAgain: () => void
 }) {
     const isFocus = run.dockMode === "focus"
+    const nextSuggestions = run.status === "ready" && run.viewerUrl && run.viewerSource === "generated"
+        ? buildNextSuggestionsForTool(run.tool)
+        : []
 
     return (
         <aside
@@ -1394,6 +1614,9 @@ function NeuralRunOverlay({
                                             value={value}
                                             emptyMessage="No model is attached yet."
                                             previewImageUrl={getMeshPreviewImage(run.tool, run.inputs)}
+                                            assetStats={findGeneratedAssetByUrl(generatedAssets, value)?.assetStats}
+                                            stageLabel={findGeneratedAssetByUrl(generatedAssets, value)?.stageLabel}
+                                            providerLabel={findGeneratedAssetByUrl(generatedAssets, value)?.providerLabel}
                                         />
                                         {input.helpText && (
                                             <p className="text-xs" style={{ color: "hsl(var(--forge-text-subtle))" }}>
@@ -1440,6 +1663,7 @@ function NeuralRunOverlay({
                             <NeuralRerunFields
                                 tool={run.tool}
                                 inputs={draftInputs}
+                                generatedAssets={generatedAssets}
                                 onChange={onDraftInputChange}
                             />
                         </div>
@@ -1457,7 +1681,7 @@ function NeuralRunOverlay({
                     </p>
                 </div>
 
-                {run.status === "ready" && run.viewerUrl && run.viewerSource === "generated" && (
+                {nextSuggestions.length > 0 && (
                     <div
                         className="rounded-2xl border p-4"
                         style={{
@@ -1470,17 +1694,33 @@ function NeuralRunOverlay({
                                 Suggested next step
                             </p>
                             <p className="text-sm leading-relaxed" style={{ color: "hsl(var(--forge-text-muted))" }}>
-                                Continue this generated geometry into the texturing stage without re-uploading the mesh.
+                                Move this asset to the next stage without re-uploading the mesh or rebuilding the pipeline context.
                             </p>
                         </div>
-                        <button
-                            type="button"
-                            onClick={onContinueToNextTool}
-                            className="mt-3 w-full rounded-xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
-                            style={{ backgroundColor: "hsl(var(--forge-accent))" }}
-                        >
-                            Continue to Hunyuan3D Paint
-                        </button>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            {nextSuggestions.map((suggestion) => (
+                                <button
+                                    key={suggestion.toolId}
+                                    type="button"
+                                    onClick={() => onContinueToSuggestedTool(suggestion.toolId)}
+                                    className="rounded-xl px-4 py-3 text-sm font-semibold transition hover:opacity-90"
+                                    style={suggestion.variant === "primary"
+                                        ? {
+                                            backgroundColor: "hsl(var(--forge-accent))",
+                                            color: "white",
+                                        }
+                                        : {
+                                            borderColor: "hsl(var(--forge-border))",
+                                            borderWidth: "1px",
+                                            backgroundColor: "rgba(255,255,255,0.74)",
+                                            color: "hsl(var(--forge-text-muted))",
+                                        }}
+                                    title={suggestion.description}
+                                >
+                                    {suggestion.label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>
@@ -1528,6 +1768,7 @@ export function StudioWorkspace({
     onNeuralRunUpdate,
     selectedPipelineStep,
     onRequestCategoryChange,
+    generatedAssets,
     externalToolLaunch,
 }: StudioWorkspaceProps) {
     const [selectedTool, setSelectedTool] = useState<ToolEntry | null>(null)
@@ -1593,6 +1834,7 @@ export function StudioWorkspace({
                 viewerSource: persistedState?.viewerSource,
                 error: selectedPipelineStep.error,
                 generationTimeMs: persistedState?.generationTimeMs,
+                assetStats: persistedState?.assetStats,
             }
         })
     }, [savedNeuralRuns, selectedPipelineStep, selectedTool])
@@ -1647,8 +1889,6 @@ export function StudioWorkspace({
         }
     }, [])
 
-    if (!category) return null
-
     const runNeuralTool = async (tool: ToolEntry, inputs: Record<string, string>, existingStepId?: string) => {
         if (!tool.provider) return
 
@@ -1658,6 +1898,7 @@ export function StudioWorkspace({
         const resolutionValue = inputs.resolution ? Number(inputs.resolution) : undefined
         const targetFacesValue = inputs.targetFaces ? Number(inputs.targetFaces) : undefined
         const carriedViewerUrl = inputs.meshUrl || null
+        const linkedAsset = findGeneratedAssetByUrl(generatedAssets, carriedViewerUrl)
         const abortController = new AbortController()
 
         neuralAbortRef.current?.abort()
@@ -1673,6 +1914,7 @@ export function StudioWorkspace({
             viewerUrl: carriedViewerUrl,
             viewerLabel: carriedViewerUrl ? getAssetDisplayLabel(carriedViewerUrl) : undefined,
             viewerSource: carriedViewerUrl ? "input" : undefined,
+            assetStats: carriedViewerUrl ? mergeAssetStats(tool, undefined, linkedAsset) : mergeAssetStats(tool),
         })
 
         try {
@@ -1706,6 +1948,7 @@ export function StudioWorkspace({
                     viewerSource: "generated",
                     error: undefined,
                     generationTimeMs: data.generationTimeMs,
+                    assetStats: mergeAssetStats(current.tool),
                 }
             })
             onNeuralRunUpdate(stepId, { status: "done" })
@@ -1802,36 +2045,89 @@ export function StudioWorkspace({
                 viewerUrl: sample.url,
                 viewerLabel: sample.name,
                 viewerSource: "demo",
+                assetStats: null,
             }
         })
     }
 
-    const handleContinueToPaint = () => {
+    useEffect(() => {
+        if (!neuralRun?.viewerUrl || neuralRun.viewerSource === "demo") return
+
+        const linkedAsset = findGeneratedAssetByUrl(generatedAssets, neuralRun.viewerUrl)
+        if (linkedAsset?.assetStats && !neuralRun.assetStats) {
+            setNeuralRun((current) => {
+                if (!current || current.viewerUrl !== neuralRun.viewerUrl || current.assetStats) {
+                    return current
+                }
+                return {
+                    ...current,
+                    assetStats: mergeAssetStats(current.tool, linkedAsset.assetStats, linkedAsset),
+                }
+            })
+            return
+        }
+
+        if (neuralRun.assetStats?.triangleCount != null || neuralRun.assetStats?.fileSizeBytes != null) {
+            return
+        }
+
+        const relativePath = extractNeuralOutputRelativePath(neuralRun.viewerUrl)
+        if (!relativePath) return
+
+        let cancelled = false
+
+        fetch(`/api/ai/neural-output/stats?path=${encodeURIComponent(relativePath)}`)
+            .then(async (response) => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`)
+                }
+                return response.json() as Promise<{ stats?: Partial<AssetInspectionStats> }>
+            })
+            .then((payload) => {
+                if (cancelled || !payload.stats) return
+                setNeuralRun((current) => {
+                    if (!current || current.viewerUrl !== neuralRun.viewerUrl) {
+                        return current
+                    }
+                    return {
+                        ...current,
+                        assetStats: mergeAssetStats(current.tool, payload.stats, linkedAsset),
+                    }
+                })
+            })
+            .catch((statsError) => {
+                if (!cancelled) {
+                    console.warn("Failed to inspect generated asset", statsError)
+                }
+            })
+
+        return () => {
+            cancelled = true
+        }
+    }, [generatedAssets, neuralRun])
+
+    const handleContinueToSuggestedTool = (toolId: string) => {
         if (!neuralRun?.viewerUrl) return
 
-        const paintTool = getToolById("hunyuan-paint")
-        if (!paintTool) return
+        const targetTool = getToolById(toolId)
+        if (!targetTool) return
 
         const carriedReference = neuralRun.inputs.imageUrl ?? neuralRun.inputs.referenceImage
-        const draft: Record<string, string> = {
-            meshUrl: neuralRun.viewerUrl,
-        }
-
-        if (carriedReference) {
-            draft.imageUrl = carriedReference
-        }
+        const draft = buildToolLaunchInputs(targetTool, neuralRun.viewerUrl, carriedReference)
 
         setToolDrafts((prev) => ({
             ...prev,
-            [paintTool.id]: draft,
+            [targetTool.id]: draft,
         }))
         setSavedNeuralRuns((prev) =>
             neuralRun ? { ...prev, [neuralRun.stepId]: neuralRun } : prev
         )
         setNeuralRun(null)
-        onRequestCategoryChange?.(paintTool.category)
-        setSelectedTool(paintTool)
+        onRequestCategoryChange?.(targetTool.category)
+        setSelectedTool(targetTool)
     }
+
+    if (!category) return null
 
     // ── Detail view ──
     if (neuralRun) {
@@ -1863,9 +2159,10 @@ export function StudioWorkspace({
                         referenceImage={referenceImage}
                         viewerSamples={viewerSamples}
                         draftInputs={neuralRun.draftInputs}
+                        generatedAssets={generatedAssets}
                         onLoadDemo={handleLoadDemoSample}
                         onDraftInputChange={handleDraftInputChange}
-                        onContinueToNextTool={handleContinueToPaint}
+                        onContinueToSuggestedTool={handleContinueToSuggestedTool}
                         onCollapse={handleCollapseNeuralPanel}
                         onToggleFocus={handleToggleNeuralFocus}
                         onStop={handleStopNeuralRun}
@@ -1882,6 +2179,7 @@ export function StudioWorkspace({
                         viewerSource={neuralRun.viewerSource}
                         error={neuralRun.error}
                         generationTimeMs={neuralRun.generationTimeMs}
+                        assetStats={neuralRun.assetStats}
                     />
                 </div>
             </div>
@@ -1894,6 +2192,7 @@ export function StudioWorkspace({
                 key={selectedTool.id}
                 tool={selectedTool}
                 initialInputs={toolDrafts[selectedTool.id]}
+                generatedAssets={generatedAssets}
                 onBack={() => setSelectedTool(null)}
                 onSubmit={(tool, inputs) => {
                     onToolSelect(tool, inputs)

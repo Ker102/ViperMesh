@@ -49,12 +49,25 @@ export interface StepPlanData {
     errors?: string[]
 }
 
+export interface AssetInspectionStats {
+    triangleCount?: number
+    materialCount?: number
+    textureCount?: number
+    meshCount?: number
+    fileSizeBytes?: number
+    sourceToolId?: string
+    sourceToolLabel?: string
+    sourceProvider?: string
+    stageLabel?: string
+}
+
 export interface WorkflowTimelineNeuralState {
     draftInputs?: Record<string, string>
     viewerUrl?: string | null
     viewerLabel?: string
     viewerSource?: "generated" | "demo" | "input"
     generationTimeMs?: number
+    assetStats?: AssetInspectionStats | null
 }
 
 export interface WorkflowTimelineStep {

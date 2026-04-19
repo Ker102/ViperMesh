@@ -514,21 +514,26 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         setAssistantOpen(false)
     }, [])
 
-    const handleContinueGeneratedAssetToPaint = useCallback((asset: GeneratedAssetItem) => {
-        const paintTool = getToolById("hunyuan-paint")
-        if (!paintTool) return
+    const handleContinueGeneratedAssetToTool = useCallback((asset: GeneratedAssetItem, toolId: string) => {
+        const targetTool = getToolById(toolId)
+        if (!targetTool) return
+
+        const launchInputs: Record<string, string> = {}
+        if (targetTool.inputs.some((input) => input.type === "mesh")) {
+            launchInputs.meshUrl = asset.viewerUrl
+        }
+        if (asset.referenceImage && targetTool.inputs.some((input) => input.type === "image")) {
+            launchInputs.imageUrl = asset.referenceImage
+        }
 
         setSelectedStepId(null)
         setAssistantOpen(false)
         setGeneratedAssetsOpen(false)
-        setActiveCategory(paintTool.category)
+        setActiveCategory(targetTool.category)
         setExternalToolLaunch({
             token: `${asset.stepId}:${Date.now()}`,
-            toolId: paintTool.id,
-            inputs: {
-                meshUrl: asset.viewerUrl,
-                ...(asset.referenceImage ? { imageUrl: asset.referenceImage } : {}),
-            },
+            toolId: targetTool.id,
+            inputs: launchInputs,
         })
     }, [])
 
@@ -679,7 +684,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                     assets={generatedAssets}
                     onClose={() => setGeneratedAssetsOpen(false)}
                     onOpenAsset={handleOpenGeneratedAsset}
-                    onContinueToPaint={handleContinueGeneratedAssetToPaint}
+                    onContinueToTool={handleContinueGeneratedAssetToTool}
                 />
 
                 <StudioWorkspace
@@ -691,6 +696,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                     selectedPipelineStep={selectedNeuralStep}
                     onRequestCategoryChange={setActiveCategory}
                     externalToolLaunch={externalToolLaunch}
+                    generatedAssets={generatedAssets}
                 />
 
                 <StudioAdvisor

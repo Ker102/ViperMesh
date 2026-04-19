@@ -56,3 +56,17 @@ export function buildNeuralOutputUrl(modelPath: string): string {
     const relativePath = path.relative(getCanonicalOutputRoot(), safePath).split(path.sep).join("/")
     return `/api/ai/neural-output?path=${encodeURIComponent(relativePath)}`
 }
+
+export function extractNeuralOutputRelativePath(candidateUrl: string): string | null {
+    try {
+        const baseUrl =
+            typeof window !== "undefined"
+                ? window.location.origin
+                : "http://127.0.0.1"
+        const parsed = new URL(candidateUrl, baseUrl)
+        const relativePath = parsed.searchParams.get("path")
+        return relativePath ? decodeURIComponent(relativePath) : null
+    } catch {
+        return null
+    }
+}
