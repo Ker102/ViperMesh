@@ -101,6 +101,12 @@ function getImageInputKey(tool: ToolEntry): string | undefined {
     return tool.inputs.find((input) => input.type === "image")?.key
 }
 
+function getMeshPreviewImage(tool: ToolEntry, inputs: Record<string, string>): string | undefined {
+    const imageKey = getImageInputKey(tool)
+    if (!imageKey) return undefined
+    return inputs[imageKey] || undefined
+}
+
 function PreviewImage(props: React.ImgHTMLAttributes<HTMLImageElement> & { alt: string }) {
     const { alt, ...imgProps } = props
 
@@ -153,10 +159,12 @@ function MeshAttachmentCard({
     value,
     emptyMessage,
     description,
+    previewImageUrl,
 }: {
     value?: string
     emptyMessage: string
     description?: string
+    previewImageUrl?: string
 }) {
     if (!value) {
         return (
@@ -190,12 +198,20 @@ function MeshAttachmentCard({
                             "radial-gradient(circle at top, rgba(45,212,191,0.22), rgba(15,23,42,0.92) 65%)",
                     }}
                 >
-                    <div className="flex flex-col items-center gap-2 text-center text-white/90">
-                        <Box className="h-8 w-8" />
-                        <span className="px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/70">
-                            3D asset
-                        </span>
-                    </div>
+                    {previewImageUrl ? (
+                        <PreviewImage
+                            src={previewImageUrl}
+                            alt="Attached model preview"
+                            className="h-full w-full object-cover"
+                        />
+                    ) : (
+                        <div className="flex flex-col items-center gap-2 text-center text-white/90">
+                            <Box className="h-8 w-8" />
+                            <span className="px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/70">
+                                3D asset
+                            </span>
+                        </div>
+                    )}
                 </div>
                 <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
@@ -612,6 +628,7 @@ function ToolDetailView({
                                     <MeshAttachmentCard
                                         value={inputs[input.key]}
                                         emptyMessage="No model is attached yet. Continue from a generated result or a future asset selector to populate this field."
+                                        previewImageUrl={getMeshPreviewImage(tool, inputs)}
                                     />
                                 )}
 
@@ -1029,6 +1046,7 @@ function NeuralRerunFields({
                         <MeshAttachmentCard
                             value={inputs[input.key]}
                             emptyMessage="No model is attached yet. Continue from a generated result or a future asset selector to populate this field."
+                            previewImageUrl={getMeshPreviewImage(tool, inputs)}
                         />
                     )}
 
@@ -1375,6 +1393,7 @@ function NeuralRunOverlay({
                                         <MeshAttachmentCard
                                             value={value}
                                             emptyMessage="No model is attached yet."
+                                            previewImageUrl={getMeshPreviewImage(run.tool, run.inputs)}
                                         />
                                         {input.helpText && (
                                             <p className="text-xs" style={{ color: "hsl(var(--forge-text-subtle))" }}>

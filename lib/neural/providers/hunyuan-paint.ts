@@ -19,6 +19,7 @@ import type {
 } from "../types"
 import { PROVIDERS } from "../registry"
 import fs from "fs/promises"
+import { sanitizeGlbForPaint } from "../glb-sanitize"
 
 export class HunyuanPaintClient extends Neural3DClient {
     readonly name = "Hunyuan3D Paint 2.1"
@@ -78,10 +79,10 @@ export class HunyuanPaintClient extends Neural3DClient {
             let meshBase64: string
             if (request.meshUrl.startsWith("http")) {
                 const meshRes = await fetch(request.meshUrl)
-                const buf = Buffer.from(await meshRes.arrayBuffer())
+                const buf = sanitizeGlbForPaint(Buffer.from(await meshRes.arrayBuffer()))
                 meshBase64 = buf.toString("base64")
             } else {
-                const buf = await fs.readFile(request.meshUrl)
+                const buf = sanitizeGlbForPaint(await fs.readFile(request.meshUrl))
                 meshBase64 = buf.toString("base64")
             }
 

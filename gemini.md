@@ -1152,6 +1152,13 @@
    - Updated `deploy/azure/create-container-apps.ps1` defaults for Paint to a larger runtime envelope (`4 CPU`, `24Gi` memory) and reduced `PAINT_MAX_NUM_VIEW` from `6` to `4` to lower runtime pressure on the A100 lane
    - Rolled the live Paint app to `vipershreg.azurecr.io/vipermesh/hunyuan-paint-api:memfix-20260419190251` and updated the active Azure revision to `vipermesh-paint-api--memfix20260419190251`
    - Removed the nested `ModelViewer` from `MeshAttachmentCard` in `components/projects/studio-workspace.tsx`, replacing it with a lightweight asset preview card so the side panel no longer competes with the main stage for another WebGL context while the source mesh is already visible in the primary viewer
+30. **TRELLIS-to-Paint GLB Sanitization + Static Attachment Preview**:
+   - Investigated the next immediate Paint failure and confirmed it was no longer a container restart issue: Hunyuan Paint was rejecting the attached TRELLIS GLB because the source file embedded `image/webp` textures that the loader could not decode (`Unknown image format. STB cannot decode image data`)
+   - Verified against the actual local TRELLIS output (`tmp/neural-output/fal-trellis-1774966329800.glb`) that it contained `2` embedded images, `2` textures, `1` material, and `EXT_texture_webp`
+   - Added `lib/neural/glb-sanitize.ts`, a backend-side helper that strips images, textures, samplers, material assignments, and texture/material extension declarations from GLB inputs while preserving the geometry payload, which is the correct contract for the Paint stage
+   - Updated `lib/neural/providers/hunyuan-paint.ts` so all GLB mesh inputs are sanitized before the mesh bytes are posted to the Azure Paint service
+   - Reworked `MeshAttachmentCard` in `components/projects/studio-workspace.tsx` so it can show a static preview image when one is available (for example the carried source/reference image) without spinning up another live `<model-viewer>` instance inside the side panel
+   - Added `deploy/azure/acr-build.ps1` as a Windows-safe ACR build helper that avoids the Azure CLI log-stream Unicode issue by using `--no-logs` and polling the queued build status instead of streaming the problematic console output
 
 ### Validation
 - `npx tsc --noEmit`
