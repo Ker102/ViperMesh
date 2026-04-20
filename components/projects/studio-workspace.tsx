@@ -953,6 +953,9 @@ function NeuralViewerStage({
     const [inspectionMode, setInspectionMode] = useState<"material" | "geometry" | "clay" | "toon" | "wireframe" | "stats">("material")
     const [inspectionTint, setInspectionTint] = useState<"neutral" | "violet" | "cyan">("neutral")
     const [shadingMode, setShadingMode] = useState<"smooth" | "flat">("smooth")
+    const [pbrEnabled, setPbrEnabled] = useState(true)
+    const [previewMetalness, setPreviewMetalness] = useState(1)
+    const [previewRoughness, setPreviewRoughness] = useState(1)
     const displayViewerLabel =
         viewerSource === "input" && viewerUrl
             ? getAssetDisplayLabel(viewerUrl)
@@ -981,6 +984,9 @@ function NeuralViewerStage({
                     inspectionMode={inspectionMode === "stats" ? "material" : inspectionMode}
                     inspectionTint={inspectionTint}
                     shadingMode={shadingMode}
+                    pbrEnabled={pbrEnabled}
+                    previewMetalness={previewMetalness}
+                    previewRoughness={previewRoughness}
                 />
             ) : (
                 <div
@@ -1144,6 +1150,22 @@ function NeuralViewerStage({
                                     </button>
                                 </>
                             )}
+                            {inspectionMode === "material" && (
+                                <>
+                                    <span className="h-3 w-px" style={{ backgroundColor: "rgba(255,255,255,0.12)" }} />
+                                    <span style={{ color: "rgba(148,163,184,0.95)" }}>PBR</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPbrEnabled((current) => !current)}
+                                        className="rounded-full px-2.5 py-1 text-[11px] font-medium transition"
+                                        style={pbrEnabled
+                                            ? { backgroundColor: "rgba(45,212,191,0.2)", color: "white" }
+                                            : { backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(226,232,240,0.78)" }}
+                                    >
+                                        {pbrEnabled ? "On" : "Off"}
+                                    </button>
+                                </>
+                            )}
                             {(inspectionMode === "clay" || inspectionMode === "wireframe") && (
                                 <>
                                     <span className="h-3 w-px" style={{ backgroundColor: "rgba(255,255,255,0.12)" }} />
@@ -1173,6 +1195,41 @@ function NeuralViewerStage({
                                 </>
                             )}
                         </div>
+                        {inspectionMode === "material" && pbrEnabled && (
+                            <div
+                                className="flex flex-wrap items-center gap-3 rounded-2xl border px-3 py-2 text-[11px] font-medium shadow-lg backdrop-blur"
+                                style={{
+                                    borderColor: "rgba(255,255,255,0.14)",
+                                    backgroundColor: "rgba(15, 23, 42, 0.72)",
+                                    color: "rgba(241,245,249,0.96)",
+                                }}
+                            >
+                                <label className="flex items-center gap-2">
+                                    <span style={{ color: "rgba(148,163,184,0.95)" }}>Metallic</span>
+                                    <input
+                                        type="range"
+                                        min={0}
+                                        max={1}
+                                        step={0.05}
+                                        value={previewMetalness}
+                                        onChange={(event) => setPreviewMetalness(Number(event.target.value))}
+                                    />
+                                    <span className="w-8 text-right tabular-nums">{previewMetalness.toFixed(2)}</span>
+                                </label>
+                                <label className="flex items-center gap-2">
+                                    <span style={{ color: "rgba(148,163,184,0.95)" }}>Roughness</span>
+                                    <input
+                                        type="range"
+                                        min={0}
+                                        max={1}
+                                        step={0.05}
+                                        value={previewRoughness}
+                                        onChange={(event) => setPreviewRoughness(Number(event.target.value))}
+                                    />
+                                    <span className="w-8 text-right tabular-nums">{previewRoughness.toFixed(2)}</span>
+                                </label>
+                            </div>
+                        )}
                         <div
                             className="inline-flex items-center gap-1 rounded-full border px-1 py-1 shadow-lg backdrop-blur"
                             style={{

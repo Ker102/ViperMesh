@@ -22,6 +22,9 @@ interface HeavyModelViewerProps {
     inspectionMode?: HeavyInspectionMode;
     inspectionTint?: "neutral" | "violet" | "cyan";
     shadingMode?: HeavyShadingMode;
+    pbrEnabled?: boolean;
+    previewMetalness?: number;
+    previewRoughness?: number;
 }
 
 type ViewerStatus = "loading" | "ready" | "error";
@@ -313,10 +316,27 @@ function buildReplacementMaterial(
     mode: HeavyInspectionMode,
     tint: string,
     shadingMode: HeavyShadingMode,
+    pbrEnabled: boolean,
+    previewMetalness: number,
+    previewRoughness: number,
 ): THREE.Material {
     const flatShading = shadingMode === "flat";
 
     if (mode === "material") {
+        if (!pbrEnabled) {
+            const material = new THREE.MeshPhongMaterial({
+                color: "#ffffff",
+                shininess: 22,
+                flatShading,
+                side: THREE.DoubleSide,
+            });
+            copyCommonMaterialProps(material, original, flatShading);
+            if ("normalMap" in material) {
+                material.normalMap = null;
+            }
+            return material;
+        }
+
         const cloned = original.clone();
         if ("flatShading" in cloned) {
             (cloned as THREE.Material & { flatShading?: boolean }).flatShading = flatShading;
@@ -328,38 +348,26 @@ function buildReplacementMaterial(
         if ("side" in cloned) {
             (cloned as THREE.Material & { side?: THREE.Side }).side = THREE.DoubleSide;
         }
+        if ("metalness" in cloned) {
+            (cloned as THREE.Material & { metalness?: number }).metalness = previewMetalness;
+        }
+        if ("roughness" in cloned) {
+            (cloned as THREE.Material & { roughness?: number }).roughness = previewRoughness;
+        }
+        if ("envMapIntensity" in cloned) {
+            (cloned as THREE.Material & { envMapIntensity?: number }).envMapIntensity = 2.8;
+        }
+        if ("aoMapIntensity" in cloned) {
+            (cloned as THREE.Material & { aoMapIntensity?: number }).aoMapIntensity = 0.2;
+        }
         return cloned;
     }
 
     if (mode === "geometry") {
-        const material = new THREE.ShaderMaterial({
+        const material = new THREE.MeshNormalMaterial({
+            flatShading,
             side: THREE.DoubleSide,
-            vertexShader: `
-                varying vec3 vNormalView;
-
-                void main() {
-                    vNormalView = normalize(normalMatrix * normal);
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                }
-            `,
-            fragmentShader: `
-                varying vec3 vNormalView;
-
-                void main() {
-                    vec3 n = normalize(vNormalView);
-                    vec3 encoded = n * 0.5 + 0.5;
-                    vec3 cyan = vec3(0.42, 0.95, 1.0);
-                    vec3 magenta = vec3(0.99, 0.46, 0.97);
-                    vec3 blue = vec3(0.66, 0.78, 1.0);
-                    vec3 color = mix(cyan, magenta, encoded.x);
-                    color = mix(color, blue, clamp(encoded.z * 0.82, 0.0, 1.0));
-                    color += vec3(0.05, 0.03, 0.08) * encoded.y;
-                    gl_FragColor = vec4(color, 1.0);
-                }
-            `,
         });
-        (material as THREE.ShaderMaterial & { flatShading?: boolean }).flatShading = flatShading;
-        material.needsUpdate = true;
         return material;
     }
 
@@ -399,8 +407,8 @@ function buildReplacementMaterial(
         if (material.map) {
             material.color.set("#ffffff");
         }
-        material.emissive.copy(source.emissive ?? new THREE.Color("#111827"));
-        material.emissiveIntensity = source.map ? 0.2 : 0.08;
+        material.emissive.copy(source.emissive ?? new THREE.Color("#000000"));
+        material.emissiveIntensity = 0;
         material.emissiveMap = source.emissiveMap ?? null;
         material.needsUpdate = true;
         return material;
@@ -410,6 +418,25 @@ function buildReplacementMaterial(
         color: tint,
         wireframe: true,
         side: THREE.DoubleSide,
+    });
+}
+
+function prepareInspectionGeometry(root: THREE.Object3D) {
+    root.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh || !mesh.geometry) return;
+
+        if (!mesh.userData.__inspectionGeometryCloned) {
+            mesh.geometry = mesh.geometry.clone();
+            mesh.userData.__inspectionGeometryCloned = true;
+        }
+
+        const geometry = mesh.geometry as THREE.BufferGeometry;
+        geometry.computeVertexNormals();
+        geometry.normalizeNormals();
+        geometry.computeBoundingBox();
+        geometry.computeBoundingSphere();
+        geometry.attributes.normal.needsUpdate = true;
     });
 }
 
@@ -470,7 +497,12 @@ function applyInspectionMaterials(
     mode: HeavyInspectionMode,
     tint: string,
     shadingMode: HeavyShadingMode,
+    pbrEnabled: boolean,
+    previewMetalness: number,
+    previewRoughness: number,
 ) {
+    prepareInspectionGeometry(root);
+
     root.traverse((child) => {
         const mesh = child as THREE.Mesh;
         if (!mesh.isMesh) return;
@@ -483,16 +515,42 @@ function applyInspectionMaterials(
         const generatedMaterials = mesh.userData.__generatedMaterials as THREE.Material[] | undefined;
         generatedMaterials?.forEach((material) => material.dispose());
 
-        if (mode === "material" && shadingMode === "smooth") {
+        if (mode === "material" && shadingMode === "smooth" && pbrEnabled) {
             mesh.material = Array.isArray(mesh.material) || originalMaterials.length > 1
                 ? originalMaterials
                 : originalMaterials[0];
+            const activeMaterials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            activeMaterials.forEach((material) => {
+                if ("side" in material) {
+                    (material as THREE.Material & { side?: THREE.Side }).side = THREE.DoubleSide;
+                }
+                if ("envMapIntensity" in material) {
+                    (material as THREE.Material & { envMapIntensity?: number }).envMapIntensity = 2.8;
+                }
+                if ("metalness" in material) {
+                    (material as THREE.Material & { metalness?: number }).metalness = previewMetalness;
+                }
+                if ("roughness" in material) {
+                    (material as THREE.Material & { roughness?: number }).roughness = previewRoughness;
+                }
+                material.needsUpdate = true;
+            });
             delete mesh.userData.__generatedMaterials;
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
             return;
         }
 
         const replacements = originalMaterials.map((material) =>
-            buildReplacementMaterial(material, mode, tint, shadingMode)
+            buildReplacementMaterial(
+                material,
+                mode,
+                tint,
+                shadingMode,
+                pbrEnabled,
+                previewMetalness,
+                previewRoughness,
+            )
         );
         mesh.userData.__generatedMaterials = replacements;
         mesh.material = Array.isArray(mesh.material) || replacements.length > 1 ? replacements : replacements[0];
@@ -534,12 +592,18 @@ function LoadedAsset({
     inspectionMode,
     inspectionTint,
     shadingMode,
+    pbrEnabled,
+    previewMetalness,
+    previewRoughness,
     onReady,
 }: {
     url: string;
     inspectionMode: HeavyInspectionMode;
     inspectionTint: NonNullable<HeavyModelViewerProps["inspectionTint"]>;
     shadingMode: HeavyShadingMode;
+    pbrEnabled: boolean;
+    previewMetalness: number;
+    previewRoughness: number;
     onReady: () => void;
 }) {
     const gltf = useLoader(GLTFLoader, url);
@@ -549,13 +613,21 @@ function LoadedAsset({
     );
 
     useEffect(() => {
-        applyInspectionMaterials(scene, inspectionMode, tintPaletteHex[inspectionTint], shadingMode);
+        applyInspectionMaterials(
+            scene,
+            inspectionMode,
+            tintPaletteHex[inspectionTint],
+            shadingMode,
+            pbrEnabled,
+            previewMetalness,
+            previewRoughness,
+        );
         onReady();
 
         return () => {
             disposeGeneratedMaterials(scene);
         };
-    }, [inspectionMode, inspectionTint, onReady, scene, shadingMode]);
+    }, [inspectionMode, inspectionTint, onReady, pbrEnabled, previewMetalness, previewRoughness, scene, shadingMode]);
 
     return <primitive object={scene} />;
 }
@@ -569,6 +641,9 @@ function HeavyModelViewerInner({
     inspectionMode = "material",
     inspectionTint = "neutral",
     shadingMode = "smooth",
+    pbrEnabled = true,
+    previewMetalness = 1,
+    previewRoughness = 1,
 }: Omit<HeavyModelViewerProps, "url"> & { safeUrl: string }) {
     const frameRef = useRef<HTMLDivElement | null>(null);
     const viewerApiRef = useRef<ViewerApi | null>(null);
@@ -700,13 +775,14 @@ function HeavyModelViewerInner({
             >
                 <color attach="background" args={[clearColorByMode[inspectionMode]]} />
                 <SceneEnvironmentController inspectionMode={inspectionMode} />
-                <ambientLight intensity={inspectionMode === "material" ? 0.88 : inspectionMode === "toon" ? 0.76 : 0.68} />
+                <ambientLight intensity={inspectionMode === "material" ? 1.2 : inspectionMode === "toon" ? 1.05 : 0.92} />
                 <hemisphereLight
-                    args={["#f8fafc", "#1e293b", inspectionMode === "material" ? 1.95 : inspectionMode === "toon" ? 1.6 : 1.2]}
+                    args={["#f8fafc", "#334155", inspectionMode === "material" ? 2.5 : inspectionMode === "toon" ? 2.05 : 1.55]}
                 />
-                <directionalLight position={[6, 8, 5]} intensity={inspectionMode === "material" ? 4.4 : inspectionMode === "toon" ? 3.2 : 2.25} castShadow />
-                <directionalLight position={[-5, 3, -6]} intensity={inspectionMode === "material" ? 2.45 : inspectionMode === "toon" ? 1.65 : 1.05} />
-                <directionalLight position={[0, 5, -8]} intensity={inspectionMode === "material" ? 1.25 : inspectionMode === "toon" ? 1.05 : 0.55} color="#dbeafe" />
+                <directionalLight position={[6, 8, 5]} intensity={inspectionMode === "material" ? 5.6 : inspectionMode === "toon" ? 4.1 : 2.9} castShadow />
+                <directionalLight position={[-5, 4, -6]} intensity={inspectionMode === "material" ? 3.25 : inspectionMode === "toon" ? 2.1 : 1.45} />
+                <directionalLight position={[0, 5, -8]} intensity={inspectionMode === "material" ? 1.7 : inspectionMode === "toon" ? 1.35 : 0.9} color="#dbeafe" />
+                <directionalLight position={[0, -2, 5]} intensity={inspectionMode === "material" ? 1.05 : inspectionMode === "toon" ? 0.9 : 0.55} color="#f8fafc" />
                 <Suspense fallback={null}>
                     <ViewerErrorBoundary
                         onError={(error) => {
@@ -734,6 +810,9 @@ function HeavyModelViewerInner({
                                 inspectionMode={inspectionMode}
                                 inspectionTint={inspectionTint}
                                 shadingMode={shadingMode}
+                                pbrEnabled={pbrEnabled}
+                                previewMetalness={previewMetalness}
+                                previewRoughness={previewRoughness}
                                 onReady={() => {
                                     setStatus("ready");
                                     setErrorMessage(null);
