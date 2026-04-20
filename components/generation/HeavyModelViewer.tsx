@@ -1,10 +1,11 @@
 "use client";
 
 import { Bounds, ContactShadows, OrbitControls, useBounds } from "@react-three/drei";
-import { Canvas, useLoader } from "@react-three/fiber";
+import { Canvas, useLoader, useThree } from "@react-three/fiber";
 import { Download, Loader2, Maximize2, RotateCcw } from "lucide-react";
 import React, { Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import { cn } from "@/lib/utils";
@@ -43,6 +44,30 @@ const tintPaletteHex: Record<NonNullable<HeavyModelViewerProps["inspectionTint"]
     neutral: "#d4d4d8",
     violet: "#e9d5ff",
     cyan: "#c4f1f9",
+};
+
+const clearColorByMode: Record<HeavyInspectionMode, string> = {
+    material: "#5b6470",
+    geometry: "#363d47",
+    clay: "#2c333d",
+    toon: "#424955",
+    wireframe: "#1a2029",
+};
+
+const frameBackgroundByMode: Record<HeavyInspectionMode, string> = {
+    material: "radial-gradient(circle at top, rgba(191, 219, 254, 0.32), rgba(26, 32, 44, 0.92) 62%)",
+    geometry: "radial-gradient(circle at top, rgba(186, 230, 253, 0.18), rgba(39, 46, 58, 0.98) 64%)",
+    clay: "radial-gradient(circle at top, rgba(226, 232, 240, 0.2), rgba(31, 41, 55, 0.96) 64%)",
+    toon: "radial-gradient(circle at top, rgba(196, 181, 253, 0.24), rgba(31, 41, 55, 0.95) 64%)",
+    wireframe: "radial-gradient(circle at top, rgba(125, 211, 252, 0.14), rgba(17, 24, 39, 0.98) 64%)",
+};
+
+const toneMappingExposureByMode: Record<HeavyInspectionMode, number> = {
+    material: 1.34,
+    geometry: 1.05,
+    clay: 1.1,
+    toon: 1.18,
+    wireframe: 1,
 };
 
 class ViewerErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
@@ -159,6 +184,75 @@ function disposeGeneratedMaterials(object: THREE.Object3D) {
     });
 }
 
+function copyCommonMaterialProps(
+    target: THREE.Material,
+    original: THREE.Material,
+    flatShading: boolean,
+) {
+    const source = original as THREE.Material & {
+        color?: THREE.Color;
+        map?: THREE.Texture | null;
+        normalMap?: THREE.Texture | null;
+        emissive?: THREE.Color;
+        emissiveMap?: THREE.Texture | null;
+        emissiveIntensity?: number;
+        transparent?: boolean;
+        opacity?: number;
+        alphaTest?: number;
+        side?: THREE.Side;
+    };
+    const dest = target as THREE.Material & {
+        color?: THREE.Color;
+        map?: THREE.Texture | null;
+        normalMap?: THREE.Texture | null;
+        emissive?: THREE.Color;
+        emissiveMap?: THREE.Texture | null;
+        emissiveIntensity?: number;
+        transparent?: boolean;
+        opacity?: number;
+        alphaTest?: number;
+        side?: THREE.Side;
+        flatShading?: boolean;
+    };
+
+    if (dest.color && source.color) {
+        dest.color.copy(source.color);
+    }
+    if ("map" in dest) {
+        dest.map = source.map ?? null;
+    }
+    if ("normalMap" in dest) {
+        dest.normalMap = source.normalMap ?? null;
+    }
+    if (dest.emissive && source.emissive) {
+        dest.emissive.copy(source.emissive);
+    }
+    if ("emissiveMap" in dest) {
+        dest.emissiveMap = source.emissiveMap ?? null;
+    }
+    if ("emissiveIntensity" in dest && typeof source.emissiveIntensity === "number") {
+        dest.emissiveIntensity = source.emissiveIntensity;
+    }
+    if (typeof source.transparent === "boolean") {
+        dest.transparent = source.transparent;
+    }
+    if (typeof source.opacity === "number") {
+        dest.opacity = source.opacity;
+    }
+    if (typeof source.alphaTest === "number") {
+        dest.alphaTest = source.alphaTest;
+    }
+    if (typeof source.side !== "undefined") {
+        dest.side = source.side;
+    } else {
+        dest.side = THREE.DoubleSide;
+    }
+    if ("flatShading" in dest) {
+        dest.flatShading = flatShading;
+    }
+    dest.needsUpdate = true;
+}
+
 function buildReplacementMaterial(
     original: THREE.Material,
     mode: HeavyInspectionMode,
@@ -201,11 +295,9 @@ function buildReplacementMaterial(
 
     if (mode === "toon") {
         const material = new THREE.MeshToonMaterial({
-            color: tint,
             side: THREE.DoubleSide,
         }) as THREE.MeshToonMaterial & { flatShading?: boolean };
-        material.flatShading = flatShading;
-        material.needsUpdate = true;
+        copyCommonMaterialProps(material, original, flatShading);
         return material;
     }
 
@@ -214,6 +306,58 @@ function buildReplacementMaterial(
         wireframe: true,
         side: THREE.DoubleSide,
     });
+}
+
+function SceneEnvironmentController({
+    inspectionMode,
+}: {
+    inspectionMode: HeavyInspectionMode;
+}) {
+    const { gl, scene } = useThree();
+    const envTextureRef = useRef<THREE.Texture | null>(null);
+
+    useEffect(() => {
+        const environment = new RoomEnvironment();
+        const pmremGenerator = new THREE.PMREMGenerator(gl);
+        const envMap = pmremGenerator.fromScene(environment, 0.04).texture;
+        environment.dispose();
+        pmremGenerator.dispose();
+        envTextureRef.current = envMap;
+
+        return () => {
+            envMap.dispose();
+            envTextureRef.current = null;
+        };
+    }, [gl]);
+
+    useEffect(() => {
+        // Three renderer exposure is runtime state, not React props.
+        // eslint-disable-next-line react-hooks/immutability
+        gl.toneMappingExposure = toneMappingExposureByMode[inspectionMode];
+        gl.setClearColor(clearColorByMode[inspectionMode], 1);
+
+        // Three scene environment is renderer-owned runtime state.
+        /* eslint-disable react-hooks/immutability */
+        if (inspectionMode === "material") {
+            scene.environment = envTextureRef.current;
+            scene.environmentIntensity = 2;
+        } else if (inspectionMode === "toon") {
+            scene.environment = envTextureRef.current;
+            scene.environmentIntensity = 0.85;
+        } else {
+            scene.environment = null;
+            scene.environmentIntensity = 1;
+        }
+
+        return () => {
+            scene.environment = null;
+            scene.environmentIntensity = 1;
+            gl.toneMappingExposure = 1;
+        };
+        /* eslint-enable react-hooks/immutability */
+    }, [gl, inspectionMode, scene]);
+
+    return null;
 }
 
 function applyInspectionMaterials(
@@ -403,9 +547,10 @@ export function HeavyModelViewer({
         <div
             ref={frameRef}
             className={cn(
-                "relative h-96 w-full overflow-hidden rounded-lg border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(45,212,191,0.14),_rgba(15,23,42,0.95)_58%)]",
+                "relative h-96 w-full overflow-hidden rounded-lg border border-white/10",
                 className,
             )}
+            style={{ background: frameBackgroundByMode[inspectionMode] }}
             role="img"
             aria-label="Interactive advanced 3D model viewer. Drag to orbit the camera, scroll to zoom, and right-click drag to pan."
         >
@@ -416,13 +561,21 @@ export function HeavyModelViewer({
             <Canvas
                 shadows
                 camera={{ position: [0, 1.4, 4.8], fov: 32 }}
-                gl={{ antialias: true, alpha: true }}
+                gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
+                onCreated={({ gl }) => {
+                    gl.toneMapping = THREE.ACESFilmicToneMapping;
+                }}
                 className="h-full w-full"
             >
-                <color attach="background" args={["#000000"]} />
-                <ambientLight intensity={1.2} />
-                <directionalLight position={[6, 8, 5]} intensity={2.6} castShadow />
-                <directionalLight position={[-5, 3, -6]} intensity={1.1} />
+                <color attach="background" args={[clearColorByMode[inspectionMode]]} />
+                <SceneEnvironmentController inspectionMode={inspectionMode} />
+                <ambientLight intensity={inspectionMode === "material" ? 0.88 : inspectionMode === "toon" ? 0.76 : 0.68} />
+                <hemisphereLight
+                    args={["#f8fafc", "#1e293b", inspectionMode === "material" ? 1.95 : inspectionMode === "toon" ? 1.6 : 1.2]}
+                />
+                <directionalLight position={[6, 8, 5]} intensity={inspectionMode === "material" ? 4.4 : inspectionMode === "toon" ? 3.2 : 2.25} castShadow />
+                <directionalLight position={[-5, 3, -6]} intensity={inspectionMode === "material" ? 2.45 : inspectionMode === "toon" ? 1.65 : 1.05} />
+                <directionalLight position={[0, 5, -8]} intensity={inspectionMode === "material" ? 1.25 : inspectionMode === "toon" ? 1.05 : 0.55} color="#dbeafe" />
                 <Suspense fallback={null}>
                     <ViewerErrorBoundary
                         onError={(error) => {
@@ -458,7 +611,7 @@ export function HeavyModelViewer({
                         </Bounds>
                         <ContactShadows
                             position={[0, -1.6, 0]}
-                            opacity={0.45}
+                            opacity={inspectionMode === "material" ? 0.28 : inspectionMode === "toon" ? 0.18 : 0.08}
                             scale={18}
                             blur={2.6}
                             far={6}

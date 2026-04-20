@@ -951,7 +951,7 @@ function NeuralViewerStage({
     assetStats?: AssetInspectionStats | null
 }) {
     const [inspectionMode, setInspectionMode] = useState<"material" | "geometry" | "clay" | "toon" | "wireframe" | "stats">("material")
-    const [inspectionTint, setInspectionTint] = useState<"neutral" | "violet" | "cyan">("violet")
+    const [inspectionTint, setInspectionTint] = useState<"neutral" | "violet" | "cyan">("neutral")
     const [shadingMode, setShadingMode] = useState<"smooth" | "flat">("smooth")
     const displayViewerLabel =
         viewerSource === "input" && viewerUrl
@@ -1039,7 +1039,7 @@ function NeuralViewerStage({
                 </div>
             )}
 
-            <div className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-white/95 via-white/60 to-transparent px-6 pb-10 pt-5 sm:pr-[22rem]">
+            <div className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-slate-50/82 via-slate-100/28 to-transparent px-6 pb-8 pt-5 sm:pr-[22rem]">
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
                         Neural viewer
@@ -1110,13 +1110,24 @@ function NeuralViewerStage({
                         {[
                             {
                                 id: "material",
-                                label: "Material",
+                                label: "PBR",
                                 icon: (
                                     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
                                         <path d="M4.5 11.8C3.4 10.6 3 9.55 3 8.25C3 5.35 5.35 3 8.25 3c1.2 0 2.22.34 3.36 1.28c1 .82 2.12 1.16 3.06 1.16c1.26 0 2.33.88 2.33 2.17c0 5.15-4.17 9.39-9.31 9.39c-2.06 0-3.69-1.3-3.69-3.05c0-.8.24-1.46.5-2.15Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                                         <circle cx="8" cy="7.2" r="1" fill="currentColor" />
                                         <circle cx="11.4" cy="5.9" r=".9" fill="currentColor" />
                                         <circle cx="12.7" cy="9" r=".9" fill="currentColor" />
+                                    </svg>
+                                ),
+                            },
+                            {
+                                id: "toon",
+                                label: "Toon",
+                                icon: (
+                                    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                                        <path d="M4 13.5c0-3.9 2.4-7 6-7s6 3.1 6 7c0 1.7-1.3 3-3 3H7c-1.7 0-3-1.3-3-3Z" stroke="currentColor" strokeWidth="1.6" />
+                                        <path d="M7 11.5h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                                        <path d="M8.25 8.5h3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
                                     </svg>
                                 ),
                             },
@@ -1137,17 +1148,6 @@ function NeuralViewerStage({
                                     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
                                         <path d="M10 3.5c3.58 0 6.5 2.92 6.5 6.5s-2.92 6.5-6.5 6.5S3.5 13.58 3.5 10 6.42 3.5 10 3.5Z" stroke="currentColor" strokeWidth="1.6" />
                                         <path d="M10 3.5A6.5 6.5 0 0 1 16.5 10H10V3.5Z" fill="currentColor" fillOpacity=".28" />
-                                    </svg>
-                                ),
-                            },
-                            {
-                                id: "toon",
-                                label: "Toon",
-                                icon: (
-                                    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                                        <path d="M4 13.5c0-3.9 2.4-7 6-7s6 3.1 6 7c0 1.7-1.3 3-3 3H7c-1.7 0-3-1.3-3-3Z" stroke="currentColor" strokeWidth="1.6" />
-                                        <path d="M7 11.5h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                                        <path d="M8.25 8.5h3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
                                     </svg>
                                 ),
                             },
@@ -1193,7 +1193,7 @@ function NeuralViewerStage({
                                 </button>
                             )
                         })}
-                        {(inspectionMode === "clay" || inspectionMode === "toon" || inspectionMode === "wireframe") && (
+                        {(inspectionMode === "clay" || inspectionMode === "wireframe") && (
                             <div className="ml-1 flex items-center gap-1 border-l pl-2" style={{ borderColor: "rgba(255,255,255,0.12)" }}>
                                 {[
                                     { id: "neutral", label: "Neutral tint", color: "#d4d4d8" },
@@ -1219,7 +1219,7 @@ function NeuralViewerStage({
                                 })}
                             </div>
                         )}
-                        {(inspectionMode === "material" || inspectionMode === "geometry" || inspectionMode === "clay" || inspectionMode === "toon") && (
+                        {(inspectionMode === "material" || inspectionMode === "toon" || inspectionMode === "geometry" || inspectionMode === "clay") && (
                             <div className="ml-1 flex items-center gap-1 border-l pl-2" style={{ borderColor: "rgba(255,255,255,0.12)" }}>
                                 {[
                                     {
