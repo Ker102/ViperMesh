@@ -687,6 +687,10 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                     onNeuralRunUpdate={handleNeuralRunUpdate}
                     selectedPipelineStep={selectedNeuralStep}
                     onRequestCategoryChange={setActiveCategory}
+                    onOpenAssetLibrary={() => {
+                        setGeneratedAssetsOpen(true)
+                        setAssistantOpen(false)
+                    }}
                     externalToolLaunch={externalToolLaunch}
                     generatedAssets={generatedAssets}
                 />

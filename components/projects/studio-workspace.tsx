@@ -29,6 +29,7 @@ interface StudioWorkspaceProps {
     onNeuralRunUpdate: (stepId: string, patch: Partial<Pick<WorkflowTimelineStep, "status" | "error" | "inputs" | "neuralState">>) => void
     selectedPipelineStep?: WorkflowTimelineStep | null
     onRequestCategoryChange?: (category: StudioCategory) => void
+    onOpenAssetLibrary: () => void
     generatedAssets: GeneratedAssetItem[]
     externalToolLaunch?: {
         token: string
@@ -462,6 +463,7 @@ function ToolDetailView({
     onBack,
     onSubmit,
     onRunNow,
+    onOpenAssetLibrary,
     initialInputs,
     generatedAssets,
 }: {
@@ -469,6 +471,7 @@ function ToolDetailView({
     onBack: () => void
     onSubmit: (tool: ToolEntry, inputs: Record<string, string>) => void
     onRunNow: (tool: ToolEntry, inputs: Record<string, string>) => void
+    onOpenAssetLibrary: () => void
     initialInputs?: Record<string, string>
     generatedAssets: GeneratedAssetItem[]
 }) {
@@ -849,7 +852,23 @@ function ToolDetailView({
                             </div>
                         ))}
 
-                        <div className="flex gap-3 mt-4">
+                        <div className="mt-4 space-y-3">
+                            {tool.type !== "blender_agent" && (
+                                <button
+                                    type="button"
+                                    onClick={onOpenAssetLibrary}
+                                    className="w-full rounded-xl border px-4 py-3 text-sm font-semibold transition-all duration-200 hover:opacity-90"
+                                    style={{
+                                        backgroundColor: "hsl(var(--forge-accent-subtle))",
+                                        borderColor: "hsl(var(--forge-accent))",
+                                        color: "hsl(var(--forge-accent))",
+                                    }}
+                                >
+                                    Open Asset Library
+                                </button>
+                            )}
+
+                            <div className="flex gap-3">
                             <button
                                 onClick={handleRunNow}
                                 className="flex-1 py-3 rounded-xl text-sm font-semibold text-white transition-all duration-200 hover:opacity-90"
@@ -872,6 +891,7 @@ function ToolDetailView({
                             >
                                 + Add to Workflow
                             </button>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -1949,6 +1969,7 @@ export function StudioWorkspace({
     onNeuralRunUpdate,
     selectedPipelineStep,
     onRequestCategoryChange,
+    onOpenAssetLibrary,
     generatedAssets,
     externalToolLaunch,
 }: StudioWorkspaceProps) {
@@ -2389,6 +2410,7 @@ export function StudioWorkspace({
                     }
                     setSelectedTool(null)
                 }}
+                onOpenAssetLibrary={onOpenAssetLibrary}
             />
         )
     }
