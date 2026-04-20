@@ -91,8 +91,8 @@ export function StudioSidebar({
                         ? { backgroundColor: "hsl(var(--forge-accent))" }
                         : undefined
                 }
-                title="Generated Assets"
-                aria-label="Toggle generated assets shelf"
+                title="Asset Library"
+                aria-label="Toggle asset library shelf"
                 aria-expanded={generatedAssetsOpen}
             >
                 <LibraryIcon size={20} />

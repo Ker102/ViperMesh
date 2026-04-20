@@ -1,7 +1,13 @@
 "use client"
 
+import { useMemo, useState } from "react"
 import { getToolById } from "@/lib/orchestration/tool-catalog"
 import { AssetPreviewTile, AssetStatsPills } from "./asset-inspection"
+import {
+    buildProjectAssetLibrary,
+    filterProjectAssetLibraryItems,
+    type AssetLibraryCategoryId,
+} from "./asset-library"
 import type { GeneratedAssetItem } from "./generated-assets"
 
 interface GeneratedAssetsShelfProps {
@@ -19,9 +25,18 @@ export function GeneratedAssetsShelf({
     onOpenAsset,
     onContinueToTool,
 }: GeneratedAssetsShelfProps) {
+    const assetLibrary = useMemo(() => buildProjectAssetLibrary(assets), [assets])
+    const [activeCategoryId, setActiveCategoryId] = useState<AssetLibraryCategoryId>("all")
+
     if (!open) {
         return null
     }
+
+    const effectiveCategoryId = assetLibrary.categories.some((category) => category.id === activeCategoryId)
+        ? activeCategoryId
+        : "all"
+
+    const visibleItems = filterProjectAssetLibraryItems(assetLibrary, effectiveCategoryId)
 
     return (
         <aside
@@ -37,10 +52,10 @@ export function GeneratedAssetsShelf({
             >
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
-                        Generated Assets
+                        Asset Library
                     </p>
                     <h3 className="mt-1 text-lg font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
-                        Project outputs
+                        Project assets
                     </h3>
                 </div>
                 <button
@@ -65,11 +80,73 @@ export function GeneratedAssetsShelf({
                         color: "hsl(var(--forge-text-muted))",
                     }}
                 >
-                    Generated results stay attached to their pipeline tabs. Use this shelf to reopen them or hand geometry into the next tool without hunting for the original step.
+                    Generated outputs are the first source in the project asset library. This shell is where saved library assets, imported references, and managed catalog items will plug in next without changing the Studio workflow.
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                    <span
+                        className="rounded-full px-3 py-1 text-[11px] font-semibold"
+                        style={{
+                            backgroundColor: "hsl(var(--forge-accent-subtle))",
+                            color: "hsl(var(--forge-accent))",
+                        }}
+                    >
+                        Generated live now
+                    </span>
+                    <span
+                        className="rounded-full border px-3 py-1 text-[11px] font-semibold"
+                        style={{
+                            borderColor: "hsl(var(--forge-border))",
+                            color: "hsl(var(--forge-text-subtle))",
+                        }}
+                    >
+                        Saved library next
+                    </span>
+                    <span
+                        className="rounded-full border px-3 py-1 text-[11px] font-semibold"
+                        style={{
+                            borderColor: "hsl(var(--forge-border))",
+                            color: "hsl(var(--forge-text-subtle))",
+                        }}
+                    >
+                        Imports and images later
+                    </span>
+                </div>
+
+                <div className="mt-4 space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                        Library categories
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                        {assetLibrary.categories.map((category) => {
+                            const isActive = category.id === effectiveCategoryId
+                            return (
+                                <button
+                                    key={category.id}
+                                    type="button"
+                                    onClick={() => setActiveCategoryId(category.id)}
+                                    className="rounded-full border px-3 py-1.5 text-xs font-semibold transition hover:opacity-90"
+                                    style={isActive
+                                        ? {
+                                            borderColor: "hsl(var(--forge-accent))",
+                                            backgroundColor: "hsl(var(--forge-accent-subtle))",
+                                            color: "hsl(var(--forge-accent))",
+                                        }
+                                        : {
+                                            borderColor: "hsl(var(--forge-border))",
+                                            color: "hsl(var(--forge-text-muted))",
+                                        }}
+                                    title={category.description}
+                                >
+                                    {category.label} {category.count > 0 ? `(${category.count})` : ""}
+                                </button>
+                            )
+                        })}
+                    </div>
                 </div>
 
                 <div className="mt-4 space-y-3">
-                    {assets.length === 0 ? (
+                    {visibleItems.length === 0 ? (
                         <div
                             className="rounded-2xl border px-4 py-5 text-sm"
                             style={{
@@ -78,10 +155,12 @@ export function GeneratedAssetsShelf({
                                 color: "hsl(var(--forge-text-muted))",
                             }}
                         >
-                            No generated assets yet. Successful neural outputs from this project will appear here automatically.
+                            {assets.length === 0
+                                ? "No generated assets yet. Successful neural outputs from this project will appear here automatically."
+                                : "No assets match this category yet. Keep generating or switch categories to inspect the rest of the project library."}
                         </div>
                     ) : (
-                        assets.map((asset) => {
+                        visibleItems.map((asset) => {
                             const tool = getToolById(asset.toolName)
                             return (
                                 <div
@@ -119,6 +198,15 @@ export function GeneratedAssetsShelf({
                                                         From {asset.toolLabel}
                                                         {asset.stageLabel ? ` • ${asset.stageLabel}` : tool ? ` • ${tool.category}` : ""}
                                                         {asset.providerLabel ? ` • ${asset.providerLabel}` : ""}
+                                                    </p>
+                                                    <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.12em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                                                        {asset.assetKind === "image"
+                                                            ? "Image asset"
+                                                            : asset.densityBucket === "high-poly"
+                                                                ? "High poly model"
+                                                                : asset.densityBucket === "low-poly"
+                                                                    ? "Low poly model"
+                                                                    : "Model asset"}
                                                     </p>
                                                 </div>
                                                 <span
