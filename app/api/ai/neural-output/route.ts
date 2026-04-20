@@ -25,10 +25,11 @@ export async function GET(request: NextRequest) {
 
     try {
         const buffer = await readFile(safePath)
+        const shouldDownload = request.nextUrl.searchParams.get("download") === "1"
         return new NextResponse(new Uint8Array(buffer), {
             headers: {
                 "Content-Type": "model/gltf-binary",
-                "Content-Disposition": `inline; filename="${path.basename(safePath)}"`,
+                "Content-Disposition": `${shouldDownload ? "attachment" : "inline"}; filename="${path.basename(safePath)}"`,
                 "Cache-Control": "no-store",
             },
         })

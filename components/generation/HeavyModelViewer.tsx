@@ -70,6 +70,29 @@ const toneMappingExposureByMode: Record<HeavyInspectionMode, number> = {
     wireframe: 1,
 };
 
+let toonGradientTexture: THREE.DataTexture | null = null;
+
+function getToonGradientTexture() {
+    if (toonGradientTexture) {
+        return toonGradientTexture;
+    }
+
+    const colors = new Uint8Array([
+        68, 76, 92,
+        126, 140, 166,
+        196, 210, 236,
+        250, 250, 255,
+    ]);
+    const texture = new THREE.DataTexture(colors, 4, 1, THREE.RGBFormat);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.magFilter = THREE.NearestFilter;
+    texture.minFilter = THREE.NearestFilter;
+    texture.generateMipmaps = false;
+    texture.needsUpdate = true;
+    toonGradientTexture = texture;
+    return texture;
+}
+
 class ViewerErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
     override state: ErrorBoundaryState = { hasError: false };
 
@@ -170,6 +193,21 @@ function getDownloadFilename(safeUrl: string) {
         return candidate.toLowerCase().endsWith(".glb") ? candidate : `${candidate}.glb`;
     } catch {
         return "model.glb";
+    }
+}
+
+function getDownloadUrl(safeUrl: string) {
+    try {
+        const parsed = new URL(
+            safeUrl,
+            typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1",
+        );
+        if (parsed.pathname === "/api/ai/neural-output") {
+            parsed.searchParams.set("download", "1");
+        }
+        return parsed.toString();
+    } catch {
+        return safeUrl;
     }
 }
 
@@ -277,10 +315,35 @@ function buildReplacementMaterial(
     }
 
     if (mode === "geometry") {
-        return new THREE.MeshNormalMaterial({
-            flatShading,
+        const material = new THREE.ShaderMaterial({
             side: THREE.DoubleSide,
+            vertexShader: `
+                varying vec3 vNormalView;
+
+                void main() {
+                    vNormalView = normalize(normalMatrix * normal);
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vNormalView;
+
+                void main() {
+                    vec3 n = normalize(vNormalView);
+                    vec3 encoded = n * 0.5 + 0.5;
+                    vec3 cyan = vec3(0.42, 0.95, 1.0);
+                    vec3 magenta = vec3(0.99, 0.46, 0.97);
+                    vec3 blue = vec3(0.66, 0.78, 1.0);
+                    vec3 color = mix(cyan, magenta, encoded.x);
+                    color = mix(color, blue, clamp(encoded.z * 0.82, 0.0, 1.0));
+                    color += vec3(0.05, 0.03, 0.08) * encoded.y;
+                    gl_FragColor = vec4(color, 1.0);
+                }
+            `,
         });
+        (material as THREE.ShaderMaterial & { flatShading?: boolean }).flatShading = flatShading;
+        material.needsUpdate = true;
+        return material;
     }
 
     if (mode === "clay") {
@@ -296,8 +359,33 @@ function buildReplacementMaterial(
     if (mode === "toon") {
         const material = new THREE.MeshToonMaterial({
             side: THREE.DoubleSide,
+            gradientMap: getToonGradientTexture(),
         }) as THREE.MeshToonMaterial & { flatShading?: boolean };
-        copyCommonMaterialProps(material, original, flatShading);
+        const source = original as THREE.Material & {
+            color?: THREE.Color;
+            map?: THREE.Texture | null;
+            emissive?: THREE.Color;
+            emissiveMap?: THREE.Texture | null;
+            transparent?: boolean;
+            opacity?: number;
+            alphaTest?: number;
+            side?: THREE.Side;
+        };
+
+        material.flatShading = flatShading;
+        material.side = source.side ?? THREE.DoubleSide;
+        material.transparent = source.transparent ?? false;
+        material.opacity = typeof source.opacity === "number" ? source.opacity : 1;
+        material.alphaTest = typeof source.alphaTest === "number" ? source.alphaTest : 0;
+        material.map = source.map ?? null;
+        material.color.copy(source.color ?? new THREE.Color("#ffffff"));
+        if (material.map) {
+            material.color.set("#ffffff");
+        }
+        material.emissive.copy(source.emissive ?? new THREE.Color("#111827"));
+        material.emissiveIntensity = source.map ? 0.2 : 0.08;
+        material.emissiveMap = source.emissiveMap ?? null;
+        material.needsUpdate = true;
         return material;
     }
 
@@ -455,8 +543,8 @@ function LoadedAsset({
     return <primitive object={scene} />;
 }
 
-export function HeavyModelViewer({
-    url,
+function HeavyModelViewerInner({
+    safeUrl,
     className,
     showControls = true,
     showFooter = true,
@@ -464,20 +552,14 @@ export function HeavyModelViewer({
     inspectionMode = "material",
     inspectionTint = "neutral",
     shadingMode = "smooth",
-}: HeavyModelViewerProps) {
+}: Omit<HeavyModelViewerProps, "url"> & { safeUrl: string }) {
     const frameRef = useRef<HTMLDivElement | null>(null);
     const viewerApiRef = useRef<ViewerApi | null>(null);
     const controlsRef = useRef<{ reset?: () => void; saveState?: () => void } | null>(null);
     const descriptionId = useId();
-    const safeUrl = useMemo(() => getSafeModelUrl(url), [url]);
     const [status, setStatus] = useState<ViewerStatus>("loading");
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
-
-    useEffect(() => {
-        setStatus("loading");
-        setErrorMessage(null);
-    }, [safeUrl]);
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -513,35 +595,19 @@ export function HeavyModelViewer({
         if (!safeUrl) return;
 
         try {
-            const response = await fetch(safeUrl, { credentials: "include" });
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-
-            const blob = await response.blob();
-            const objectUrl = URL.createObjectURL(blob);
+            const downloadUrl = getDownloadUrl(safeUrl);
             const anchor = document.createElement("a");
-            anchor.href = objectUrl;
+            anchor.href = downloadUrl;
             anchor.download = getDownloadFilename(safeUrl);
+            anchor.rel = "noopener noreferrer";
             document.body.appendChild(anchor);
             anchor.click();
             anchor.remove();
-            URL.revokeObjectURL(objectUrl);
         } catch (downloadError) {
             console.warn("HeavyModelViewer: falling back to direct download", downloadError);
-            window.open(safeUrl, "_blank", "noopener,noreferrer");
+            window.open(getDownloadUrl(safeUrl), "_blank", "noopener,noreferrer");
         }
     };
-
-    if (!url) return null;
-
-    if (!safeUrl) {
-        return (
-            <div className={cn("h-96 w-full", className)}>
-                <ErrorState message="Invalid or unsafe model URL" />
-            </div>
-        );
-    }
 
     return (
         <div
@@ -678,4 +744,23 @@ export function HeavyModelViewer({
             )}
         </div>
     );
+}
+
+export function HeavyModelViewer({
+    url,
+    ...props
+}: HeavyModelViewerProps) {
+    const safeUrl = useMemo(() => getSafeModelUrl(url), [url]);
+
+    if (!url) return null;
+
+    if (!safeUrl) {
+        return (
+            <div className={cn("h-96 w-full", props.className)}>
+                <ErrorState message="Invalid or unsafe model URL" />
+            </div>
+        );
+    }
+
+    return <HeavyModelViewerInner key={safeUrl} safeUrl={safeUrl} {...props} />;
 }

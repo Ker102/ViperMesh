@@ -958,6 +958,14 @@ function NeuralViewerStage({
             ? getAssetDisplayLabel(viewerUrl)
             : viewerLabel
     const metadataSummary = [assetStats?.stageLabel, assetStats?.sourceProvider].filter(Boolean).join(" • ")
+    const activeInspectionLabel = {
+        material: "PBR",
+        toon: "Toon",
+        geometry: "Geometry",
+        clay: "Clay",
+        wireframe: "Wireframe",
+        stats: "Stats",
+    }[inspectionMode]
 
     return (
         <div
@@ -1100,13 +1108,78 @@ function NeuralViewerStage({
 
             {viewerUrl && (
                 <div className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex justify-center px-6">
-                    <div
-                        className="pointer-events-auto inline-flex items-center gap-1 rounded-full border px-1 py-1 shadow-lg backdrop-blur"
-                        style={{
-                            borderColor: "hsl(var(--forge-border))",
-                            backgroundColor: "rgba(15, 23, 42, 0.78)",
-                        }}
-                    >
+                    <div className="pointer-events-auto flex flex-col items-center gap-2">
+                        <div
+                            className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-lg backdrop-blur"
+                            style={{
+                                borderColor: "rgba(255,255,255,0.14)",
+                                backgroundColor: "rgba(15, 23, 42, 0.72)",
+                                color: "rgba(241,245,249,0.96)",
+                            }}
+                        >
+                            <span style={{ color: "rgba(148,163,184,0.95)" }}>View</span>
+                            <span>{activeInspectionLabel}</span>
+                            {(inspectionMode === "material" || inspectionMode === "toon" || inspectionMode === "geometry" || inspectionMode === "clay") && (
+                                <>
+                                    <span className="h-3 w-px" style={{ backgroundColor: "rgba(255,255,255,0.12)" }} />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShadingMode("smooth")}
+                                        className="rounded-full px-2.5 py-1 text-[11px] font-medium transition"
+                                        style={shadingMode === "smooth"
+                                            ? { backgroundColor: "rgba(255,255,255,0.16)", color: "white" }
+                                            : { color: "rgba(226,232,240,0.78)" }}
+                                    >
+                                        Smooth
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShadingMode("flat")}
+                                        className="rounded-full px-2.5 py-1 text-[11px] font-medium transition"
+                                        style={shadingMode === "flat"
+                                            ? { backgroundColor: "rgba(255,255,255,0.16)", color: "white" }
+                                            : { color: "rgba(226,232,240,0.78)" }}
+                                    >
+                                        Flat
+                                    </button>
+                                </>
+                            )}
+                            {(inspectionMode === "clay" || inspectionMode === "wireframe") && (
+                                <>
+                                    <span className="h-3 w-px" style={{ backgroundColor: "rgba(255,255,255,0.12)" }} />
+                                    <span style={{ color: "rgba(148,163,184,0.95)" }}>Tint</span>
+                                    {[
+                                        { id: "neutral", label: "Neutral tint", color: "#d4d4d8" },
+                                        { id: "violet", label: "Violet tint", color: "#e879f9" },
+                                        { id: "cyan", label: "Cyan tint", color: "#67e8f9" },
+                                    ].map((tint) => {
+                                        const active = inspectionTint === tint.id
+                                        return (
+                                            <button
+                                                key={tint.id}
+                                                type="button"
+                                                onClick={() => setInspectionTint(tint.id as "neutral" | "violet" | "cyan")}
+                                                className="h-5 w-5 rounded-full border transition"
+                                                aria-label={tint.label}
+                                                title={tint.label}
+                                                style={{
+                                                    backgroundColor: tint.color,
+                                                    borderColor: active ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.2)",
+                                                    boxShadow: active ? "0 0 0 2px rgba(15,23,42,0.35)" : "none",
+                                                }}
+                                            />
+                                        )
+                                    })}
+                                </>
+                            )}
+                        </div>
+                        <div
+                            className="inline-flex items-center gap-1 rounded-full border px-1 py-1 shadow-lg backdrop-blur"
+                            style={{
+                                borderColor: "hsl(var(--forge-border))",
+                                backgroundColor: "rgba(15, 23, 42, 0.78)",
+                            }}
+                        >
                         {[
                             {
                                 id: "material",
@@ -1193,78 +1266,7 @@ function NeuralViewerStage({
                                 </button>
                             )
                         })}
-                        {(inspectionMode === "clay" || inspectionMode === "wireframe") && (
-                            <div className="ml-1 flex items-center gap-1 border-l pl-2" style={{ borderColor: "rgba(255,255,255,0.12)" }}>
-                                {[
-                                    { id: "neutral", label: "Neutral tint", color: "#d4d4d8" },
-                                    { id: "violet", label: "Violet tint", color: "#e879f9" },
-                                    { id: "cyan", label: "Cyan tint", color: "#67e8f9" },
-                                ].map((tint) => {
-                                    const active = inspectionTint === tint.id
-                                    return (
-                                        <button
-                                            key={tint.id}
-                                            type="button"
-                                            onClick={() => setInspectionTint(tint.id as "neutral" | "violet" | "cyan")}
-                                            className="h-5 w-5 rounded-full border transition"
-                                            aria-label={tint.label}
-                                            title={tint.label}
-                                            style={{
-                                                backgroundColor: tint.color,
-                                                borderColor: active ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.2)",
-                                                boxShadow: active ? "0 0 0 2px rgba(15,23,42,0.35)" : "none",
-                                            }}
-                                        />
-                                    )
-                                })}
-                            </div>
-                        )}
-                        {(inspectionMode === "material" || inspectionMode === "toon" || inspectionMode === "geometry" || inspectionMode === "clay") && (
-                            <div className="ml-1 flex items-center gap-1 border-l pl-2" style={{ borderColor: "rgba(255,255,255,0.12)" }}>
-                                {[
-                                    {
-                                        id: "smooth",
-                                        label: "Smooth shading",
-                                        icon: (
-                                            <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                                                <circle cx="10" cy="10" r="5.2" stroke="currentColor" strokeWidth="1.5" />
-                                            </svg>
-                                        ),
-                                    },
-                                    {
-                                        id: "flat",
-                                        label: "Flat shading",
-                                        icon: (
-                                            <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                                                <path d="M10 4.2 15.6 14H4.4L10 4.2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                                            </svg>
-                                        ),
-                                    },
-                                ].map((mode) => {
-                                    const active = shadingMode === mode.id
-                                    return (
-                                        <button
-                                            key={mode.id}
-                                            type="button"
-                                            onClick={() => setShadingMode(mode.id as "smooth" | "flat")}
-                                            className="rounded-full p-2 transition"
-                                            aria-label={mode.label}
-                                            title={mode.label}
-                                            style={active
-                                                ? {
-                                                    backgroundColor: "rgba(255,255,255,0.18)",
-                                                    color: "white",
-                                                }
-                                                : {
-                                                    color: "rgba(226,232,240,0.86)",
-                                                }}
-                                        >
-                                            {mode.icon}
-                                        </button>
-                                    )
-                                })}
-                            </div>
-                        )}
+                        </div>
                     </div>
                 </div>
             )}
