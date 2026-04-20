@@ -950,10 +950,11 @@ function NeuralViewerStage({
     generationTimeMs?: number
     assetStats?: AssetInspectionStats | null
 }) {
-    const [inspectionMode, setInspectionMode] = useState<"material" | "geometry" | "clay" | "toon" | "wireframe" | "stats">("material")
+    const [inspectionMode, setInspectionMode] = useState<"material" | "geometry" | "solid" | "toon" | "wireframe" | "stats">("material")
     const [inspectionTint, setInspectionTint] = useState<"neutral" | "violet" | "cyan">("neutral")
     const [shadingMode, setShadingMode] = useState<"smooth" | "flat">("smooth")
     const [pbrEnabled, setPbrEnabled] = useState(true)
+    const [unlitEnabled, setUnlitEnabled] = useState(false)
     const [previewMetalness, setPreviewMetalness] = useState(1)
     const [previewRoughness, setPreviewRoughness] = useState(1)
     const displayViewerLabel =
@@ -965,7 +966,7 @@ function NeuralViewerStage({
         material: "PBR",
         toon: "Toon",
         geometry: "Geometry",
-        clay: "Clay",
+        solid: "Solid",
         wireframe: "Wireframe",
         stats: "Stats",
     }[inspectionMode]
@@ -985,6 +986,7 @@ function NeuralViewerStage({
                     inspectionTint={inspectionTint}
                     shadingMode={shadingMode}
                     pbrEnabled={pbrEnabled}
+                    unlitEnabled={unlitEnabled}
                     previewMetalness={previewMetalness}
                     previewRoughness={previewRoughness}
                 />
@@ -1125,7 +1127,7 @@ function NeuralViewerStage({
                         >
                             <span style={{ color: "rgba(148,163,184,0.95)" }}>View</span>
                             <span>{activeInspectionLabel}</span>
-                            {(inspectionMode === "material" || inspectionMode === "toon" || inspectionMode === "geometry" || inspectionMode === "clay") && (
+                            {(inspectionMode === "material" || inspectionMode === "toon" || inspectionMode === "geometry" || inspectionMode === "solid") && (
                                 <>
                                     <span className="h-3 w-px" style={{ backgroundColor: "rgba(255,255,255,0.12)" }} />
                                     <button
@@ -1164,9 +1166,20 @@ function NeuralViewerStage({
                                     >
                                         {pbrEnabled ? "On" : "Off"}
                                     </button>
+                                    <span style={{ color: "rgba(148,163,184,0.95)" }}>Unlit</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setUnlitEnabled((current) => !current)}
+                                        className="rounded-full px-2.5 py-1 text-[11px] font-medium transition"
+                                        style={unlitEnabled
+                                            ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
+                                            : { backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(226,232,240,0.78)" }}
+                                    >
+                                        {unlitEnabled ? "On" : "Off"}
+                                    </button>
                                 </>
                             )}
-                            {(inspectionMode === "clay" || inspectionMode === "wireframe") && (
+                            {(inspectionMode === "geometry" || inspectionMode === "wireframe") && (
                                 <>
                                     <span className="h-3 w-px" style={{ backgroundColor: "rgba(255,255,255,0.12)" }} />
                                     <span style={{ color: "rgba(148,163,184,0.95)" }}>Tint</span>
@@ -1195,7 +1208,7 @@ function NeuralViewerStage({
                                 </>
                             )}
                         </div>
-                        {inspectionMode === "material" && pbrEnabled && (
+                        {inspectionMode === "material" && pbrEnabled && !unlitEnabled && (
                             <div
                                 className="flex flex-wrap items-center gap-3 rounded-2xl border px-3 py-2 text-[11px] font-medium shadow-lg backdrop-blur"
                                 style={{
@@ -1272,8 +1285,8 @@ function NeuralViewerStage({
                                 ),
                             },
                             {
-                                id: "clay",
-                                label: "Clay",
+                                id: "solid",
+                                label: "Solid",
                                 icon: (
                                     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
                                         <path d="M10 3.5c3.58 0 6.5 2.92 6.5 6.5s-2.92 6.5-6.5 6.5S3.5 13.58 3.5 10 6.42 3.5 10 3.5Z" stroke="currentColor" strokeWidth="1.6" />
@@ -1306,7 +1319,7 @@ function NeuralViewerStage({
                                 <button
                                     key={mode.id}
                                     type="button"
-                                    onClick={() => setInspectionMode(mode.id as "material" | "geometry" | "clay" | "toon" | "wireframe" | "stats")}
+                                    onClick={() => setInspectionMode(mode.id as "material" | "geometry" | "solid" | "toon" | "wireframe" | "stats")}
                                     className="rounded-full p-2.5 transition"
                                     aria-label={mode.label}
                                     title={mode.label}

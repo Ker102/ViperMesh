@@ -10,7 +10,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import { cn } from "@/lib/utils";
 
-export type HeavyInspectionMode = "material" | "geometry" | "clay" | "toon" | "wireframe";
+export type HeavyInspectionMode = "material" | "geometry" | "solid" | "toon" | "wireframe";
 export type HeavyShadingMode = "smooth" | "flat";
 
 interface HeavyModelViewerProps {
@@ -23,6 +23,7 @@ interface HeavyModelViewerProps {
     inspectionTint?: "neutral" | "violet" | "cyan";
     shadingMode?: HeavyShadingMode;
     pbrEnabled?: boolean;
+    unlitEnabled?: boolean;
     previewMetalness?: number;
     previewRoughness?: number;
 }
@@ -50,26 +51,26 @@ const tintPaletteHex: Record<NonNullable<HeavyModelViewerProps["inspectionTint"]
 };
 
 const clearColorByMode: Record<HeavyInspectionMode, string> = {
-    material: "#5b6470",
-    geometry: "#363d47",
-    clay: "#2c333d",
-    toon: "#424955",
+    material: "#4d535d",
+    geometry: "#343943",
+    solid: "#3a3f47",
+    toon: "#3f454f",
     wireframe: "#1a2029",
 };
 
 const frameBackgroundByMode: Record<HeavyInspectionMode, string> = {
-    material: "radial-gradient(circle at top, rgba(191, 219, 254, 0.32), rgba(26, 32, 44, 0.92) 62%)",
+    material: "radial-gradient(circle at top, rgba(148, 163, 184, 0.18), rgba(31, 41, 55, 0.95) 64%)",
     geometry: "radial-gradient(circle at top, rgba(186, 230, 253, 0.18), rgba(39, 46, 58, 0.98) 64%)",
-    clay: "radial-gradient(circle at top, rgba(226, 232, 240, 0.2), rgba(31, 41, 55, 0.96) 64%)",
+    solid: "radial-gradient(circle at top, rgba(226, 232, 240, 0.12), rgba(39, 46, 58, 0.96) 66%)",
     toon: "radial-gradient(circle at top, rgba(196, 181, 253, 0.24), rgba(31, 41, 55, 0.95) 64%)",
     wireframe: "radial-gradient(circle at top, rgba(125, 211, 252, 0.14), rgba(17, 24, 39, 0.98) 64%)",
 };
 
 const toneMappingExposureByMode: Record<HeavyInspectionMode, number> = {
-    material: 1.34,
+    material: 1.18,
     geometry: 1.05,
-    clay: 1.1,
-    toon: 1.18,
+    solid: 1.08,
+    toon: 1.1,
     wireframe: 1,
 };
 
@@ -317,12 +318,25 @@ function buildReplacementMaterial(
     tint: string,
     shadingMode: HeavyShadingMode,
     pbrEnabled: boolean,
+    unlitEnabled: boolean,
     previewMetalness: number,
     previewRoughness: number,
 ): THREE.Material {
     const flatShading = shadingMode === "flat";
 
     if (mode === "material") {
+        if (unlitEnabled) {
+            const material = new THREE.MeshBasicMaterial({
+                color: "#ffffff",
+                side: THREE.DoubleSide,
+            });
+            copyCommonMaterialProps(material, original, flatShading);
+            if ("normalMap" in material) {
+                material.normalMap = null;
+            }
+            return material;
+        }
+
         if (!pbrEnabled) {
             const material = new THREE.MeshPhongMaterial({
                 color: "#ffffff",
@@ -371,11 +385,11 @@ function buildReplacementMaterial(
         return material;
     }
 
-    if (mode === "clay") {
+    if (mode === "solid") {
         return new THREE.MeshStandardMaterial({
-            color: tint,
-            metalness: 0,
-            roughness: 1,
+            color: "#cfd4db",
+            metalness: 0.02,
+            roughness: 0.9,
             flatShading,
             side: THREE.DoubleSide,
         });
@@ -472,10 +486,13 @@ function SceneEnvironmentController({
         /* eslint-disable react-hooks/immutability */
         if (inspectionMode === "material") {
             scene.environment = envTextureRef.current;
-            scene.environmentIntensity = 2;
+            scene.environmentIntensity = 2.4;
         } else if (inspectionMode === "toon") {
             scene.environment = envTextureRef.current;
-            scene.environmentIntensity = 0.85;
+            scene.environmentIntensity = 0.38;
+        } else if (inspectionMode === "solid") {
+            scene.environment = envTextureRef.current;
+            scene.environmentIntensity = 0.32;
         } else {
             scene.environment = null;
             scene.environmentIntensity = 1;
@@ -498,6 +515,7 @@ function applyInspectionMaterials(
     tint: string,
     shadingMode: HeavyShadingMode,
     pbrEnabled: boolean,
+    unlitEnabled: boolean,
     previewMetalness: number,
     previewRoughness: number,
 ) {
@@ -548,6 +566,7 @@ function applyInspectionMaterials(
                 tint,
                 shadingMode,
                 pbrEnabled,
+                unlitEnabled,
                 previewMetalness,
                 previewRoughness,
             )
@@ -593,6 +612,7 @@ function LoadedAsset({
     inspectionTint,
     shadingMode,
     pbrEnabled,
+    unlitEnabled,
     previewMetalness,
     previewRoughness,
     onReady,
@@ -602,6 +622,7 @@ function LoadedAsset({
     inspectionTint: NonNullable<HeavyModelViewerProps["inspectionTint"]>;
     shadingMode: HeavyShadingMode;
     pbrEnabled: boolean;
+    unlitEnabled: boolean;
     previewMetalness: number;
     previewRoughness: number;
     onReady: () => void;
@@ -619,6 +640,7 @@ function LoadedAsset({
             tintPaletteHex[inspectionTint],
             shadingMode,
             pbrEnabled,
+            unlitEnabled,
             previewMetalness,
             previewRoughness,
         );
@@ -627,7 +649,7 @@ function LoadedAsset({
         return () => {
             disposeGeneratedMaterials(scene);
         };
-    }, [inspectionMode, inspectionTint, onReady, pbrEnabled, previewMetalness, previewRoughness, scene, shadingMode]);
+    }, [inspectionMode, inspectionTint, onReady, pbrEnabled, previewMetalness, previewRoughness, scene, shadingMode, unlitEnabled]);
 
     return <primitive object={scene} />;
 }
@@ -642,6 +664,7 @@ function HeavyModelViewerInner({
     inspectionTint = "neutral",
     shadingMode = "smooth",
     pbrEnabled = true,
+    unlitEnabled = false,
     previewMetalness = 1,
     previewRoughness = 1,
 }: Omit<HeavyModelViewerProps, "url"> & { safeUrl: string }) {
@@ -775,14 +798,14 @@ function HeavyModelViewerInner({
             >
                 <color attach="background" args={[clearColorByMode[inspectionMode]]} />
                 <SceneEnvironmentController inspectionMode={inspectionMode} />
-                <ambientLight intensity={inspectionMode === "material" ? 1.2 : inspectionMode === "toon" ? 1.05 : 0.92} />
+                <ambientLight intensity={inspectionMode === "material" ? 0.96 : inspectionMode === "toon" ? 0.92 : inspectionMode === "solid" ? 0.84 : 0.92} />
                 <hemisphereLight
-                    args={["#f8fafc", "#334155", inspectionMode === "material" ? 2.5 : inspectionMode === "toon" ? 2.05 : 1.55]}
+                    args={["#f8fafc", "#1e293b", inspectionMode === "material" ? 1.85 : inspectionMode === "toon" ? 1.45 : inspectionMode === "solid" ? 1.2 : 1.45]}
                 />
-                <directionalLight position={[6, 8, 5]} intensity={inspectionMode === "material" ? 5.6 : inspectionMode === "toon" ? 4.1 : 2.9} castShadow />
-                <directionalLight position={[-5, 4, -6]} intensity={inspectionMode === "material" ? 3.25 : inspectionMode === "toon" ? 2.1 : 1.45} />
-                <directionalLight position={[0, 5, -8]} intensity={inspectionMode === "material" ? 1.7 : inspectionMode === "toon" ? 1.35 : 0.9} color="#dbeafe" />
-                <directionalLight position={[0, -2, 5]} intensity={inspectionMode === "material" ? 1.05 : inspectionMode === "toon" ? 0.9 : 0.55} color="#f8fafc" />
+                <directionalLight position={[5.5, 7, 4.5]} intensity={inspectionMode === "material" ? 3.25 : inspectionMode === "toon" ? 2.3 : inspectionMode === "solid" ? 2.25 : 2.15} castShadow />
+                <directionalLight position={[-4, 3, -5]} intensity={inspectionMode === "material" ? 1.6 : inspectionMode === "toon" ? 1.1 : inspectionMode === "solid" ? 1.0 : 0.9} />
+                <directionalLight position={[0, 4, -7]} intensity={inspectionMode === "material" ? 0.95 : inspectionMode === "toon" ? 0.7 : inspectionMode === "solid" ? 0.5 : 0.45} color="#dbeafe" />
+                <directionalLight position={[0, -1.5, 5]} intensity={inspectionMode === "material" ? 0.52 : inspectionMode === "toon" ? 0.45 : inspectionMode === "solid" ? 0.36 : 0.28} color="#f8fafc" />
                 <Suspense fallback={null}>
                     <ViewerErrorBoundary
                         onError={(error) => {
@@ -811,6 +834,7 @@ function HeavyModelViewerInner({
                                 inspectionTint={inspectionTint}
                                 shadingMode={shadingMode}
                                 pbrEnabled={pbrEnabled}
+                                unlitEnabled={unlitEnabled}
                                 previewMetalness={previewMetalness}
                                 previewRoughness={previewRoughness}
                                 onReady={() => {
@@ -821,7 +845,7 @@ function HeavyModelViewerInner({
                         </Bounds>
                         <ContactShadows
                             position={[0, -1.6, 0]}
-                            opacity={inspectionMode === "material" ? 0.28 : inspectionMode === "toon" ? 0.18 : 0.08}
+                            opacity={inspectionMode === "material" ? 0.2 : inspectionMode === "toon" ? 0.12 : inspectionMode === "solid" ? 0.14 : 0.08}
                             scale={18}
                             blur={2.6}
                             far={6}
