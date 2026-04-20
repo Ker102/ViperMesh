@@ -247,6 +247,7 @@ function copyCommonMaterialProps(
     target: THREE.Material,
     original: THREE.Material,
     flatShading: boolean,
+    maxAnisotropy: number,
 ) {
     const source = original as THREE.Material & {
         color?: THREE.Color;
@@ -293,12 +294,36 @@ function copyCommonMaterialProps(
     }
     if ("map" in dest) {
         dest.map = source.map ?? null;
+        if (dest.map) {
+            dest.map.colorSpace = THREE.SRGBColorSpace;
+            dest.map.generateMipmaps = true;
+            dest.map.magFilter = THREE.LinearFilter;
+            dest.map.minFilter = THREE.LinearMipmapLinearFilter;
+            dest.map.anisotropy = maxAnisotropy;
+            dest.map.needsUpdate = true;
+        }
     }
     if ("normalMap" in dest) {
         dest.normalMap = source.normalMap ?? null;
+        if (dest.normalMap) {
+            dest.normalMap.colorSpace = THREE.NoColorSpace;
+            dest.normalMap.generateMipmaps = true;
+            dest.normalMap.magFilter = THREE.LinearFilter;
+            dest.normalMap.minFilter = THREE.LinearMipmapLinearFilter;
+            dest.normalMap.anisotropy = maxAnisotropy;
+            dest.normalMap.needsUpdate = true;
+        }
     }
     if ("aoMap" in dest) {
         dest.aoMap = source.aoMap ?? null;
+        if (dest.aoMap) {
+            dest.aoMap.colorSpace = THREE.NoColorSpace;
+            dest.aoMap.generateMipmaps = true;
+            dest.aoMap.magFilter = THREE.LinearFilter;
+            dest.aoMap.minFilter = THREE.LinearMipmapLinearFilter;
+            dest.aoMap.anisotropy = maxAnisotropy;
+            dest.aoMap.needsUpdate = true;
+        }
     }
     if ("aoMapIntensity" in dest && typeof source.aoMapIntensity === "number") {
         dest.aoMapIntensity = source.aoMapIntensity;
@@ -308,6 +333,14 @@ function copyCommonMaterialProps(
     }
     if ("emissiveMap" in dest) {
         dest.emissiveMap = source.emissiveMap ?? null;
+        if (dest.emissiveMap) {
+            dest.emissiveMap.colorSpace = THREE.SRGBColorSpace;
+            dest.emissiveMap.generateMipmaps = true;
+            dest.emissiveMap.magFilter = THREE.LinearFilter;
+            dest.emissiveMap.minFilter = THREE.LinearMipmapLinearFilter;
+            dest.emissiveMap.anisotropy = maxAnisotropy;
+            dest.emissiveMap.needsUpdate = true;
+        }
     }
     if ("emissiveIntensity" in dest && typeof source.emissiveIntensity === "number") {
         dest.emissiveIntensity = source.emissiveIntensity;
@@ -320,9 +353,25 @@ function copyCommonMaterialProps(
     }
     if ("metalnessMap" in dest) {
         dest.metalnessMap = source.metalnessMap ?? null;
+        if (dest.metalnessMap) {
+            dest.metalnessMap.colorSpace = THREE.NoColorSpace;
+            dest.metalnessMap.generateMipmaps = true;
+            dest.metalnessMap.magFilter = THREE.LinearFilter;
+            dest.metalnessMap.minFilter = THREE.LinearMipmapLinearFilter;
+            dest.metalnessMap.anisotropy = maxAnisotropy;
+            dest.metalnessMap.needsUpdate = true;
+        }
     }
     if ("roughnessMap" in dest) {
         dest.roughnessMap = source.roughnessMap ?? null;
+        if (dest.roughnessMap) {
+            dest.roughnessMap.colorSpace = THREE.NoColorSpace;
+            dest.roughnessMap.generateMipmaps = true;
+            dest.roughnessMap.magFilter = THREE.LinearFilter;
+            dest.roughnessMap.minFilter = THREE.LinearMipmapLinearFilter;
+            dest.roughnessMap.anisotropy = maxAnisotropy;
+            dest.roughnessMap.needsUpdate = true;
+        }
     }
     if ("envMapIntensity" in dest && typeof source.envMapIntensity === "number") {
         dest.envMapIntensity = source.envMapIntensity;
@@ -356,6 +405,7 @@ function buildReplacementMaterial(
     unlitEnabled: boolean,
     previewMetalness: number,
     previewRoughness: number,
+    maxAnisotropy: number,
 ): THREE.Material {
     const flatShading = shadingMode === "flat";
 
@@ -365,7 +415,7 @@ function buildReplacementMaterial(
                 color: "#ffffff",
                 side: THREE.DoubleSide,
             });
-            copyCommonMaterialProps(material, original, flatShading);
+            copyCommonMaterialProps(material, original, flatShading, maxAnisotropy);
             if ("normalMap" in material) {
                 material.normalMap = null;
             }
@@ -379,10 +429,10 @@ function buildReplacementMaterial(
             metalness: pbrEnabled ? previewMetalness : 0,
             roughness: pbrEnabled ? previewRoughness : 0.95,
         });
-        copyCommonMaterialProps(material, original, flatShading);
+        copyCommonMaterialProps(material, original, flatShading, maxAnisotropy);
         material.side = THREE.DoubleSide;
         material.flatShading = flatShading;
-        material.envMapIntensity = pbrEnabled ? 2.2 : 0.18;
+        material.envMapIntensity = pbrEnabled ? 1.45 : 0.04;
         material.aoMapIntensity = pbrEnabled ? 0.2 : 0;
 
         if (pbrEnabled) {
@@ -484,8 +534,12 @@ function prepareInspectionGeometry(root: THREE.Object3D) {
 
 function SceneEnvironmentController({
     inspectionMode,
+    pbrEnabled,
+    unlitEnabled,
 }: {
     inspectionMode: HeavyInspectionMode;
+    pbrEnabled: boolean;
+    unlitEnabled: boolean;
 }) {
     const { gl, scene } = useThree();
     const envTextureRef = useRef<THREE.Texture | null>(null);
@@ -512,9 +566,9 @@ function SceneEnvironmentController({
 
         // Three scene environment is renderer-owned runtime state.
         /* eslint-disable react-hooks/immutability */
-        if (inspectionMode === "material") {
+        if (inspectionMode === "material" && !unlitEnabled) {
             scene.environment = envTextureRef.current;
-            scene.environmentIntensity = 2.4;
+            scene.environmentIntensity = pbrEnabled ? 1.55 : 0.28;
         } else if (inspectionMode === "toon") {
             scene.environment = envTextureRef.current;
             scene.environmentIntensity = 0.38;
@@ -532,7 +586,7 @@ function SceneEnvironmentController({
             gl.toneMappingExposure = 1;
         };
         /* eslint-enable react-hooks/immutability */
-    }, [gl, inspectionMode, scene]);
+    }, [gl, inspectionMode, pbrEnabled, scene, unlitEnabled]);
 
     return null;
 }
@@ -546,6 +600,7 @@ function applyInspectionMaterials(
     unlitEnabled: boolean,
     previewMetalness: number,
     previewRoughness: number,
+    maxAnisotropy: number,
 ) {
     prepareInspectionGeometry(root);
 
@@ -571,6 +626,7 @@ function applyInspectionMaterials(
                 unlitEnabled,
                 previewMetalness,
                 previewRoughness,
+                maxAnisotropy,
             )
         );
         mesh.userData.__generatedMaterials = replacements;
@@ -629,11 +685,16 @@ function LoadedAsset({
     previewRoughness: number;
     onReady: () => void;
 }) {
+    const { gl } = useThree();
     const gltf = useLoader(GLTFLoader, url);
     const scene = useMemo(
         () => SkeletonUtils.clone(gltf.scene) as THREE.Group,
         [gltf.scene],
     );
+    const maxAnisotropy = useMemo(() => {
+        const capability = gl.capabilities.getMaxAnisotropy?.() ?? 1;
+        return Math.max(1, Math.min(8, capability));
+    }, [gl]);
 
     useEffect(() => {
         applyInspectionMaterials(
@@ -645,13 +706,14 @@ function LoadedAsset({
             unlitEnabled,
             previewMetalness,
             previewRoughness,
+            maxAnisotropy,
         );
         onReady();
 
         return () => {
             disposeGeneratedMaterials(scene);
         };
-    }, [inspectionMode, inspectionTint, onReady, pbrEnabled, previewMetalness, previewRoughness, scene, shadingMode, unlitEnabled]);
+    }, [inspectionMode, inspectionTint, maxAnisotropy, onReady, pbrEnabled, previewMetalness, previewRoughness, scene, shadingMode, unlitEnabled]);
 
     return <primitive object={scene} />;
 }
@@ -799,15 +861,15 @@ function HeavyModelViewerInner({
                 className="h-full w-full"
             >
                 <color attach="background" args={[clearColorByMode[inspectionMode]]} />
-                <SceneEnvironmentController inspectionMode={inspectionMode} />
-                <ambientLight intensity={inspectionMode === "material" ? 0.96 : inspectionMode === "toon" ? 0.92 : inspectionMode === "solid" ? 0.84 : 0.92} />
+                <SceneEnvironmentController inspectionMode={inspectionMode} pbrEnabled={pbrEnabled} unlitEnabled={unlitEnabled} />
+                <ambientLight intensity={inspectionMode === "material" ? (unlitEnabled ? 0.15 : pbrEnabled ? 0.62 : 0.42) : inspectionMode === "toon" ? 0.92 : inspectionMode === "solid" ? 0.84 : 0.92} />
                 <hemisphereLight
-                    args={["#f8fafc", "#1e293b", inspectionMode === "material" ? 1.85 : inspectionMode === "toon" ? 1.45 : inspectionMode === "solid" ? 1.2 : 1.45]}
+                    args={["#f8fafc", "#1e293b", inspectionMode === "material" ? (unlitEnabled ? 0.15 : pbrEnabled ? 1.15 : 0.72) : inspectionMode === "toon" ? 1.45 : inspectionMode === "solid" ? 1.2 : 1.45]}
                 />
-                <directionalLight position={[5.5, 7, 4.5]} intensity={inspectionMode === "material" ? 3.25 : inspectionMode === "toon" ? 2.3 : inspectionMode === "solid" ? 2.25 : 2.15} castShadow />
-                <directionalLight position={[-4, 3, -5]} intensity={inspectionMode === "material" ? 1.6 : inspectionMode === "toon" ? 1.1 : inspectionMode === "solid" ? 1.0 : 0.9} />
-                <directionalLight position={[0, 4, -7]} intensity={inspectionMode === "material" ? 0.95 : inspectionMode === "toon" ? 0.7 : inspectionMode === "solid" ? 0.5 : 0.45} color="#dbeafe" />
-                <directionalLight position={[0, -1.5, 5]} intensity={inspectionMode === "material" ? 0.52 : inspectionMode === "toon" ? 0.45 : inspectionMode === "solid" ? 0.36 : 0.28} color="#f8fafc" />
+                <directionalLight position={[5.5, 7, 4.5]} intensity={inspectionMode === "material" ? (unlitEnabled ? 0.1 : pbrEnabled ? 2.1 : 1.15) : inspectionMode === "toon" ? 2.3 : inspectionMode === "solid" ? 2.25 : 2.15} castShadow />
+                <directionalLight position={[-4, 3, -5]} intensity={inspectionMode === "material" ? (unlitEnabled ? 0.08 : pbrEnabled ? 0.95 : 0.48) : inspectionMode === "toon" ? 1.1 : inspectionMode === "solid" ? 1.0 : 0.9} />
+                <directionalLight position={[0, 4, -7]} intensity={inspectionMode === "material" ? (unlitEnabled ? 0.06 : pbrEnabled ? 0.62 : 0.28) : inspectionMode === "toon" ? 0.7 : inspectionMode === "solid" ? 0.5 : 0.45} color="#dbeafe" />
+                <directionalLight position={[0, -1.5, 5]} intensity={inspectionMode === "material" ? (unlitEnabled ? 0.04 : pbrEnabled ? 0.32 : 0.14) : inspectionMode === "toon" ? 0.45 : inspectionMode === "solid" ? 0.36 : 0.28} color="#f8fafc" />
                 <Suspense fallback={null}>
                     <ViewerErrorBoundary
                         onError={(error) => {
