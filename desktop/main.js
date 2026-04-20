@@ -568,6 +568,24 @@ ipcMain.handle("assets:open-managed-folder", () => {
   return { opened: true, path: libraryRoot }
 })
 
+ipcMain.handle("shell:show-item-in-folder", async (event, targetPath) => {
+  try {
+    if (!targetPath || typeof targetPath !== "string") {
+      return { success: false, error: "Missing file path" }
+    }
+
+    if (!fs.existsSync(targetPath)) {
+      return { success: false, error: "File not found" }
+    }
+
+    shell.showItemInFolder(targetPath)
+    return { success: true, path: targetPath }
+  } catch (error) {
+    console.error("[Desktop] Failed to reveal file:", error)
+    return { success: false, error: error.message }
+  }
+})
+
 // Open URL in system browser (not Electron window)
 ipcMain.handle("shell:open-external", async (event, url) => {
   try {

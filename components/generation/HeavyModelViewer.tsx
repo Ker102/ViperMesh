@@ -2,7 +2,7 @@
 
 import { Bounds, ContactShadows, OrbitControls, useBounds } from "@react-three/drei";
 import { Canvas, useLoader, useThree } from "@react-three/fiber";
-import { Download, Loader2, Maximize2, RotateCcw } from "lucide-react";
+import { Download, FolderOpen, Loader2, Maximize2, RotateCcw } from "lucide-react";
 import React, { Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
@@ -208,6 +208,23 @@ function getDownloadUrl(safeUrl: string) {
         return parsed.toString();
     } catch {
         return safeUrl;
+    }
+}
+
+function getNeuralOutputRelativePath(safeUrl: string) {
+    try {
+        const parsed = new URL(
+            safeUrl,
+            typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1",
+        );
+        if (parsed.pathname !== "/api/ai/neural-output") {
+            return null;
+        }
+
+        const relativePath = parsed.searchParams.get("path");
+        return relativePath ? decodeURIComponent(relativePath) : null;
+    } catch {
+        return null;
     }
 }
 
@@ -560,6 +577,11 @@ function HeavyModelViewerInner({
     const [status, setStatus] = useState<ViewerStatus>("loading");
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isRevealPending, setIsRevealPending] = useState(false);
+    const desktopRevealAvailable =
+        typeof window !== "undefined" &&
+        typeof window.vipermesh?.revealItemInFolder === "function";
+    const localRelativePath = useMemo(() => getNeuralOutputRelativePath(safeUrl), [safeUrl]);
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -596,16 +618,59 @@ function HeavyModelViewerInner({
 
         try {
             const downloadUrl = getDownloadUrl(safeUrl);
+            const response = await fetch(downloadUrl, { credentials: "include" });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const blob = await response.blob();
+            const objectUrl = URL.createObjectURL(blob);
             const anchor = document.createElement("a");
-            anchor.href = downloadUrl;
+            anchor.href = objectUrl;
             anchor.download = getDownloadFilename(safeUrl);
             anchor.rel = "noopener noreferrer";
             document.body.appendChild(anchor);
             anchor.click();
             anchor.remove();
+            URL.revokeObjectURL(objectUrl);
         } catch (downloadError) {
             console.warn("HeavyModelViewer: falling back to direct download", downloadError);
             window.open(getDownloadUrl(safeUrl), "_blank", "noopener,noreferrer");
+        }
+    };
+
+    const handleRevealFile = async () => {
+        if (!desktopRevealAvailable || !localRelativePath) return;
+
+        setIsRevealPending(true);
+        try {
+            const response = await fetch(
+                `/api/ai/neural-output/path?path=${encodeURIComponent(localRelativePath)}`,
+                { credentials: "include" },
+            );
+
+            if (!response.ok) {
+                throw new Error(`Failed to resolve local file (${response.status})`);
+            }
+
+            const payload = (await response.json()) as { localPath?: string; error?: string };
+            if (!payload.localPath) {
+                throw new Error(payload.error ?? "Resolved file path is missing");
+            }
+
+            const revealResult = await window.vipermesh!.revealItemInFolder(payload.localPath);
+            if (!revealResult.success) {
+                throw new Error(revealResult.error ?? "Desktop shell refused the file reveal request");
+            }
+        } catch (revealError) {
+            const message =
+                revealError instanceof Error
+                    ? revealError.message
+                    : "Failed to reveal the model file";
+            console.warn("HeavyModelViewer: failed to reveal model file", revealError);
+            setErrorMessage(message);
+        } finally {
+            setIsRevealPending(false);
         }
     };
 
@@ -729,6 +794,17 @@ function HeavyModelViewerInner({
                         <Download className="h-3.5 w-3.5" />
                         Download
                     </button>
+                    {desktopRevealAvailable && localRelativePath ? (
+                        <button
+                            type="button"
+                            onClick={handleRevealFile}
+                            disabled={isRevealPending}
+                            className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-slate-100 transition hover:border-teal-300/50 hover:bg-slate-900 disabled:cursor-wait disabled:opacity-60"
+                        >
+                            {isRevealPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FolderOpen className="h-3.5 w-3.5" />}
+                            Reveal File
+                        </button>
+                    ) : null}
                 </div>
             )}
 

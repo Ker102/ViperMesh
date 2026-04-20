@@ -28,6 +28,7 @@ export interface ViperMeshElectronAPI {
         usingEnvCacheOverride: boolean
     }>
     openManagedAssetFolder: () => Promise<{ opened: boolean; path: string }>
+    revealItemInFolder: (targetPath: string) => Promise<{ success: boolean; path?: string; error?: string }>
 
     // Open URL in system browser (not Electron window)
     openExternal: (url: string) => Promise<{ success: boolean; error?: string }>
