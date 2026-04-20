@@ -463,7 +463,6 @@ function ToolDetailView({
     onBack,
     onSubmit,
     onRunNow,
-    onOpenAssetLibrary,
     initialInputs,
     generatedAssets,
 }: {
@@ -471,7 +470,6 @@ function ToolDetailView({
     onBack: () => void
     onSubmit: (tool: ToolEntry, inputs: Record<string, string>) => void
     onRunNow: (tool: ToolEntry, inputs: Record<string, string>) => void
-    onOpenAssetLibrary: () => void
     initialInputs?: Record<string, string>
     generatedAssets: GeneratedAssetItem[]
 }) {
@@ -852,22 +850,7 @@ function ToolDetailView({
                             </div>
                         ))}
 
-                        <div className="mt-4 space-y-3">
-                            {tool.type !== "blender_agent" && (
-                                <button
-                                    type="button"
-                                    onClick={onOpenAssetLibrary}
-                                    className="w-full rounded-xl border px-4 py-3 text-sm font-semibold transition-all duration-200 hover:opacity-90"
-                                    style={{
-                                        backgroundColor: "hsl(var(--forge-accent-subtle))",
-                                        borderColor: "hsl(var(--forge-accent))",
-                                        color: "hsl(var(--forge-accent))",
-                                    }}
-                                >
-                                    Open Asset Library
-                                </button>
-                            )}
-
+                        <div className="mt-4">
                             <div className="flex gap-3">
                             <button
                                 onClick={handleRunNow}
@@ -2010,6 +1993,11 @@ export function StudioWorkspace({
     }, [neuralRun, onNeuralRunUpdate])
 
     useEffect(() => {
+        if (!selectedTool || selectedTool.type === "blender_agent") return
+        onOpenAssetLibrary()
+    }, [onOpenAssetLibrary, selectedTool])
+
+    useEffect(() => {
         if (!selectedPipelineStep) return
         if (selectedTool) return
 
@@ -2410,7 +2398,6 @@ export function StudioWorkspace({
                     }
                     setSelectedTool(null)
                 }}
-                onOpenAssetLibrary={onOpenAssetLibrary}
             />
         )
     }

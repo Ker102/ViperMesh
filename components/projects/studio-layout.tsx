@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import { StudioSidebar } from "./studio-sidebar"
 import { StudioWorkspace } from "./studio-workspace"
 import { StudioAdvisor } from "./studio-advisor"
@@ -666,12 +667,6 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                 <StudioSidebar
                     activeCategory={activeCategory}
                     onCategoryChange={setActiveCategory}
-                    onGeneratedAssetsToggle={() => {
-                        setGeneratedAssetsOpen((open) => !open)
-                        setAssistantOpen(false)
-                    }}
-                    generatedAssetsOpen={generatedAssetsOpen}
-                    generatedAssetCount={generatedAssets.length}
                     onAssistantToggle={() => {
                         setAssistantOpen((o) => !o)
                         setGeneratedAssetsOpen(false)
@@ -695,10 +690,41 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                     generatedAssets={generatedAssets}
                 />
 
+                <button
+                    type="button"
+                    onClick={() => {
+                        setGeneratedAssetsOpen((open) => !open)
+                        setAssistantOpen(false)
+                    }}
+                    className="absolute bottom-1/2 right-0 z-30 inline-flex h-16 w-7 translate-x-0 translate-y-1/2 items-center justify-center rounded-l-2xl border border-r-0 transition-all duration-300 hover:opacity-90"
+                    style={{
+                        right: generatedAssetsOpen ? "320px" : "0px",
+                        borderColor: "hsl(var(--forge-border))",
+                        backgroundColor: "hsl(var(--forge-surface))",
+                        color: "hsl(var(--forge-text-muted))",
+                        boxShadow: "0 10px 30px rgba(15,23,42,0.08)",
+                    }}
+                    aria-label={generatedAssetsOpen ? "Collapse asset library" : "Open asset library"}
+                    title={generatedAssetsOpen ? "Collapse asset library" : "Open asset library"}
+                >
+                    {generatedAssetsOpen ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+                    {generatedAssets.length > 0 && !generatedAssetsOpen && (
+                        <span
+                            className="absolute -left-2 -top-2 min-w-[18px] rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+                            style={{
+                                backgroundColor: "hsl(var(--forge-accent))",
+                                color: "white",
+                            }}
+                        >
+                            {generatedAssets.length > 9 ? "9+" : generatedAssets.length}
+                        </span>
+                    )}
+                </button>
+
                 <GeneratedAssetsShelf
+                    projectId={projectId}
                     open={generatedAssetsOpen}
                     assets={generatedAssets}
-                    onClose={() => setGeneratedAssetsOpen(false)}
                     onOpenAsset={handleOpenGeneratedAsset}
                     onContinueToTool={handleContinueGeneratedAssetToTool}
                 />
