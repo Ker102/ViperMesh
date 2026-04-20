@@ -963,7 +963,7 @@ function NeuralViewerStage({
             : viewerLabel
     const metadataSummary = [assetStats?.stageLabel, assetStats?.sourceProvider].filter(Boolean).join(" • ")
     const activeInspectionLabel = {
-        material: "PBR",
+        material: "Texture",
         toon: "Toon",
         geometry: "Geometry",
         solid: "Solid",
@@ -1253,7 +1253,7 @@ function NeuralViewerStage({
                         {[
                             {
                                 id: "material",
-                                label: "PBR",
+                                label: "Texture",
                                 icon: (
                                     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
                                         <path d="M4.5 11.8C3.4 10.6 3 9.55 3 8.25C3 5.35 5.35 3 8.25 3c1.2 0 2.22.34 3.36 1.28c1 .82 2.12 1.16 3.06 1.16c1.26 0 2.33.88 2.33 2.17c0 5.15-4.17 9.39-9.31 9.39c-2.06 0-3.69-1.3-3.69-3.05c0-.8.24-1.46.5-2.15Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />

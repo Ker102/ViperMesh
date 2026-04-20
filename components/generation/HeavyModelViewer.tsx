@@ -252,9 +252,16 @@ function copyCommonMaterialProps(
         color?: THREE.Color;
         map?: THREE.Texture | null;
         normalMap?: THREE.Texture | null;
+        aoMap?: THREE.Texture | null;
+        aoMapIntensity?: number;
         emissive?: THREE.Color;
         emissiveMap?: THREE.Texture | null;
         emissiveIntensity?: number;
+        metalness?: number;
+        roughness?: number;
+        metalnessMap?: THREE.Texture | null;
+        roughnessMap?: THREE.Texture | null;
+        envMapIntensity?: number;
         transparent?: boolean;
         opacity?: number;
         alphaTest?: number;
@@ -264,9 +271,16 @@ function copyCommonMaterialProps(
         color?: THREE.Color;
         map?: THREE.Texture | null;
         normalMap?: THREE.Texture | null;
+        aoMap?: THREE.Texture | null;
+        aoMapIntensity?: number;
         emissive?: THREE.Color;
         emissiveMap?: THREE.Texture | null;
         emissiveIntensity?: number;
+        metalness?: number;
+        roughness?: number;
+        metalnessMap?: THREE.Texture | null;
+        roughnessMap?: THREE.Texture | null;
+        envMapIntensity?: number;
         transparent?: boolean;
         opacity?: number;
         alphaTest?: number;
@@ -283,6 +297,12 @@ function copyCommonMaterialProps(
     if ("normalMap" in dest) {
         dest.normalMap = source.normalMap ?? null;
     }
+    if ("aoMap" in dest) {
+        dest.aoMap = source.aoMap ?? null;
+    }
+    if ("aoMapIntensity" in dest && typeof source.aoMapIntensity === "number") {
+        dest.aoMapIntensity = source.aoMapIntensity;
+    }
     if (dest.emissive && source.emissive) {
         dest.emissive.copy(source.emissive);
     }
@@ -291,6 +311,21 @@ function copyCommonMaterialProps(
     }
     if ("emissiveIntensity" in dest && typeof source.emissiveIntensity === "number") {
         dest.emissiveIntensity = source.emissiveIntensity;
+    }
+    if ("metalness" in dest && typeof source.metalness === "number") {
+        dest.metalness = source.metalness;
+    }
+    if ("roughness" in dest && typeof source.roughness === "number") {
+        dest.roughness = source.roughness;
+    }
+    if ("metalnessMap" in dest) {
+        dest.metalnessMap = source.metalnessMap ?? null;
+    }
+    if ("roughnessMap" in dest) {
+        dest.roughnessMap = source.roughnessMap ?? null;
+    }
+    if ("envMapIntensity" in dest && typeof source.envMapIntensity === "number") {
+        dest.envMapIntensity = source.envMapIntensity;
     }
     if (typeof source.transparent === "boolean") {
         dest.transparent = source.transparent;
@@ -337,44 +372,37 @@ function buildReplacementMaterial(
             return material;
         }
 
-        if (!pbrEnabled) {
-            const material = new THREE.MeshPhongMaterial({
-                color: "#ffffff",
-                shininess: 22,
-                flatShading,
-                side: THREE.DoubleSide,
-            });
-            copyCommonMaterialProps(material, original, flatShading);
-            if ("normalMap" in material) {
-                material.normalMap = null;
-            }
+        const material = new THREE.MeshStandardMaterial({
+            color: "#ffffff",
+            flatShading,
+            side: THREE.DoubleSide,
+            metalness: pbrEnabled ? previewMetalness : 0,
+            roughness: pbrEnabled ? previewRoughness : 0.95,
+        });
+        copyCommonMaterialProps(material, original, flatShading);
+        material.side = THREE.DoubleSide;
+        material.flatShading = flatShading;
+        material.envMapIntensity = pbrEnabled ? 2.2 : 0.18;
+        material.aoMapIntensity = pbrEnabled ? 0.2 : 0;
+
+        if (pbrEnabled) {
+            material.metalness = previewMetalness;
+            material.roughness = previewRoughness;
+            material.needsUpdate = true;
             return material;
         }
 
-        const cloned = original.clone();
-        if ("flatShading" in cloned) {
-            (cloned as THREE.Material & { flatShading?: boolean }).flatShading = flatShading;
-            cloned.needsUpdate = true;
-        }
-        if ("wireframe" in cloned) {
-            (cloned as THREE.Material & { wireframe?: boolean }).wireframe = false;
-        }
-        if ("side" in cloned) {
-            (cloned as THREE.Material & { side?: THREE.Side }).side = THREE.DoubleSide;
-        }
-        if ("metalness" in cloned) {
-            (cloned as THREE.Material & { metalness?: number }).metalness = previewMetalness;
-        }
-        if ("roughness" in cloned) {
-            (cloned as THREE.Material & { roughness?: number }).roughness = previewRoughness;
-        }
-        if ("envMapIntensity" in cloned) {
-            (cloned as THREE.Material & { envMapIntensity?: number }).envMapIntensity = 2.8;
-        }
-        if ("aoMapIntensity" in cloned) {
-            (cloned as THREE.Material & { aoMapIntensity?: number }).aoMapIntensity = 0.2;
-        }
-        return cloned;
+        material.normalMap = null;
+        material.metalnessMap = null;
+        material.roughnessMap = null;
+        material.aoMap = null;
+        material.emissiveMap = null;
+        material.emissive.set("#000000");
+        material.emissiveIntensity = 0;
+        material.metalness = 0;
+        material.roughness = 0.95;
+        material.needsUpdate = true;
+        return material;
     }
 
     if (mode === "geometry") {
@@ -532,32 +560,6 @@ function applyInspectionMaterials(
 
         const generatedMaterials = mesh.userData.__generatedMaterials as THREE.Material[] | undefined;
         generatedMaterials?.forEach((material) => material.dispose());
-
-        if (mode === "material" && shadingMode === "smooth" && pbrEnabled) {
-            mesh.material = Array.isArray(mesh.material) || originalMaterials.length > 1
-                ? originalMaterials
-                : originalMaterials[0];
-            const activeMaterials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-            activeMaterials.forEach((material) => {
-                if ("side" in material) {
-                    (material as THREE.Material & { side?: THREE.Side }).side = THREE.DoubleSide;
-                }
-                if ("envMapIntensity" in material) {
-                    (material as THREE.Material & { envMapIntensity?: number }).envMapIntensity = 2.8;
-                }
-                if ("metalness" in material) {
-                    (material as THREE.Material & { metalness?: number }).metalness = previewMetalness;
-                }
-                if ("roughness" in material) {
-                    (material as THREE.Material & { roughness?: number }).roughness = previewRoughness;
-                }
-                material.needsUpdate = true;
-            });
-            delete mesh.userData.__generatedMaterials;
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-            return;
-        }
 
         const replacements = originalMaterials.map((material) =>
             buildReplacementMaterial(
