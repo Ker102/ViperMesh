@@ -679,14 +679,6 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                     assistantOpen={assistantOpen}
                 />
 
-                <GeneratedAssetsShelf
-                    open={generatedAssetsOpen}
-                    assets={generatedAssets}
-                    onClose={() => setGeneratedAssetsOpen(false)}
-                    onOpenAsset={handleOpenGeneratedAsset}
-                    onContinueToTool={handleContinueGeneratedAssetToTool}
-                />
-
                 <StudioWorkspace
                     activeCategory={activeCategory}
                     onToolSelect={handleToolSelect}
@@ -697,6 +689,14 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                     onRequestCategoryChange={setActiveCategory}
                     externalToolLaunch={externalToolLaunch}
                     generatedAssets={generatedAssets}
+                />
+
+                <GeneratedAssetsShelf
+                    open={generatedAssetsOpen}
+                    assets={generatedAssets}
+                    onClose={() => setGeneratedAssetsOpen(false)}
+                    onOpenAsset={handleOpenGeneratedAsset}
+                    onContinueToTool={handleContinueGeneratedAssetToTool}
                 />
 
                 <StudioAdvisor

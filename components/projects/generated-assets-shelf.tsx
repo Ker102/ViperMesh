@@ -40,7 +40,7 @@ export function GeneratedAssetsShelf({
 
     return (
         <aside
-            className="flex h-full w-[340px] shrink-0 flex-col border-r transition-all duration-300"
+            className="flex h-full w-[360px] shrink-0 flex-col border-l transition-all duration-300"
             style={{
                 borderColor: "hsl(var(--forge-border))",
                 backgroundColor: "hsl(var(--forge-surface))",
@@ -80,7 +80,7 @@ export function GeneratedAssetsShelf({
                         color: "hsl(var(--forge-text-muted))",
                     }}
                 >
-                    Generated outputs are the first source in the project asset library. This shell is where saved library assets, imported references, and managed catalog items will plug in next without changing the Studio workflow.
+                    Generated outputs are the first source in the project asset library, including the current scene result when it came from this workflow. This shell is where saved library assets, imported references, and managed catalog items will plug in next without changing the Studio workflow.
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
