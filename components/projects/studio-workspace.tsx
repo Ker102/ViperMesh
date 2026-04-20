@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { Loader2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, RefreshCw, Square } from "lucide-react"
-import { ModelViewer } from "@/components/generation/ModelViewer"
+import { HeavyModelViewer } from "@/components/generation/HeavyModelViewer"
 import { cn } from "@/lib/utils"
 import {
     CATEGORIES,
@@ -950,8 +950,9 @@ function NeuralViewerStage({
     generationTimeMs?: number
     assetStats?: AssetInspectionStats | null
 }) {
-    const [inspectionMode, setInspectionMode] = useState<"material" | "geometry" | "clay" | "stats">("material")
+    const [inspectionMode, setInspectionMode] = useState<"material" | "geometry" | "clay" | "toon" | "wireframe" | "stats">("material")
     const [inspectionTint, setInspectionTint] = useState<"neutral" | "violet" | "cyan">("violet")
+    const [shadingMode, setShadingMode] = useState<"smooth" | "flat">("smooth")
     const displayViewerLabel =
         viewerSource === "input" && viewerUrl
             ? getAssetDisplayLabel(viewerUrl)
@@ -966,11 +967,12 @@ function NeuralViewerStage({
             }}
         >
             {viewerUrl ? (
-                <ModelViewer
+                <HeavyModelViewer
                     url={viewerUrl}
                     className="h-full min-h-0 rounded-none border-0"
                     inspectionMode={inspectionMode === "stats" ? "material" : inspectionMode}
                     inspectionTint={inspectionTint}
+                    shadingMode={shadingMode}
                 />
             ) : (
                 <div
@@ -1139,6 +1141,27 @@ function NeuralViewerStage({
                                 ),
                             },
                             {
+                                id: "toon",
+                                label: "Toon",
+                                icon: (
+                                    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                                        <path d="M4 13.5c0-3.9 2.4-7 6-7s6 3.1 6 7c0 1.7-1.3 3-3 3H7c-1.7 0-3-1.3-3-3Z" stroke="currentColor" strokeWidth="1.6" />
+                                        <path d="M7 11.5h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                                        <path d="M8.25 8.5h3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                                    </svg>
+                                ),
+                            },
+                            {
+                                id: "wireframe",
+                                label: "Wireframe",
+                                icon: (
+                                    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                                        <path d="M10 3l6 3.5v7L10 17l-6-3.5v-7L10 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                                        <path d="M4 6.5 10 10l6-3.5M10 10v7M4 13.5 10 10l6 3.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                ),
+                            },
+                            {
                                 id: "stats",
                                 label: "Stats",
                                 icon: (
@@ -1153,7 +1176,7 @@ function NeuralViewerStage({
                                 <button
                                     key={mode.id}
                                     type="button"
-                                    onClick={() => setInspectionMode(mode.id as "material" | "geometry" | "clay" | "stats")}
+                                    onClick={() => setInspectionMode(mode.id as "material" | "geometry" | "clay" | "toon" | "wireframe" | "stats")}
                                     className="rounded-full p-2.5 transition"
                                     aria-label={mode.label}
                                     title={mode.label}
@@ -1170,7 +1193,7 @@ function NeuralViewerStage({
                                 </button>
                             )
                         })}
-                        {(inspectionMode === "geometry" || inspectionMode === "clay") && (
+                        {(inspectionMode === "clay" || inspectionMode === "toon" || inspectionMode === "wireframe") && (
                             <div className="ml-1 flex items-center gap-1 border-l pl-2" style={{ borderColor: "rgba(255,255,255,0.12)" }}>
                                 {[
                                     { id: "neutral", label: "Neutral tint", color: "#d4d4d8" },
@@ -1192,6 +1215,52 @@ function NeuralViewerStage({
                                                 boxShadow: active ? "0 0 0 2px rgba(15,23,42,0.35)" : "none",
                                             }}
                                         />
+                                    )
+                                })}
+                            </div>
+                        )}
+                        {(inspectionMode === "material" || inspectionMode === "geometry" || inspectionMode === "clay" || inspectionMode === "toon") && (
+                            <div className="ml-1 flex items-center gap-1 border-l pl-2" style={{ borderColor: "rgba(255,255,255,0.12)" }}>
+                                {[
+                                    {
+                                        id: "smooth",
+                                        label: "Smooth shading",
+                                        icon: (
+                                            <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                                                <circle cx="10" cy="10" r="5.2" stroke="currentColor" strokeWidth="1.5" />
+                                            </svg>
+                                        ),
+                                    },
+                                    {
+                                        id: "flat",
+                                        label: "Flat shading",
+                                        icon: (
+                                            <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                                                <path d="M10 4.2 15.6 14H4.4L10 4.2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                                            </svg>
+                                        ),
+                                    },
+                                ].map((mode) => {
+                                    const active = shadingMode === mode.id
+                                    return (
+                                        <button
+                                            key={mode.id}
+                                            type="button"
+                                            onClick={() => setShadingMode(mode.id as "smooth" | "flat")}
+                                            className="rounded-full p-2 transition"
+                                            aria-label={mode.label}
+                                            title={mode.label}
+                                            style={active
+                                                ? {
+                                                    backgroundColor: "rgba(255,255,255,0.18)",
+                                                    color: "white",
+                                                }
+                                                : {
+                                                    color: "rgba(226,232,240,0.86)",
+                                                }}
+                                        >
+                                            {mode.icon}
+                                        </button>
                                     )
                                 })}
                             </div>
