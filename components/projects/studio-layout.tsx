@@ -102,6 +102,15 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         toolId: string
         inputs: Record<string, string>
     } | null>(null)
+    const [librarySelectionMode, setLibrarySelectionMode] = useState<{
+        token: string
+        label: string
+    } | null>(null)
+    const [librarySelectionEvent, setLibrarySelectionEvent] = useState<{
+        token: string
+        asset: GeneratedAssetItem
+    } | null>(null)
+    const [libraryImportInFlight, setLibraryImportInFlight] = useState(false)
 
     // Keep ref in sync with state
     useEffect(() => {
@@ -513,6 +522,27 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         setSelectedStepId(stepId)
         setGeneratedAssetsOpen(false)
         setAssistantOpen(false)
+        setLibrarySelectionMode(null)
+        setLibrarySelectionEvent(null)
+    }, [])
+
+    const handleRequestLibrarySelection = useCallback((selection: { token: string; label: string }) => {
+        setLibrarySelectionMode(selection)
+        setGeneratedAssetsOpen(true)
+        setAssistantOpen(false)
+    }, [])
+
+    const handleUseLibraryAsset = useCallback((asset: GeneratedAssetItem) => {
+        if (!librarySelectionMode) return
+        setLibrarySelectionEvent({
+            token: librarySelectionMode.token,
+            asset,
+        })
+    }, [librarySelectionMode])
+
+    const handleConsumeLibrarySelection = useCallback((token: string) => {
+        setLibrarySelectionEvent((current) => (current?.token === token ? null : current))
+        setLibrarySelectionMode((current) => (current?.token === token ? null : current))
     }, [])
 
     const handleContinueGeneratedAssetToTool = useCallback((asset: GeneratedAssetItem, toolId: string) => {
@@ -530,6 +560,8 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         setSelectedStepId(null)
         setAssistantOpen(false)
         setGeneratedAssetsOpen(false)
+        setLibrarySelectionMode(null)
+        setLibrarySelectionEvent(null)
         setActiveCategory(targetTool.category)
         setExternalToolLaunch({
             token: `${asset.stepId}:${Date.now()}`,
@@ -537,6 +569,59 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
             inputs: launchInputs,
         })
     }, [])
+
+    const handleImportLibraryAsset = useCallback(async (file: File) => {
+        setLibraryImportInFlight(true)
+        try {
+            const formData = new FormData()
+            formData.append("projectId", projectId)
+            formData.append("file", file)
+
+            const response = await fetch("/api/projects/assets/import", {
+                method: "POST",
+                body: formData,
+            })
+
+            const payload = await response.json().catch(() => null)
+            if (!response.ok || !payload?.asset) {
+                throw new Error(payload?.error ?? `Import failed with HTTP ${response.status}`)
+            }
+
+            const asset = payload.asset as GeneratedAssetItem
+            const importedStep: WorkflowTimelineStep = {
+                id: asset.stepId,
+                title: asset.title,
+                toolName: asset.toolName,
+                status: "done",
+                hiddenFromTimeline: true,
+                inputs: { meshUrl: asset.viewerUrl },
+                neuralState: {
+                    viewerUrl: asset.viewerUrl,
+                    viewerLabel: asset.viewerLabel,
+                    viewerSource: "input",
+                    assetOrigin: "imported",
+                    assetStats: asset.assetStats ?? null,
+                },
+            }
+
+            setWorkflowSteps((prev) => {
+                const withoutExisting = prev.filter((step) => step.id !== importedStep.id)
+                return [...withoutExisting, importedStep]
+            })
+
+            if (librarySelectionMode) {
+                setLibrarySelectionEvent({
+                    token: librarySelectionMode.token,
+                    asset,
+                })
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed to import model"
+            window.alert(message)
+        } finally {
+            setLibraryImportInFlight(false)
+        }
+    }, [librarySelectionMode, projectId])
 
     const handleToolRunNow = useCallback(
         (tool: ToolEntry, inputs: Record<string, string>) => {
@@ -651,7 +736,10 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
 
     const selectedStep = workflowSteps.find((s) => s.id === selectedStepId) ?? null
     const selectedStepTool = selectedStep ? getToolById(selectedStep.toolName) : undefined
-    const selectedNeuralStep = selectedStep && selectedStepTool?.type === "neural" ? selectedStep : null
+    const selectedNeuralStep = selectedStep &&
+        (selectedStepTool?.type === "neural" || selectedStep.neuralState?.assetOrigin === "imported")
+        ? selectedStep
+        : null
 
     return (
         <div
@@ -686,6 +774,9 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                         setGeneratedAssetsOpen(true)
                         setAssistantOpen(false)
                     }}
+                    onRequestLibrarySelection={handleRequestLibrarySelection}
+                    incomingLibrarySelection={librarySelectionEvent}
+                    onConsumeLibrarySelection={handleConsumeLibrarySelection}
                     externalToolLaunch={externalToolLaunch}
                     generatedAssets={generatedAssets}
                 />
@@ -727,6 +818,10 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                     assets={generatedAssets}
                     onOpenAsset={handleOpenGeneratedAsset}
                     onContinueToTool={handleContinueGeneratedAssetToTool}
+                    onUseAsset={handleUseLibraryAsset}
+                    onImportAsset={handleImportLibraryAsset}
+                    selectionMode={librarySelectionMode}
+                    importInFlight={libraryImportInFlight}
                 />
 
                 <StudioAdvisor

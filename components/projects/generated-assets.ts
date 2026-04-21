@@ -24,6 +24,7 @@ export interface GeneratedAssetItem {
     assetStats?: AssetInspectionStats | null
     referenceImage?: string
     nextSuggestions: GeneratedAssetSuggestion[]
+    librarySource: "generated" | "imported"
 }
 
 type AssetKind = "character" | "environment" | "object" | "unknown"
@@ -196,7 +197,12 @@ export function extractGeneratedAssets(steps: WorkflowTimelineStep[]): Generated
     return steps
         .flatMap((step) => {
             const neuralState = step.neuralState
-            if (!neuralState?.viewerUrl || neuralState.viewerSource !== "generated") {
+            if (!neuralState?.viewerUrl) {
+                return []
+            }
+
+            const assetOrigin = neuralState.assetOrigin ?? "generated"
+            if (assetOrigin !== "imported" && neuralState.viewerSource !== "generated") {
                 return []
             }
 
@@ -204,12 +210,17 @@ export function extractGeneratedAssets(steps: WorkflowTimelineStep[]): Generated
             const referenceImage = isRenderablePreviewImage(step.inputs?.imageUrl ?? step.inputs?.referenceImage)
                 ? step.inputs?.imageUrl ?? step.inputs?.referenceImage
                 : undefined
+            const nextSuggestions =
+                assetOrigin === "generated"
+                    ? buildNextSuggestionsForAsset(step.toolName, step.inputs)
+                    : []
+
             return [{
                 id: `${step.id}:${neuralState.viewerUrl}`,
                 stepId: step.id,
                 title: step.title,
                 toolName: step.toolName,
-                toolLabel: tool?.name ?? step.title,
+                toolLabel: neuralState.assetStats?.sourceToolLabel ?? tool?.name ?? step.title,
                 viewerUrl: neuralState.viewerUrl,
                 viewerLabel: neuralState.viewerLabel,
                 providerLabel: neuralState.assetStats?.sourceProvider ?? formatProviderLabel(tool?.provider),
@@ -217,7 +228,8 @@ export function extractGeneratedAssets(steps: WorkflowTimelineStep[]): Generated
                 previewImageUrl: referenceImage,
                 assetStats: neuralState.assetStats,
                 referenceImage,
-                nextSuggestions: buildNextSuggestionsForAsset(step.toolName, step.inputs),
+                nextSuggestions,
+                librarySource: assetOrigin,
             }]
         })
         .reverse()

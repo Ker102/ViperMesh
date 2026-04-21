@@ -18,7 +18,7 @@ export interface AssetLibraryCategory {
 }
 
 export interface AssetLibraryItem extends GeneratedAssetItem {
-    librarySource: "generated"
+    librarySource: "generated" | "imported"
     assetKind: "model" | "image"
     densityBucket: "high-poly" | "low-poly" | "unknown"
     libraryCategoryIds: AssetLibraryCategoryId[]

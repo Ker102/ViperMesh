@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { ArrowUpRight, Info, Star } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { ArrowUpRight, Import, Info, Star } from "lucide-react"
 import { getToolById } from "@/lib/orchestration/tool-catalog"
 import { AssetPreviewTile, AssetStatsPills } from "./asset-inspection"
 import {
@@ -18,6 +18,12 @@ interface GeneratedAssetsShelfProps {
     assets: GeneratedAssetItem[]
     onOpenAsset: (stepId: string) => void
     onContinueToTool: (asset: GeneratedAssetItem, toolId: string) => void
+    onUseAsset: (asset: GeneratedAssetItem) => void
+    onImportAsset: (file: File) => Promise<void> | void
+    selectionMode?: {
+        label: string
+    } | null
+    importInFlight?: boolean
 }
 
 export function GeneratedAssetsShelf({
@@ -26,10 +32,15 @@ export function GeneratedAssetsShelf({
     assets,
     onOpenAsset,
     onContinueToTool,
+    onUseAsset,
+    onImportAsset,
+    selectionMode,
+    importInFlight = false,
 }: GeneratedAssetsShelfProps) {
     const assetLibrary = useMemo(() => buildProjectAssetLibrary(assets), [assets])
     const [activeCategoryId, setActiveCategoryId] = useState<AssetLibraryCategoryId>("all")
     const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null)
+    const importInputRef = useRef<HTMLInputElement | null>(null)
     const favoritesStorageKey = `studio-asset-library-favorites:${projectId}`
     const [favoriteAssetIds, setFavoriteAssetIds] = useState<string[]>(() => {
         if (typeof window === "undefined") return []
@@ -111,8 +122,20 @@ export function GeneratedAssetsShelf({
                     </span>
                 </div>
                 <p className="mt-2 text-xs leading-relaxed" style={{ color: "hsl(var(--forge-text-muted))" }}>
-                    Generated outputs live here first. Saved favorites and imports will attach to this same panel later.
+                    Generated outputs and imported GLBs live here first. This drawer is the fast reusable asset source for the current project.
                 </p>
+                {selectionMode && (
+                    <div
+                        className="mt-3 rounded-2xl border px-3 py-2 text-xs font-medium"
+                        style={{
+                            borderColor: "hsl(var(--forge-accent))",
+                            backgroundColor: "hsl(var(--forge-accent-subtle))",
+                            color: "hsl(var(--forge-accent))",
+                        }}
+                    >
+                        Selecting a model for {selectionMode.label}
+                    </div>
+                )}
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 py-4">
@@ -144,9 +167,26 @@ export function GeneratedAssetsShelf({
                 </div>
 
                 <div className="mt-4">
-                    {sortedItems.length === 0 ? (
+                    <div className="grid grid-cols-2 gap-3">
+                        <ImportAssetTile
+                            disabled={importInFlight}
+                            onClick={() => importInputRef.current?.click()}
+                        />
+                        {sortedItems.map((asset) => (
+                            <AssetLibraryGridCard
+                                key={asset.id}
+                                asset={asset}
+                                isFavorite={favoriteAssetIds.includes(asset.id)}
+                                isSelected={selectedAsset?.id === asset.id}
+                                onOpenAsset={onOpenAsset}
+                                onSelectInfo={setSelectedAssetId}
+                                onToggleFavorite={toggleFavorite}
+                            />
+                        ))}
+                    </div>
+                    {sortedItems.length === 0 && (
                         <div
-                            className="rounded-2xl border px-4 py-5 text-sm"
+                            className="mt-3 rounded-2xl border px-4 py-5 text-sm"
                             style={{
                                 borderColor: "hsl(var(--forge-border))",
                                 backgroundColor: "hsl(var(--forge-surface-dim))",
@@ -154,25 +194,26 @@ export function GeneratedAssetsShelf({
                             }}
                         >
                             {assets.length === 0
-                                ? "No project assets yet. Successful outputs will appear here automatically."
+                                ? "No project assets yet. Import a GLB or run a tool and the result will appear here automatically."
                                 : "No assets match this category yet. Switch categories to inspect the rest of the library."}
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-2 gap-3">
-                            {sortedItems.map((asset) => (
-                                <AssetLibraryGridCard
-                                    key={asset.id}
-                                    asset={asset}
-                                    isFavorite={favoriteAssetIds.includes(asset.id)}
-                                    isSelected={selectedAsset?.id === asset.id}
-                                    onOpenAsset={onOpenAsset}
-                                    onSelectInfo={setSelectedAssetId}
-                                    onToggleFavorite={toggleFavorite}
-                                />
-                            ))}
                         </div>
                     )}
                 </div>
+
+                <input
+                    ref={importInputRef}
+                    type="file"
+                    accept=".glb,model/gltf-binary"
+                    className="hidden"
+                    onClick={(event) => {
+                        ;(event.target as HTMLInputElement).value = ""
+                    }}
+                    onChange={async (event) => {
+                        const file = event.target.files?.[0]
+                        if (!file) return
+                        await onImportAsset(file)
+                    }}
+                />
 
                 {selectedAsset && (
                     <div
@@ -222,6 +263,19 @@ export function GeneratedAssetsShelf({
                         <AssetStatsPills stats={selectedAsset.assetStats} className="mt-3 flex flex-wrap gap-2" />
 
                         <div className="mt-4 flex flex-wrap gap-2">
+                            {selectionMode && selectedAsset.assetKind === "model" && (
+                                <button
+                                    type="button"
+                                    onClick={() => onUseAsset(selectedAsset)}
+                                    className="rounded-xl px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+                                    style={{
+                                        backgroundColor: "hsl(var(--forge-accent))",
+                                        color: "white",
+                                    }}
+                                >
+                                    Use in {selectionMode.label}
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 onClick={() => onOpenAsset(selectedAsset.stepId)}
@@ -371,5 +425,46 @@ function AssetLibraryGridCard({
                 </p>
             </div>
         </div>
+    )
+}
+
+function ImportAssetTile({
+    disabled,
+    onClick,
+}: {
+    disabled: boolean
+    onClick: () => void
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            className="flex aspect-square flex-col items-center justify-center gap-2 rounded-2xl border border-dashed p-3 text-center transition hover:opacity-90 disabled:cursor-wait disabled:opacity-70"
+            style={{
+                borderColor: "hsl(var(--forge-border))",
+                backgroundColor: "hsl(var(--forge-surface-dim))",
+                color: "hsl(var(--forge-text-muted))",
+            }}
+            title="Import a GLB into this project asset library"
+        >
+            <div
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full"
+                style={{
+                    backgroundColor: "hsl(var(--forge-accent-subtle))",
+                    color: "hsl(var(--forge-accent))",
+                }}
+            >
+                <Import className="h-5 w-5" />
+            </div>
+            <div className="space-y-1">
+                <p className="text-sm font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
+                    {disabled ? "Importing…" : "Import GLB"}
+                </p>
+                <p className="text-[11px] leading-relaxed">
+                    Add a reusable 3D model to this project library.
+                </p>
+            </div>
+        </button>
     )
 }

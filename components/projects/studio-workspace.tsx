@@ -30,6 +30,12 @@ interface StudioWorkspaceProps {
     selectedPipelineStep?: WorkflowTimelineStep | null
     onRequestCategoryChange?: (category: StudioCategory) => void
     onOpenAssetLibrary: () => void
+    onRequestLibrarySelection: (selection: { token: string; label: string }) => void
+    incomingLibrarySelection?: {
+        token: string
+        asset: GeneratedAssetItem
+    } | null
+    onConsumeLibrarySelection: (token: string) => void
     generatedAssets: GeneratedAssetItem[]
     externalToolLaunch?: {
         token: string
@@ -55,6 +61,7 @@ interface ActiveNeuralRun {
     error?: string
     generationTimeMs?: number
     assetStats?: AssetInspectionStats | null
+    assetOrigin?: "generated" | "imported"
 }
 
 interface NeuralRunResponse {
@@ -79,7 +86,15 @@ function buildPersistedNeuralState(run: ActiveNeuralRun): WorkflowTimelineNeural
         viewerSource: run.viewerSource,
         generationTimeMs: run.generationTimeMs,
         assetStats: run.assetStats ?? null,
+        assetOrigin: run.assetOrigin ?? "generated",
     }
+}
+
+interface PendingMeshSelection {
+    token: string
+    target: "tool" | "neural"
+    toolId: string
+    inputKey: string
 }
 
 function mapTimelineStatusToNeuralStatus(status: WorkflowTimelineStep["status"]): NeuralRunStatus {
@@ -249,6 +264,7 @@ function MeshAttachmentCard({
     assetStats,
     stageLabel,
     providerLabel,
+    onChooseModel,
 }: {
     value?: string
     emptyMessage: string
@@ -257,18 +273,34 @@ function MeshAttachmentCard({
     assetStats?: AssetInspectionStats | null
     stageLabel?: string
     providerLabel?: string
+    onChooseModel?: () => void
 }) {
     if (!value) {
         return (
-            <div
-                className="rounded-xl border px-4 py-3 text-sm"
-                style={{
-                    borderColor: "hsl(var(--forge-border))",
-                    backgroundColor: "hsl(var(--forge-surface-dim))",
-                    color: "hsl(var(--forge-text-muted))",
-                }}
-            >
-                {emptyMessage}
+            <div className="space-y-3">
+                <div
+                    className="rounded-xl border px-4 py-3 text-sm"
+                    style={{
+                        borderColor: "hsl(var(--forge-border))",
+                        backgroundColor: "hsl(var(--forge-surface-dim))",
+                        color: "hsl(var(--forge-text-muted))",
+                    }}
+                >
+                    {emptyMessage}
+                </div>
+                {onChooseModel && (
+                    <button
+                        type="button"
+                        onClick={onChooseModel}
+                        className="rounded-xl border px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+                        style={{
+                            borderColor: "hsl(var(--forge-border))",
+                            color: "hsl(var(--forge-text-muted))",
+                        }}
+                    >
+                        Choose from Asset Library
+                    </button>
+                )}
             </div>
         )
     }
@@ -314,6 +346,19 @@ function MeshAttachmentCard({
                         {description ?? "This tool will use the current project model as its source mesh."}
                     </p>
                     <AssetStatsPills stats={assetStats} className="mt-3 flex flex-wrap gap-2" />
+                    {onChooseModel && (
+                        <button
+                            type="button"
+                            onClick={onChooseModel}
+                            className="mt-3 rounded-xl border px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+                            style={{
+                                borderColor: "hsl(var(--forge-border))",
+                                color: "hsl(var(--forge-text-muted))",
+                            }}
+                        >
+                            Change attached model
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
@@ -463,26 +508,26 @@ function ToolDetailView({
     onBack,
     onSubmit,
     onRunNow,
-    initialInputs,
+    inputs,
+    onInputChange,
     generatedAssets,
+    onRequestMeshSelection,
 }: {
     tool: ToolEntry
     onBack: () => void
     onSubmit: (tool: ToolEntry, inputs: Record<string, string>) => void
     onRunNow: (tool: ToolEntry, inputs: Record<string, string>) => void
-    initialInputs?: Record<string, string>
+    inputs: Record<string, string>
+    onInputChange: (key: string, value: string) => void
     generatedAssets: GeneratedAssetItem[]
+    onRequestMeshSelection: (inputKey: string, currentInputs: Record<string, string>) => void
 }) {
-    const [inputs, setInputs] = useState<Record<string, string>>(initialInputs ?? {})
-
     const handleSubmit = () => {
         onSubmit(tool, inputs)
-        setInputs({})
     }
 
     const handleRunNow = () => {
         onRunNow(tool, inputs)
-        setInputs({})
     }
 
     return (
@@ -677,9 +722,7 @@ function ToolDetailView({
                                 {input.type === "text" && (
                                     <textarea
                                         value={inputs[input.key] ?? ""}
-                                        onChange={(e) =>
-                                            setInputs({ ...inputs, [input.key]: e.target.value })
-                                        }
+                                        onChange={(e) => onInputChange(input.key, e.target.value)}
                                         placeholder={input.placeholder}
                                         rows={4}
                                         className="w-full rounded-xl border px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 transition"
@@ -697,9 +740,7 @@ function ToolDetailView({
                                             inputs[input.key] ??
                                             (input.defaultValue?.toString() ?? "")
                                         }
-                                        onChange={(e) =>
-                                            setInputs({ ...inputs, [input.key]: e.target.value })
-                                        }
+                                        onChange={(e) => onInputChange(input.key, e.target.value)}
                                         className="w-full rounded-xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 transition"
                                         style={{
                                             borderColor: "hsl(var(--forge-border))",
@@ -720,7 +761,7 @@ function ToolDetailView({
                                 {input.type === "mesh" && (
                                     <MeshAttachmentCard
                                         value={inputs[input.key]}
-                                        emptyMessage="No model is attached yet. Continue from a generated result or a future asset selector to populate this field."
+                                        emptyMessage="No model is attached yet. Pick one from the project asset library or import a GLB there first."
                                         previewImageUrl={getMeshPreviewImage(
                                             tool,
                                             inputs,
@@ -729,6 +770,7 @@ function ToolDetailView({
                                         assetStats={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.assetStats}
                                         stageLabel={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.stageLabel}
                                         providerLabel={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.providerLabel}
+                                        onChooseModel={() => onRequestMeshSelection(input.key, inputs)}
                                     />
                                 )}
 
@@ -745,7 +787,7 @@ function ToolDetailView({
                                                 />
                                                 <button
                                                     type="button"
-                                                    onClick={() => setInputs({ ...inputs, [input.key]: "" })}
+                                                    onClick={() => onInputChange(input.key, "")}
                                                     className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md"
                                                     style={{ backgroundColor: "hsl(0 84% 60%)" }}
                                                     aria-label="Remove image"
@@ -801,7 +843,7 @@ function ToolDetailView({
                                                         }
                                                         const reader = new FileReader()
                                                         reader.onload = () => {
-                                                            setInputs({ ...inputs, [input.key]: reader.result as string })
+                                                            onInputChange(input.key, reader.result as string)
                                                         }
                                                         reader.onerror = () => {
                                                             console.error("Failed to read image file")
@@ -824,9 +866,7 @@ function ToolDetailView({
                                             value={
                                                 inputs[input.key] ?? input.defaultValue ?? "50"
                                             }
-                                            onChange={(e) =>
-                                                setInputs({ ...inputs, [input.key]: e.target.value })
-                                            }
+                                            onChange={(e) => onInputChange(input.key, e.target.value)}
                                             className="w-full accent-[hsl(var(--forge-accent))]"
                                         />
                                         <div className="flex justify-between text-xs" style={{ color: "hsl(var(--forge-text-subtle))" }}>
@@ -1352,11 +1392,13 @@ function NeuralRerunFields({
     inputs,
     generatedAssets,
     onChange,
+    onRequestMeshSelection,
 }: {
     tool: ToolEntry
     inputs: Record<string, string>
     generatedAssets: GeneratedAssetItem[]
     onChange: (key: string, value: string) => void
+    onRequestMeshSelection: (inputKey: string, currentInputs: Record<string, string>) => void
 }) {
     return (
         <div className="space-y-4">
@@ -1433,7 +1475,7 @@ function NeuralRerunFields({
                     {input.type === "mesh" && (
                         <MeshAttachmentCard
                             value={inputs[input.key]}
-                            emptyMessage="No model is attached yet. Continue from a generated result or a future asset selector to populate this field."
+                            emptyMessage="No model is attached yet. Pick one from the project asset library or import a GLB there first."
                             previewImageUrl={getMeshPreviewImage(
                                 tool,
                                 inputs,
@@ -1442,6 +1484,7 @@ function NeuralRerunFields({
                             assetStats={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.assetStats}
                             stageLabel={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.stageLabel}
                             providerLabel={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.providerLabel}
+                            onChooseModel={() => onRequestMeshSelection(input.key, inputs)}
                         />
                     )}
 
@@ -1536,6 +1579,7 @@ function NeuralRunOverlay({
     generatedAssets,
     onLoadDemo,
     onDraftInputChange,
+    onRequestMeshSelection,
     onContinueToSuggestedTool,
     onCollapse,
     onToggleFocus,
@@ -1549,6 +1593,7 @@ function NeuralRunOverlay({
     generatedAssets: GeneratedAssetItem[]
     onLoadDemo: (sample: ViewerSample) => void
     onDraftInputChange: (key: string, value: string) => void
+    onRequestMeshSelection: (inputKey: string, currentInputs: Record<string, string>) => void
     onContinueToSuggestedTool: (toolId: string) => void
     onCollapse: () => void
     onToggleFocus: () => void
@@ -1849,6 +1894,7 @@ function NeuralRunOverlay({
                                 inputs={draftInputs}
                                 generatedAssets={generatedAssets}
                                 onChange={onDraftInputChange}
+                                onRequestMeshSelection={onRequestMeshSelection}
                             />
                         </div>
                     )}
@@ -1953,6 +1999,9 @@ export function StudioWorkspace({
     selectedPipelineStep,
     onRequestCategoryChange,
     onOpenAssetLibrary,
+    onRequestLibrarySelection,
+    incomingLibrarySelection,
+    onConsumeLibrarySelection,
     generatedAssets,
     externalToolLaunch,
 }: StudioWorkspaceProps) {
@@ -1961,6 +2010,7 @@ export function StudioWorkspace({
     const [neuralRun, setNeuralRun] = useState<ActiveNeuralRun | null>(null)
     const [savedNeuralRuns, setSavedNeuralRuns] = useState<Record<string, ActiveNeuralRun>>({})
     const [viewerSamples, setViewerSamples] = useState<ViewerSample[]>([])
+    const [pendingMeshSelection, setPendingMeshSelection] = useState<PendingMeshSelection | null>(null)
     const neuralAbortRef = useRef<AbortController | null>(null)
     const handledExternalLaunchTokenRef = useRef<string | null>(null)
     const category = CATEGORIES.find(
@@ -1998,12 +2048,51 @@ export function StudioWorkspace({
     }, [onOpenAssetLibrary, selectedTool])
 
     useEffect(() => {
+        if (!incomingLibrarySelection || !pendingMeshSelection) return
+        if (incomingLibrarySelection.token !== pendingMeshSelection.token) return
+
+        const nextUrl = incomingLibrarySelection.asset.viewerUrl
+
+        if (pendingMeshSelection.target === "tool") {
+            setToolDrafts((prev) => ({
+                ...prev,
+                [pendingMeshSelection.toolId]: {
+                    ...(prev[pendingMeshSelection.toolId] ?? {}),
+                    [pendingMeshSelection.inputKey]: nextUrl,
+                },
+            }))
+        } else {
+            setNeuralRun((current) => {
+                if (!current || current.tool.id !== pendingMeshSelection.toolId) {
+                    return current
+                }
+
+                return {
+                    ...current,
+                    inputs: {
+                        ...current.inputs,
+                        [pendingMeshSelection.inputKey]: nextUrl,
+                    },
+                    draftInputs: {
+                        ...current.draftInputs,
+                        [pendingMeshSelection.inputKey]: nextUrl,
+                    },
+                }
+            })
+        }
+
+        setPendingMeshSelection(null)
+        onConsumeLibrarySelection(incomingLibrarySelection.token)
+    }, [incomingLibrarySelection, onConsumeLibrarySelection, pendingMeshSelection])
+
+    useEffect(() => {
         if (!selectedPipelineStep) return
         if (selectedTool) return
 
         const tool = getToolById(selectedPipelineStep.toolName)
-        if (!tool || tool.type !== "neural") return
         const persistedState = selectedPipelineStep.neuralState ?? undefined
+        const isImportedAsset = persistedState?.assetOrigin === "imported"
+        if (!tool || (!isImportedAsset && tool.type !== "neural")) return
 
         setSelectedTool(null)
         setNeuralRun((current) => {
@@ -2025,6 +2114,7 @@ export function StudioWorkspace({
                 error: selectedPipelineStep.error,
                 generationTimeMs: persistedState?.generationTimeMs,
                 assetStats: persistedState?.assetStats,
+                assetOrigin: persistedState?.assetOrigin,
             }
         })
     }, [savedNeuralRuns, selectedPipelineStep, selectedTool])
@@ -2222,6 +2312,51 @@ export function StudioWorkspace({
         })
     }
 
+    const requestToolMeshSelection = (toolId: string, inputKey: string, currentInputs: Record<string, string>) => {
+        const token = `tool-mesh-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+        setToolDrafts((prev) => ({
+            ...prev,
+            [toolId]: {
+                ...(prev[toolId] ?? {}),
+                ...currentInputs,
+            },
+        }))
+        setPendingMeshSelection({
+            token,
+            target: "tool",
+            toolId,
+            inputKey,
+        })
+        onRequestLibrarySelection({
+            token,
+            label: getToolById(toolId)?.name ?? "current tool",
+        })
+    }
+
+    const requestNeuralMeshSelection = (toolId: string, inputKey: string, currentInputs: Record<string, string>) => {
+        const token = `neural-mesh-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+        setNeuralRun((current) => {
+            if (!current || current.tool.id !== toolId) return current
+            return {
+                ...current,
+                draftInputs: {
+                    ...current.draftInputs,
+                    ...currentInputs,
+                },
+            }
+        })
+        setPendingMeshSelection({
+            token,
+            target: "neural",
+            toolId,
+            inputKey,
+        })
+        onRequestLibrarySelection({
+            token,
+            label: getToolById(toolId)?.name ?? "current tool",
+        })
+    }
+
     const handleRunNeuralAgain = () => {
         if (!neuralRun) return
         void runNeuralTool(neuralRun.tool, neuralRun.draftInputs, neuralRun.stepId)
@@ -2352,6 +2487,9 @@ export function StudioWorkspace({
                         generatedAssets={generatedAssets}
                         onLoadDemo={handleLoadDemoSample}
                         onDraftInputChange={handleDraftInputChange}
+                        onRequestMeshSelection={(inputKey, currentInputs) =>
+                            requestNeuralMeshSelection(neuralRun.tool.id, inputKey, currentInputs)
+                        }
                         onContinueToSuggestedTool={handleContinueToSuggestedTool}
                         onCollapse={handleCollapseNeuralPanel}
                         onToggleFocus={handleToggleNeuralFocus}
@@ -2381,8 +2519,20 @@ export function StudioWorkspace({
             <ToolDetailView
                 key={selectedTool.id}
                 tool={selectedTool}
-                initialInputs={toolDrafts[selectedTool.id]}
+                inputs={toolDrafts[selectedTool.id] ?? {}}
+                onInputChange={(key, value) =>
+                    setToolDrafts((prev) => ({
+                        ...prev,
+                        [selectedTool.id]: {
+                            ...(prev[selectedTool.id] ?? {}),
+                            [key]: value,
+                        },
+                    }))
+                }
                 generatedAssets={generatedAssets}
+                onRequestMeshSelection={(inputKey, currentInputs) =>
+                    requestToolMeshSelection(selectedTool.id, inputKey, currentInputs)
+                }
                 onBack={() => setSelectedTool(null)}
                 onSubmit={(tool, inputs) => {
                     onToolSelect(tool, inputs)

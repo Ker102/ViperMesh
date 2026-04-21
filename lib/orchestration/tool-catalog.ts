@@ -103,6 +103,21 @@ export type StudioCategory =
 // ---------------------------------------------------------------------------
 
 export const TOOLS: Record<string, ToolEntry> = {
+    "asset-library-import": {
+        id: "asset-library-import",
+        name: "Imported Asset",
+        category: "shape",
+        type: "manual",
+        tagline: "Project-scoped asset imported into the Studio library",
+        description:
+            "A project asset that was uploaded directly into the Studio asset library for inspection or reuse in later tools.",
+        bestFor: [],
+        notFor: [],
+        difficulty: "beginner",
+        inputs: [],
+        estimatedTime: "Instant",
+    },
+
     // ── Shape tools ──────────────────────────────────────────────────
     "blender-agent-shape": {
         id: "blender-agent-shape",
