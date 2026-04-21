@@ -1,3 +1,4 @@
+import path from "node:path"
 import { readFile, stat } from "node:fs/promises"
 
 export interface ParsedGlbStats {
@@ -60,6 +61,10 @@ function parseJsonChunk(glbBuffer: Buffer): GltfDocument {
     return JSON.parse(jsonPayload) as GltfDocument
 }
 
+function parseGltfDocument(gltfBuffer: Buffer): GltfDocument {
+    return JSON.parse(gltfBuffer.toString("utf8")) as GltfDocument
+}
+
 function getTriangleCount(document: GltfDocument): number {
     const accessors = document.accessors ?? []
     let triangles = 0
@@ -93,7 +98,40 @@ function getTriangleCount(document: GltfDocument): number {
     return triangles
 }
 
+async function readStatsForDocument(filePath: string, document: GltfDocument): Promise<ParsedGlbStats> {
+    const fileStats = await stat(filePath)
+
+    return {
+        triangleCount: getTriangleCount(document),
+        materialCount: document.materials?.length ?? 0,
+        textureCount: document.textures?.length ?? 0,
+        meshCount: document.meshes?.length ?? 0,
+        fileSizeBytes: fileStats.size,
+    }
+}
+
+export async function readModelStats(filePath: string): Promise<ParsedGlbStats> {
+    const extension = path.extname(filePath).toLowerCase()
+    const fileBuffer = await readFile(filePath)
+
+    if (extension === ".glb") {
+        const document = parseJsonChunk(fileBuffer)
+        return readStatsForDocument(filePath, document)
+    }
+
+    if (extension === ".gltf") {
+        const document = parseGltfDocument(fileBuffer)
+        return readStatsForDocument(filePath, document)
+    }
+
+    throw new Error("Only GLB and GLTF model stats are supported")
+}
+
 export async function readGlbStats(filePath: string): Promise<ParsedGlbStats> {
+    if (path.extname(filePath).toLowerCase() !== ".glb") {
+        throw new Error("Only GLB version 2 is supported")
+    }
+
     const [fileStats, fileBuffer] = await Promise.all([
         stat(filePath),
         readFile(filePath),

@@ -235,7 +235,11 @@ export function ModelViewer({
                 return "model.glb";
             }
 
-            return candidate.toLowerCase().endsWith(".glb") ? candidate : `${candidate}.glb`;
+            if (/\.(glb|gltf)$/i.test(candidate)) {
+                return candidate;
+            }
+
+            return `${candidate}.glb`;
         } catch {
             return "model.glb";
         }

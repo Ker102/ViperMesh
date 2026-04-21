@@ -4,8 +4,9 @@ import { randomUUID } from "node:crypto"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { buildNeuralOutputUrl, getNeuralOutputRoot } from "@/lib/neural/output-files"
-import { readGlbStats } from "@/lib/neural/model-stats"
+import { buildNeuralOutputFileUrl, buildNeuralOutputUrl, getNeuralOutputRoot } from "@/lib/neural/output-files"
+import { readModelStats } from "@/lib/neural/model-stats"
+import { extractZipAssetPackage } from "@/lib/projects/asset-imports"
 
 const MAX_IMPORT_SIZE_BYTES = 150 * 1024 * 1024
 
@@ -39,11 +40,14 @@ export async function POST(request: Request) {
     }
 
     if (!(file instanceof File)) {
-        return NextResponse.json({ error: "A GLB file is required" }, { status: 400 })
+        return NextResponse.json({ error: "A model file or ZIP package is required" }, { status: 400 })
     }
 
-    if (path.extname(file.name).toLowerCase() !== ".glb") {
-        return NextResponse.json({ error: "Only .glb files can be imported right now" }, { status: 400 })
+    const extension = path.extname(file.name).toLowerCase()
+    if (![".glb", ".gltf", ".zip"].includes(extension)) {
+        return NextResponse.json({
+            error: "Import supports .glb, .gltf, or a ZIP package containing a .gltf/.glb asset with its textures",
+        }, { status: 400 })
     }
 
     if (file.size <= 0 || file.size > MAX_IMPORT_SIZE_BYTES) {
@@ -63,25 +67,40 @@ export async function POST(request: Request) {
 
     const importId = `asset-${randomUUID()}`
     const outputDirectory = path.join(getNeuralOutputRoot(), "imports", projectId)
-    const outputFilename = `${Date.now()}-${sanitizeBasename(file.name)}.glb`
+    const outputFilename = `${Date.now()}-${sanitizeBasename(file.name)}${extension}`
     const absoluteOutputPath = path.join(outputDirectory, outputFilename)
 
     try {
         await mkdir(outputDirectory, { recursive: true })
         const buffer = Buffer.from(await file.arrayBuffer())
-        await writeFile(absoluteOutputPath, buffer)
-        const stats = await readGlbStats(absoluteOutputPath)
+        let absoluteViewerPath = absoluteOutputPath
+        let viewerUrl: string
+
+        if (extension === ".zip") {
+            const packageDirectory = path.join(outputDirectory, `${Date.now()}-${sanitizeBasename(file.name)}`)
+            const extracted = await extractZipAssetPackage(buffer, packageDirectory, file.name)
+            absoluteViewerPath = extracted.rootModelPath
+            viewerUrl = buildNeuralOutputFileUrl(absoluteViewerPath)
+        } else {
+            await writeFile(absoluteOutputPath, buffer)
+            viewerUrl = extension === ".glb"
+                ? buildNeuralOutputUrl(absoluteOutputPath)
+                : buildNeuralOutputFileUrl(absoluteOutputPath)
+        }
+
+        const stats = await readModelStats(absoluteViewerPath)
+        const title = path.basename(absoluteViewerPath)
 
         return NextResponse.json({
             asset: {
                 id: importId,
                 stepId: importId,
-                title: file.name,
+                title,
                 toolName: "asset-library-import",
                 toolLabel: "Imported asset",
-                viewerUrl: buildNeuralOutputUrl(absoluteOutputPath),
-                viewerLabel: file.name,
-                providerLabel: "Local upload",
+                viewerUrl,
+                viewerLabel: title,
+                providerLabel: extension === ".zip" ? "Package import" : "Local upload",
                 stageLabel: "Imported",
                 previewImageUrl: undefined,
                 assetStats: {

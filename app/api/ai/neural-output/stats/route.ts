@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
-import { readGlbStats } from "@/lib/neural/model-stats"
+import { readModelStats } from "@/lib/neural/model-stats"
 import { resolveNeuralOutputPath } from "@/lib/neural/output-files"
 
 export async function GET(request: NextRequest) {
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        const stats = await readGlbStats(safePath)
+        const stats = await readModelStats(safePath)
         return NextResponse.json({ stats })
     } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to read model stats"

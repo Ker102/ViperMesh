@@ -122,7 +122,7 @@ export function GeneratedAssetsShelf({
                     </span>
                 </div>
                 <p className="mt-2 text-xs leading-relaxed" style={{ color: "hsl(var(--forge-text-muted))" }}>
-                    Generated outputs and imported GLBs live here first. This drawer is the fast reusable asset source for the current project.
+                    Generated outputs and imported model packages live here first. This drawer is the fast reusable asset source for the current project.
                 </p>
                 {selectionMode && (
                     <div
@@ -194,7 +194,7 @@ export function GeneratedAssetsShelf({
                             }}
                         >
                             {assets.length === 0
-                                ? "No project assets yet. Import a GLB or run a tool and the result will appear here automatically."
+                                ? "No project assets yet. Import a GLB, GLTF, or ZIP package and the result will appear here automatically."
                                 : "No assets match this category yet. Switch categories to inspect the rest of the library."}
                         </div>
                     )}
@@ -203,7 +203,7 @@ export function GeneratedAssetsShelf({
                 <input
                     ref={importInputRef}
                     type="file"
-                    accept=".glb,model/gltf-binary"
+                    accept=".glb,.gltf,.zip,model/gltf-binary,model/gltf+json,application/zip,application/x-zip-compressed"
                     className="hidden"
                     onClick={(event) => {
                         ;(event.target as HTMLInputElement).value = ""
@@ -446,7 +446,7 @@ function ImportAssetTile({
                 backgroundColor: "hsl(var(--forge-surface-dim))",
                 color: "hsl(var(--forge-text-muted))",
             }}
-            title="Import a GLB into this project asset library"
+            title="Import a GLB, GLTF, or packaged ZIP model into this project asset library"
         >
             <div
                 className="inline-flex h-10 w-10 items-center justify-center rounded-full"
@@ -459,10 +459,10 @@ function ImportAssetTile({
             </div>
             <div className="space-y-1">
                 <p className="text-sm font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
-                    {disabled ? "Importing…" : "Import GLB"}
+                    {disabled ? "Importing…" : "Import Model"}
                 </p>
                 <p className="text-[11px] leading-relaxed">
-                    Add a reusable 3D model to this project library.
+                    Add a reusable GLB, GLTF, or packaged ZIP model.
                 </p>
             </div>
         </button>

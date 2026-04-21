@@ -57,6 +57,22 @@ export function buildNeuralOutputUrl(modelPath: string): string {
     return `/api/ai/neural-output?path=${encodeURIComponent(relativePath)}`
 }
 
+export function buildNeuralOutputFileUrl(modelPath: string): string {
+    const safePath = resolveNeuralOutputPath(modelPath)
+    if (!safePath) {
+        throw new Error("Neural output path must resolve inside the output directory")
+    }
+
+    const relativePath = path.relative(getCanonicalOutputRoot(), safePath).split(path.sep).join("/")
+    const encodedSegments = relativePath
+        .split("/")
+        .filter(Boolean)
+        .map((segment) => encodeURIComponent(segment))
+        .join("/")
+
+    return `/api/ai/neural-output/files/${encodedSegments}`
+}
+
 export function extractNeuralOutputRelativePath(candidateUrl: string): string | null {
     try {
         const baseUrl =
@@ -64,8 +80,21 @@ export function extractNeuralOutputRelativePath(candidateUrl: string): string | 
                 ? window.location.origin
                 : "http://127.0.0.1"
         const parsed = new URL(candidateUrl, baseUrl)
-        const relativePath = parsed.searchParams.get("path")
-        return relativePath ? decodeURIComponent(relativePath) : null
+        if (parsed.pathname === "/api/ai/neural-output") {
+            const relativePath = parsed.searchParams.get("path")
+            return relativePath ? decodeURIComponent(relativePath) : null
+        }
+
+        const pathPrefix = "/api/ai/neural-output/files/"
+        if (parsed.pathname.startsWith(pathPrefix)) {
+            return parsed.pathname
+                .slice(pathPrefix.length)
+                .split("/")
+                .map((segment) => decodeURIComponent(segment))
+                .join("/")
+        }
+
+        return null
     } catch {
         return null
     }

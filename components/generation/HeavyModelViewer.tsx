@@ -194,7 +194,11 @@ function getDownloadFilename(safeUrl: string) {
             return "model.glb";
         }
 
-        return candidate.toLowerCase().endsWith(".glb") ? candidate : `${candidate}.glb`;
+        if (/\.(glb|gltf)$/i.test(candidate)) {
+            return candidate;
+        }
+
+        return `${candidate}.glb`;
     } catch {
         return "model.glb";
     }
@@ -206,7 +210,10 @@ function getDownloadUrl(safeUrl: string) {
             safeUrl,
             typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1",
         );
-        if (parsed.pathname === "/api/ai/neural-output") {
+        if (
+            parsed.pathname === "/api/ai/neural-output" ||
+            parsed.pathname.startsWith("/api/ai/neural-output/files/")
+        ) {
             parsed.searchParams.set("download", "1");
         }
         return parsed.toString();
