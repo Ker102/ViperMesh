@@ -998,8 +998,8 @@ function NeuralViewerStage({
     const [shadingMode, setShadingMode] = useState<"smooth" | "flat">("smooth")
     const [pbrEnabled, setPbrEnabled] = useState(true)
     const [unlitEnabled, setUnlitEnabled] = useState(false)
-    const [previewMetalness, setPreviewMetalness] = useState(1)
-    const [previewRoughness, setPreviewRoughness] = useState(1)
+    const [previewMetalness, setPreviewMetalness] = useState(0.5)
+    const [previewRoughness, setPreviewRoughness] = useState(0.55)
     const displayViewerLabel =
         viewerSource === "input" && viewerUrl
             ? getAssetDisplayLabel(viewerUrl)

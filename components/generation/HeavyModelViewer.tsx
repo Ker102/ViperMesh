@@ -404,16 +404,24 @@ function copyCommonMaterialProps(
         color?: THREE.Color;
         map?: THREE.Texture | null;
         normalMap?: THREE.Texture | null;
+        bumpMap?: THREE.Texture | null;
+        bumpScale?: number;
         aoMap?: THREE.Texture | null;
         aoMapIntensity?: number;
         emissive?: THREE.Color;
         emissiveMap?: THREE.Texture | null;
         emissiveIntensity?: number;
+        specular?: THREE.Color;
+        specularMap?: THREE.Texture | null;
+        shininess?: number;
+        reflectivity?: number;
         metalness?: number;
         roughness?: number;
         metalnessMap?: THREE.Texture | null;
         roughnessMap?: THREE.Texture | null;
+        envMap?: THREE.Texture | null;
         envMapIntensity?: number;
+        combine?: THREE.Combine;
         transparent?: boolean;
         opacity?: number;
         alphaTest?: number;
@@ -423,16 +431,24 @@ function copyCommonMaterialProps(
         color?: THREE.Color;
         map?: THREE.Texture | null;
         normalMap?: THREE.Texture | null;
+        bumpMap?: THREE.Texture | null;
+        bumpScale?: number;
         aoMap?: THREE.Texture | null;
         aoMapIntensity?: number;
         emissive?: THREE.Color;
         emissiveMap?: THREE.Texture | null;
         emissiveIntensity?: number;
+        specular?: THREE.Color;
+        specularMap?: THREE.Texture | null;
+        shininess?: number;
+        reflectivity?: number;
         metalness?: number;
         roughness?: number;
         metalnessMap?: THREE.Texture | null;
         roughnessMap?: THREE.Texture | null;
+        envMap?: THREE.Texture | null;
         envMapIntensity?: number;
+        combine?: THREE.Combine;
         transparent?: boolean;
         opacity?: number;
         alphaTest?: number;
@@ -465,6 +481,20 @@ function copyCommonMaterialProps(
             dest.normalMap.needsUpdate = true;
         }
     }
+    if ("bumpMap" in dest) {
+        dest.bumpMap = source.bumpMap ?? null;
+        if (dest.bumpMap) {
+            dest.bumpMap.colorSpace = THREE.NoColorSpace;
+            dest.bumpMap.generateMipmaps = true;
+            dest.bumpMap.magFilter = THREE.LinearFilter;
+            dest.bumpMap.minFilter = THREE.LinearMipmapLinearFilter;
+            dest.bumpMap.anisotropy = maxAnisotropy;
+            dest.bumpMap.needsUpdate = true;
+        }
+    }
+    if ("bumpScale" in dest && typeof source.bumpScale === "number") {
+        dest.bumpScale = source.bumpScale;
+    }
     if ("aoMap" in dest) {
         dest.aoMap = source.aoMap ?? null;
         if (dest.aoMap) {
@@ -495,6 +525,26 @@ function copyCommonMaterialProps(
     }
     if ("emissiveIntensity" in dest && typeof source.emissiveIntensity === "number") {
         dest.emissiveIntensity = source.emissiveIntensity;
+    }
+    if (dest.specular && source.specular) {
+        dest.specular.copy(source.specular);
+    }
+    if ("specularMap" in dest) {
+        dest.specularMap = source.specularMap ?? null;
+        if (dest.specularMap) {
+            dest.specularMap.colorSpace = THREE.NoColorSpace;
+            dest.specularMap.generateMipmaps = true;
+            dest.specularMap.magFilter = THREE.LinearFilter;
+            dest.specularMap.minFilter = THREE.LinearMipmapLinearFilter;
+            dest.specularMap.anisotropy = maxAnisotropy;
+            dest.specularMap.needsUpdate = true;
+        }
+    }
+    if ("shininess" in dest && typeof source.shininess === "number") {
+        dest.shininess = source.shininess;
+    }
+    if ("reflectivity" in dest && typeof source.reflectivity === "number") {
+        dest.reflectivity = source.reflectivity;
     }
     if ("metalness" in dest && typeof source.metalness === "number") {
         dest.metalness = source.metalness;
@@ -527,6 +577,12 @@ function copyCommonMaterialProps(
     if ("envMapIntensity" in dest && typeof source.envMapIntensity === "number") {
         dest.envMapIntensity = source.envMapIntensity;
     }
+    if ("envMap" in dest) {
+        dest.envMap = source.envMap ?? null;
+    }
+    if ("combine" in dest && typeof source.combine === "number") {
+        dest.combine = source.combine;
+    }
     if (typeof source.transparent === "boolean") {
         dest.transparent = source.transparent;
     }
@@ -547,11 +603,39 @@ function copyCommonMaterialProps(
     dest.needsUpdate = true;
 }
 
-function buildPhongPreviewMaterial(
+function stripFacetMutedMaps(material: THREE.Material) {
+    const candidate = material as THREE.Material & {
+        normalMap?: THREE.Texture | null;
+        bumpMap?: THREE.Texture | null;
+    };
+    if ("normalMap" in candidate) {
+        candidate.normalMap = null;
+    }
+    if ("bumpMap" in candidate) {
+        candidate.bumpMap = null;
+    }
+    material.needsUpdate = true;
+}
+
+function buildClassicPreviewMaterial(
     original: THREE.Material,
     flatShading: boolean,
     maxAnisotropy: number,
 ) {
+    if (
+        original instanceof THREE.MeshPhongMaterial ||
+        original instanceof THREE.MeshLambertMaterial
+    ) {
+        const material = original.clone();
+        material.side = THREE.DoubleSide;
+        material.flatShading = flatShading;
+        if (flatShading) {
+            stripFacetMutedMaps(material);
+        }
+        material.needsUpdate = true;
+        return material;
+    }
+
     const material = new THREE.MeshPhongMaterial({
         color: "#ffffff",
         flatShading,
@@ -566,8 +650,39 @@ function buildPhongPreviewMaterial(
     material.combine = THREE.MultiplyOperation;
     material.reflectivity = 0.03;
     material.shininess = 14;
+    if (flatShading) {
+        stripFacetMutedMaps(material);
+    }
     material.needsUpdate = true;
     return material;
+}
+
+function derivePbrFactors(original: THREE.Material) {
+    const source = original as THREE.Material & {
+        metalness?: number;
+        roughness?: number;
+        reflectivity?: number;
+        shininess?: number;
+        specular?: THREE.Color;
+    };
+
+    const specularStrength = source.specular
+        ? (source.specular.r + source.specular.g + source.specular.b) / 3
+        : 0.18;
+    const reflectivity = typeof source.reflectivity === "number" ? source.reflectivity : 0.2;
+    const shininess = typeof source.shininess === "number" ? source.shininess : 28;
+
+    const derivedMetalness = typeof source.metalness === "number"
+        ? source.metalness
+        : THREE.MathUtils.clamp(specularStrength * 0.7 + reflectivity * 0.45, 0.04, 0.9);
+    const derivedRoughness = typeof source.roughness === "number"
+        ? source.roughness
+        : THREE.MathUtils.clamp(1 - Math.min(shininess / 100, 1) * 0.72, 0.18, 0.96);
+
+    return {
+        metalness: derivedMetalness,
+        roughness: derivedRoughness,
+    };
 }
 
 function buildReplacementMaterial(
@@ -597,23 +712,28 @@ function buildReplacementMaterial(
         }
 
         if (!pbrEnabled) {
-            return buildPhongPreviewMaterial(original, flatShading, maxAnisotropy);
+            return buildClassicPreviewMaterial(original, flatShading, maxAnisotropy);
         }
+
+        const derived = derivePbrFactors(original);
 
         const material = new THREE.MeshStandardMaterial({
             color: "#ffffff",
             flatShading,
             side: THREE.DoubleSide,
-            metalness: previewMetalness,
-            roughness: previewRoughness,
+            metalness: THREE.MathUtils.clamp(derived.metalness * (0.55 + previewMetalness * 0.45), 0, 1),
+            roughness: THREE.MathUtils.clamp(derived.roughness * (0.45 + previewRoughness * 0.55), 0.04, 1),
         });
         copyCommonMaterialProps(material, original, flatShading, maxAnisotropy);
         material.side = THREE.DoubleSide;
         material.flatShading = flatShading;
         material.envMapIntensity = 1.45;
         material.aoMapIntensity = 0.2;
-        material.metalness = previewMetalness;
-        material.roughness = previewRoughness;
+        material.metalness = THREE.MathUtils.clamp(derived.metalness * (0.55 + previewMetalness * 0.45), 0, 1);
+        material.roughness = THREE.MathUtils.clamp(derived.roughness * (0.45 + previewRoughness * 0.55), 0.04, 1);
+        if (flatShading) {
+            stripFacetMutedMaps(material);
+        }
         material.needsUpdate = true;
         return material;
     }
@@ -665,6 +785,9 @@ function buildReplacementMaterial(
         material.emissive.copy(source.emissive ?? new THREE.Color("#000000"));
         material.emissiveIntensity = 0;
         material.emissiveMap = source.emissiveMap ?? null;
+        if (flatShading) {
+            stripFacetMutedMaps(material);
+        }
         material.needsUpdate = true;
         return material;
     }
