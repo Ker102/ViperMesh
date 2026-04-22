@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Loader2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, RefreshCw, Square } from "lucide-react"
+import { Loader2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, RefreshCw, SlidersHorizontal, Square } from "lucide-react"
 import { HeavyModelViewer } from "@/components/generation/HeavyModelViewer"
 import { cn } from "@/lib/utils"
 import {
@@ -1000,6 +1000,7 @@ function NeuralViewerStage({
     const [unlitEnabled, setUnlitEnabled] = useState(false)
     const [previewMetalness, setPreviewMetalness] = useState(0.5)
     const [previewRoughness, setPreviewRoughness] = useState(0.55)
+    const [showViewSettings, setShowViewSettings] = useState(false)
     const displayViewerLabel =
         viewerSource === "input" && viewerUrl
             ? getAssetDisplayLabel(viewerUrl)
@@ -1013,8 +1014,17 @@ function NeuralViewerStage({
         wireframe: "Wireframe",
         stats: "Stats",
     }[inspectionMode]
+    const supportsShadingControls =
+        inspectionMode === "material" ||
+        inspectionMode === "toon" ||
+        inspectionMode === "geometry" ||
+        inspectionMode === "solid"
+    const supportsTintControls = inspectionMode === "geometry" || inspectionMode === "wireframe"
+    const supportsMaterialControls = inspectionMode === "material"
     const shadingControlsEnabled = !(inspectionMode === "material" && unlitEnabled)
     const pbrControlsEnabled = !(inspectionMode === "material" && unlitEnabled)
+
+    const viewSettingsOpen = showViewSettings && Boolean(viewerUrl) && inspectionMode !== "stats"
 
     return (
         <div
@@ -1162,158 +1172,187 @@ function NeuralViewerStage({
             {viewerUrl && (
                 <div className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex justify-center px-6">
                     <div className="pointer-events-auto flex flex-col items-center gap-2">
-                        <div
-                            className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-lg backdrop-blur"
-                            style={{
-                                borderColor: "rgba(255,255,255,0.14)",
-                                backgroundColor: "rgba(15, 23, 42, 0.72)",
-                                color: "rgba(241,245,249,0.96)",
-                            }}
-                        >
-                            <span style={{ color: "rgba(148,163,184,0.95)" }}>View</span>
-                            <span>{activeInspectionLabel}</span>
-                            {(inspectionMode === "material" || inspectionMode === "toon" || inspectionMode === "geometry" || inspectionMode === "solid") && (
-                                <>
-                                    <span className="h-3 w-px" style={{ backgroundColor: "rgba(255,255,255,0.12)" }} />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShadingMode("smooth")}
-                                        disabled={!shadingControlsEnabled}
-                                        className="rounded-full px-2.5 py-1 text-[11px] font-medium transition"
-                                        style={shadingMode === "smooth"
-                                            ? {
-                                                backgroundColor: "rgba(255,255,255,0.16)",
-                                                color: "white",
-                                                opacity: shadingControlsEnabled ? 1 : 0.45,
-                                            }
-                                            : {
-                                                color: "rgba(226,232,240,0.78)",
-                                                opacity: shadingControlsEnabled ? 1 : 0.45,
-                                            }}
-                                        title={shadingControlsEnabled ? "Smooth shading" : "Disabled while unlit is on"}
-                                    >
-                                        Smooth
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShadingMode("flat")}
-                                        disabled={!shadingControlsEnabled}
-                                        className="rounded-full px-2.5 py-1 text-[11px] font-medium transition"
-                                        style={shadingMode === "flat"
-                                            ? {
-                                                backgroundColor: "rgba(255,255,255,0.16)",
-                                                color: "white",
-                                                opacity: shadingControlsEnabled ? 1 : 0.45,
-                                            }
-                                            : {
-                                                color: "rgba(226,232,240,0.78)",
-                                                opacity: shadingControlsEnabled ? 1 : 0.45,
-                                            }}
-                                        title={shadingControlsEnabled ? "Flat shading" : "Disabled while unlit is on"}
-                                    >
-                                        Flat
-                                    </button>
-                                </>
-                            )}
-                            {inspectionMode === "material" && (
-                                <>
-                                    <span className="h-3 w-px" style={{ backgroundColor: "rgba(255,255,255,0.12)" }} />
-                                    <span style={{ color: "rgba(148,163,184,0.95)" }}>PBR</span>
-                                    <button
-                                        type="button"
-                                        onClick={() => setPbrEnabled((current) => !current)}
-                                        disabled={!pbrControlsEnabled}
-                                        className="rounded-full px-2.5 py-1 text-[11px] font-medium transition"
-                                        style={pbrEnabled
-                                            ? {
-                                                backgroundColor: "rgba(45,212,191,0.2)",
-                                                color: "white",
-                                                opacity: pbrControlsEnabled ? 1 : 0.45,
-                                            }
-                                            : {
-                                                backgroundColor: "rgba(255,255,255,0.08)",
-                                                color: "rgba(226,232,240,0.78)",
-                                                opacity: pbrControlsEnabled ? 1 : 0.45,
-                                            }}
-                                        title={pbrControlsEnabled ? "Toggle PBR shading" : "Disabled while unlit is on"}
-                                    >
-                                        {pbrEnabled ? "On" : "Off"}
-                                    </button>
-                                    <span style={{ color: "rgba(148,163,184,0.95)" }}>Unlit</span>
-                                    <button
-                                        type="button"
-                                        onClick={() => setUnlitEnabled((current) => !current)}
-                                        className="rounded-full px-2.5 py-1 text-[11px] font-medium transition"
-                                        style={unlitEnabled
-                                            ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
-                                            : { backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(226,232,240,0.78)" }}
-                                    >
-                                        {unlitEnabled ? "On" : "Off"}
-                                    </button>
-                                </>
-                            )}
-                            {(inspectionMode === "geometry" || inspectionMode === "wireframe") && (
-                                <>
-                                    <span className="h-3 w-px" style={{ backgroundColor: "rgba(255,255,255,0.12)" }} />
-                                    <span style={{ color: "rgba(148,163,184,0.95)" }}>Tint</span>
-                                    {[
-                                        { id: "neutral", label: "Neutral tint", color: "#d4d4d8" },
-                                        { id: "violet", label: "Violet tint", color: "#e879f9" },
-                                        { id: "cyan", label: "Cyan tint", color: "#67e8f9" },
-                                    ].map((tint) => {
-                                        const active = inspectionTint === tint.id
-                                        return (
-                                            <button
-                                                key={tint.id}
-                                                type="button"
-                                                onClick={() => setInspectionTint(tint.id as "neutral" | "violet" | "cyan")}
-                                                className="h-5 w-5 rounded-full border transition"
-                                                aria-label={tint.label}
-                                                title={tint.label}
-                                                style={{
-                                                    backgroundColor: tint.color,
-                                                    borderColor: active ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.2)",
-                                                    boxShadow: active ? "0 0 0 2px rgba(15,23,42,0.35)" : "none",
-                                                }}
-                                            />
-                                        )
-                                    })}
-                                </>
-                            )}
-                        </div>
-                        {inspectionMode === "material" && pbrEnabled && !unlitEnabled && (
+                        {viewSettingsOpen && (
                             <div
-                                className="flex flex-wrap items-center gap-3 rounded-2xl border px-3 py-2 text-[11px] font-medium shadow-lg backdrop-blur"
+                                className="w-[min(360px,calc(100vw-3rem))] rounded-3xl border px-4 py-4 text-[11px] font-medium shadow-2xl backdrop-blur"
                                 style={{
                                     borderColor: "rgba(255,255,255,0.14)",
-                                    backgroundColor: "rgba(15, 23, 42, 0.72)",
+                                    backgroundColor: "rgba(15, 23, 42, 0.84)",
                                     color: "rgba(241,245,249,0.96)",
                                 }}
                             >
-                                <label className="flex items-center gap-2">
-                                    <span style={{ color: "rgba(148,163,184,0.95)" }}>Metallic</span>
-                                    <input
-                                        type="range"
-                                        min={0}
-                                        max={1}
-                                        step={0.05}
-                                        value={previewMetalness}
-                                        onChange={(event) => setPreviewMetalness(Number(event.target.value))}
-                                    />
-                                    <span className="w-8 text-right tabular-nums">{previewMetalness.toFixed(2)}</span>
-                                </label>
-                                <label className="flex items-center gap-2">
-                                    <span style={{ color: "rgba(148,163,184,0.95)" }}>Roughness</span>
-                                    <input
-                                        type="range"
-                                        min={0}
-                                        max={1}
-                                        step={0.05}
-                                        value={previewRoughness}
-                                        onChange={(event) => setPreviewRoughness(Number(event.target.value))}
-                                    />
-                                    <span className="w-8 text-right tabular-nums">{previewRoughness.toFixed(2)}</span>
-                                </label>
+                                <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                        <p className="text-[10px] font-semibold uppercase tracking-[0.24em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                            View settings
+                                        </p>
+                                        <p className="mt-1 text-sm font-semibold">{activeInspectionLabel}</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowViewSettings(false)}
+                                        className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] transition"
+                                        style={{
+                                            border: "1px solid rgba(255,255,255,0.12)",
+                                            color: "rgba(226,232,240,0.82)",
+                                        }}
+                                    >
+                                        Hide
+                                    </button>
+                                </div>
+                                <div className="mt-4 space-y-3">
+                                    {supportsShadingControls && (
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                Shading
+                                            </p>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {[
+                                                    { id: "smooth", label: "Smooth" },
+                                                    { id: "flat", label: "Flat" },
+                                                ].map((option) => {
+                                                    const active = shadingMode === option.id
+                                                    return (
+                                                        <button
+                                                            key={option.id}
+                                                            type="button"
+                                                            onClick={() => setShadingMode(option.id as "smooth" | "flat")}
+                                                            disabled={!shadingControlsEnabled}
+                                                            className="rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                                            style={active
+                                                                ? {
+                                                                    backgroundColor: "rgba(96,165,250,0.24)",
+                                                                    color: "white",
+                                                                    opacity: shadingControlsEnabled ? 1 : 0.45,
+                                                                }
+                                                                : {
+                                                                    backgroundColor: "rgba(255,255,255,0.05)",
+                                                                    color: "rgba(226,232,240,0.84)",
+                                                                    opacity: shadingControlsEnabled ? 1 : 0.45,
+                                                                }}
+                                                            title={shadingControlsEnabled ? `${option.label} shading` : "Disabled while unlit is on"}
+                                                        >
+                                                            {option.label}
+                                                        </button>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {supportsMaterialControls && (
+                                        <div className="space-y-3">
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="space-y-2">
+                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                        PBR
+                                                    </p>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setPbrEnabled((current) => !current)}
+                                                        disabled={!pbrControlsEnabled}
+                                                        className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                                        style={pbrEnabled
+                                                            ? {
+                                                                backgroundColor: "rgba(45,212,191,0.2)",
+                                                                color: "white",
+                                                                opacity: pbrControlsEnabled ? 1 : 0.45,
+                                                            }
+                                                            : {
+                                                                backgroundColor: "rgba(255,255,255,0.05)",
+                                                                color: "rgba(226,232,240,0.84)",
+                                                                opacity: pbrControlsEnabled ? 1 : 0.45,
+                                                            }}
+                                                        title={pbrControlsEnabled ? "Toggle PBR shading" : "Disabled while unlit is on"}
+                                                    >
+                                                        <span>Physical</span>
+                                                        <span>{pbrEnabled ? "On" : "Off"}</span>
+                                                    </button>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                        Unlit
+                                                    </p>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setUnlitEnabled((current) => !current)}
+                                                        className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                                        style={unlitEnabled
+                                                            ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
+                                                            : { backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(226,232,240,0.84)" }}
+                                                    >
+                                                        <span>Lighting</span>
+                                                        <span>{unlitEnabled ? "Off" : "On"}</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            {pbrEnabled && !unlitEnabled && (
+                                                <div className="space-y-3 rounded-2xl border px-3 py-3" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+                                                    <label className="flex items-center gap-3">
+                                                        <span className="w-16 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                            Metallic
+                                                        </span>
+                                                        <input
+                                                            type="range"
+                                                            min={0}
+                                                            max={1}
+                                                            step={0.05}
+                                                            value={previewMetalness}
+                                                            onChange={(event) => setPreviewMetalness(Number(event.target.value))}
+                                                            className="flex-1"
+                                                        />
+                                                        <span className="w-8 text-right tabular-nums">{previewMetalness.toFixed(2)}</span>
+                                                    </label>
+                                                    <label className="flex items-center gap-3">
+                                                        <span className="w-16 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                            Roughness
+                                                        </span>
+                                                        <input
+                                                            type="range"
+                                                            min={0}
+                                                            max={1}
+                                                            step={0.05}
+                                                            value={previewRoughness}
+                                                            onChange={(event) => setPreviewRoughness(Number(event.target.value))}
+                                                            className="flex-1"
+                                                        />
+                                                        <span className="w-8 text-right tabular-nums">{previewRoughness.toFixed(2)}</span>
+                                                    </label>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                    {supportsTintControls && (
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                Tint
+                                            </p>
+                                            <div className="flex items-center gap-2">
+                                                {[
+                                                    { id: "neutral", label: "Neutral tint", color: "#d4d4d8" },
+                                                    { id: "violet", label: "Violet tint", color: "#e879f9" },
+                                                    { id: "cyan", label: "Cyan tint", color: "#67e8f9" },
+                                                ].map((tint) => {
+                                                    const active = inspectionTint === tint.id
+                                                    return (
+                                                        <button
+                                                            key={tint.id}
+                                                            type="button"
+                                                            onClick={() => setInspectionTint(tint.id as "neutral" | "violet" | "cyan")}
+                                                            className="h-8 w-8 rounded-full border transition"
+                                                            aria-label={tint.label}
+                                                            title={tint.label}
+                                                            style={{
+                                                                backgroundColor: tint.color,
+                                                                borderColor: active ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.2)",
+                                                                boxShadow: active ? "0 0 0 2px rgba(15,23,42,0.35)" : "none",
+                                                            }}
+                                                        />
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
                         <div
@@ -1409,6 +1448,24 @@ function NeuralViewerStage({
                                 </button>
                             )
                         })}
+                        <span className="mx-1 h-6 w-px" style={{ backgroundColor: "rgba(255,255,255,0.12)" }} />
+                        <button
+                            type="button"
+                            onClick={() => setShowViewSettings((current) => !current)}
+                            className="rounded-full p-2.5 transition"
+                            aria-label="View settings"
+                            title="View settings"
+                            style={showViewSettings
+                                ? {
+                                    backgroundColor: "rgba(255,255,255,0.18)",
+                                    color: "white",
+                                }
+                                : {
+                                    color: "rgba(226,232,240,0.86)",
+                                }}
+                        >
+                            <SlidersHorizontal className="h-4 w-4" />
+                        </button>
                         </div>
                     </div>
                 </div>
