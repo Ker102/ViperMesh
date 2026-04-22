@@ -2,10 +2,14 @@ import path from "node:path"
 import { mkdir, writeFile } from "node:fs/promises"
 import { unzipSync } from "fflate"
 
-const ROOT_MODEL_EXTENSIONS = new Set([".glb", ".gltf"])
+const ROOT_MODEL_EXTENSIONS = new Set([".glb", ".gltf", ".obj", ".fbx", ".stl"])
 const PACKAGE_RESOURCE_EXTENSIONS = new Set([
     ".glb",
     ".gltf",
+    ".obj",
+    ".fbx",
+    ".stl",
+    ".mtl",
     ".bin",
     ".png",
     ".jpg",
@@ -46,6 +50,7 @@ function scoreRootCandidate(candidatePath: string, uploadBasename: string) {
     if (basename === "scene") score += 12
     if (basename === "model") score += 8
     if (path.posix.extname(candidatePath).toLowerCase() === ".glb") score += 6
+    if (path.posix.extname(candidatePath).toLowerCase() === ".gltf") score += 4
     score -= depth
 
     return score
@@ -78,7 +83,7 @@ export async function extractZipAssetPackage(
 
     const rootModelPath = pickRootModelPath(entryPaths, uploadFilename)
     if (!rootModelPath) {
-        throw new Error("ZIP package must contain a .glb or .gltf root model file")
+        throw new Error("ZIP package must contain a .glb, .gltf, .fbx, .obj, or .stl root model file")
     }
 
     await mkdir(outputDirectory, { recursive: true })

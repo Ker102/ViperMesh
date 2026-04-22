@@ -1,12 +1,16 @@
 "use client";
 
 import { Bounds, ContactShadows, OrbitControls, useBounds } from "@react-three/drei";
-import { Canvas, useLoader, useThree } from "@react-three/fiber";
+import { Canvas, useThree } from "@react-three/fiber";
 import { Download, FolderOpen, Loader2, Maximize2, RotateCcw } from "lucide-react";
-import React, { Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
+import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
+import { STLLoader } from "three/addons/loaders/STLLoader.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import { cn } from "@/lib/utils";
 
@@ -73,6 +77,8 @@ const toneMappingExposureByMode: Record<HeavyInspectionMode, number> = {
     toon: 1.1,
     wireframe: 1,
 };
+
+const SUPPORTED_VIEWER_EXTENSIONS = new Set([".glb", ".gltf", ".fbx", ".obj", ".stl"]);
 
 let toonGradientTexture: THREE.DataTexture | null = null;
 
@@ -194,7 +200,7 @@ function getDownloadFilename(safeUrl: string) {
             return "model.glb";
         }
 
-        if (/\.(glb|gltf)$/i.test(candidate)) {
+        if (/\.(glb|gltf|fbx|obj|stl)$/i.test(candidate)) {
             return candidate;
         }
 
@@ -228,15 +234,147 @@ function getNeuralOutputRelativePath(safeUrl: string) {
             safeUrl,
             typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1",
         );
-        if (parsed.pathname !== "/api/ai/neural-output") {
-            return null;
+        if (parsed.pathname === "/api/ai/neural-output") {
+            const relativePath = parsed.searchParams.get("path");
+            return relativePath ? decodeURIComponent(relativePath) : null;
         }
 
-        const relativePath = parsed.searchParams.get("path");
-        return relativePath ? decodeURIComponent(relativePath) : null;
+        const pathPrefix = "/api/ai/neural-output/files/";
+        if (parsed.pathname.startsWith(pathPrefix)) {
+            return parsed.pathname
+                .slice(pathPrefix.length)
+                .split("/")
+                .map((segment) => decodeURIComponent(segment))
+                .join("/");
+        }
+
+        return null;
     } catch {
         return null;
     }
+}
+
+function inferModelExtension(safeUrl: string): string | null {
+    try {
+        const parsed = new URL(
+            safeUrl,
+            typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1",
+        );
+        const queryPath = parsed.searchParams.get("path");
+        const candidate = queryPath
+            ? decodeURIComponent(queryPath)
+            : parsed.pathname.split("/").map((segment) => decodeURIComponent(segment)).join("/");
+        const extension = candidate.match(/\.[^.\\/]+$/)?.[0]?.toLowerCase() ?? null;
+        return extension && SUPPORTED_VIEWER_EXTENSIONS.has(extension) ? extension : null;
+    } catch {
+        return null;
+    }
+}
+
+function collectMaterialTextures(material: THREE.Material, textureSet: Set<THREE.Texture>) {
+    Object.values(material).forEach((value) => {
+        if (value instanceof THREE.Texture) {
+            textureSet.add(value);
+        }
+    });
+}
+
+function disposeLoadedAssetResources(root: THREE.Object3D) {
+    const geometrySet = new Set<THREE.BufferGeometry>();
+    const materialSet = new Set<THREE.Material>();
+    const textureSet = new Set<THREE.Texture>();
+
+    root.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+
+        if (mesh.geometry) {
+            geometrySet.add(mesh.geometry);
+        }
+
+        const originalMaterials =
+            (mesh.userData.__originalMaterials as THREE.Material[] | undefined) ??
+            (Array.isArray(mesh.material) ? mesh.material : [mesh.material]);
+        originalMaterials.filter(Boolean).forEach((material) => materialSet.add(material));
+
+        const generatedMaterials = mesh.userData.__generatedMaterials as THREE.Material[] | undefined;
+        generatedMaterials?.forEach((material) => materialSet.add(material));
+    });
+
+    materialSet.forEach((material) => collectMaterialTextures(material, textureSet));
+    materialSet.forEach((material) => material.dispose());
+    textureSet.forEach((texture) => texture.dispose());
+    geometrySet.forEach((geometry) => geometry.dispose());
+}
+
+async function findObjMaterialLibraryUrl(objUrl: string): Promise<string | null> {
+    try {
+        const response = await fetch(objUrl, { credentials: "include" });
+        if (!response.ok) {
+            return null;
+        }
+
+        const source = await response.text();
+        const match = source.match(/^\s*mtllib\s+(.+)\s*$/im);
+        if (!match?.[1]) {
+            return null;
+        }
+
+        return new URL(match[1].trim(), objUrl).toString();
+    } catch {
+        return null;
+    }
+}
+
+async function loadAssetRoot(url: string, extension: string): Promise<THREE.Object3D> {
+    if (extension === ".glb" || extension === ".gltf") {
+        const loader = new GLTFLoader();
+        const gltf = await loader.loadAsync(url);
+        return SkeletonUtils.clone(gltf.scene) as THREE.Group;
+    }
+
+    if (extension === ".fbx") {
+        const loader = new FBXLoader();
+        const fbx = await loader.loadAsync(url);
+        return SkeletonUtils.clone(fbx) as THREE.Group;
+    }
+
+    if (extension === ".obj") {
+        const manager = new THREE.LoadingManager();
+        const loader = new OBJLoader(manager);
+        const mtlUrl = await findObjMaterialLibraryUrl(url);
+        if (mtlUrl) {
+            try {
+                const materials = await new MTLLoader(manager).loadAsync(mtlUrl);
+                materials.preload();
+                loader.setMaterials(materials);
+            } catch {
+                // Best-effort: OBJ geometry should still load without its material library.
+            }
+        }
+        const obj = await loader.loadAsync(url);
+        return obj.clone(true);
+    }
+
+    if (extension === ".stl") {
+        const geometry = await new STLLoader().loadAsync(url);
+        const mesh = new THREE.Mesh(
+            geometry,
+            new THREE.MeshStandardMaterial({
+                color: "#d4d4d8",
+                metalness: 0.02,
+                roughness: 0.9,
+                side: THREE.DoubleSide,
+            }),
+        );
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        const group = new THREE.Group();
+        group.add(mesh);
+        return group;
+    }
+
+    throw new Error(`Unsupported model format: ${extension}`);
 }
 
 function disposeGeneratedMaterials(object: THREE.Object3D) {
@@ -673,6 +811,7 @@ function SceneController({
 
 function LoadedAsset({
     url,
+    extension,
     inspectionMode,
     inspectionTint,
     shadingMode,
@@ -681,8 +820,10 @@ function LoadedAsset({
     previewMetalness,
     previewRoughness,
     onReady,
+    onError,
 }: {
     url: string;
+    extension: string;
     inspectionMode: HeavyInspectionMode;
     inspectionTint: NonNullable<HeavyModelViewerProps["inspectionTint"]>;
     shadingMode: HeavyShadingMode;
@@ -691,19 +832,51 @@ function LoadedAsset({
     previewMetalness: number;
     previewRoughness: number;
     onReady: () => void;
+    onError: (error: Error) => void;
 }) {
     const { gl } = useThree();
-    const gltf = useLoader(GLTFLoader, url);
-    const scene = useMemo(
-        () => SkeletonUtils.clone(gltf.scene) as THREE.Group,
-        [gltf.scene],
-    );
+    const [scene, setScene] = useState<THREE.Object3D | null>(null);
     const maxAnisotropy = useMemo(() => {
         const capability = gl.capabilities.getMaxAnisotropy?.() ?? 1;
         return Math.max(1, Math.min(8, capability));
     }, [gl]);
 
     useEffect(() => {
+        let cancelled = false;
+        let loadedScene: THREE.Object3D | null = null;
+
+        void (async () => {
+            try {
+                const nextScene = await loadAssetRoot(url, extension);
+                if (cancelled) {
+                    disposeLoadedAssetResources(nextScene);
+                    return;
+                }
+
+                loadedScene = nextScene;
+                setScene(nextScene);
+            } catch (error) {
+                const resolvedError =
+                    error instanceof Error ? error : new Error("Failed to load 3D model");
+                if (!cancelled) {
+                    onError(resolvedError);
+                }
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+            if (loadedScene) {
+                disposeLoadedAssetResources(loadedScene);
+            }
+        };
+    }, [extension, onError, url]);
+
+    useEffect(() => {
+        if (!scene) {
+            return;
+        }
+
         applyInspectionMaterials(
             scene,
             inspectionMode,
@@ -721,6 +894,10 @@ function LoadedAsset({
             disposeGeneratedMaterials(scene);
         };
     }, [inspectionMode, inspectionTint, maxAnisotropy, onReady, pbrEnabled, previewMetalness, previewRoughness, scene, shadingMode, unlitEnabled]);
+
+    if (!scene) {
+        return null;
+    }
 
     return <primitive object={scene} />;
 }
@@ -751,6 +928,12 @@ function HeavyModelViewerInner({
         typeof window !== "undefined" &&
         typeof window.vipermesh?.revealItemInFolder === "function";
     const localRelativePath = useMemo(() => getNeuralOutputRelativePath(safeUrl), [safeUrl]);
+    const modelExtension = useMemo(() => inferModelExtension(safeUrl), [safeUrl]);
+
+    useEffect(() => {
+        setStatus(modelExtension ? "loading" : "error");
+        setErrorMessage(modelExtension ? null : "Unsupported model format");
+    }, [modelExtension, safeUrl]);
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -877,30 +1060,32 @@ function HeavyModelViewerInner({
                 <directionalLight position={[-4, 3, -5]} intensity={inspectionMode === "material" ? (unlitEnabled ? 0.08 : pbrEnabled ? 0.95 : 0.48) : inspectionMode === "toon" ? 1.1 : inspectionMode === "solid" ? 1.0 : 0.9} />
                 <directionalLight position={[0, 4, -7]} intensity={inspectionMode === "material" ? (unlitEnabled ? 0.06 : pbrEnabled ? 0.62 : 0.28) : inspectionMode === "toon" ? 0.7 : inspectionMode === "solid" ? 0.5 : 0.45} color="#dbeafe" />
                 <directionalLight position={[0, -1.5, 5]} intensity={inspectionMode === "material" ? (unlitEnabled ? 0.04 : pbrEnabled ? 0.32 : 0.14) : inspectionMode === "toon" ? 0.45 : inspectionMode === "solid" ? 0.36 : 0.28} color="#f8fafc" />
-                <Suspense fallback={null}>
-                    <ViewerErrorBoundary
-                        onError={(error) => {
-                            console.error("HeavyModelViewer: model load failure", error);
-                            setStatus("error");
-                            setErrorMessage(`Failed to load 3D model (${error.message})`);
-                        }}
-                    >
-                        <OrbitControls
-                            ref={controlsRef as React.Ref<any>}
-                            makeDefault
-                            enableDamping
-                            dampingFactor={0.08}
-                            enabled={interactive}
+                <ViewerErrorBoundary
+                    onError={(error) => {
+                        console.error("HeavyModelViewer: model load failure", error);
+                        setStatus("error");
+                        setErrorMessage(`Failed to load 3D model (${error.message})`);
+                    }}
+                >
+                    <OrbitControls
+                        ref={controlsRef as React.Ref<any>}
+                        makeDefault
+                        enableDamping
+                        dampingFactor={0.08}
+                        enabled={interactive}
+                    />
+                    <Bounds fit clip observe margin={1.18}>
+                        <SceneController
+                            controlsRef={controlsRef}
+                            onRegisterApi={(api) => {
+                                viewerApiRef.current = api;
+                            }}
                         />
-                        <Bounds fit clip observe margin={1.18}>
-                            <SceneController
-                                controlsRef={controlsRef}
-                                onRegisterApi={(api) => {
-                                    viewerApiRef.current = api;
-                                }}
-                            />
+                        {modelExtension ? (
                             <LoadedAsset
+                                key={`${modelExtension}:${safeUrl}`}
                                 url={safeUrl}
+                                extension={modelExtension}
                                 inspectionMode={inspectionMode}
                                 inspectionTint={inspectionTint}
                                 shadingMode={shadingMode}
@@ -912,20 +1097,25 @@ function HeavyModelViewerInner({
                                     setStatus("ready");
                                     setErrorMessage(null);
                                 }}
+                                onError={(error) => {
+                                    console.error("HeavyModelViewer: asset load failure", error);
+                                    setStatus("error");
+                                    setErrorMessage(`Failed to load 3D model (${error.message})`);
+                                }}
                             />
-                        </Bounds>
-                        <ContactShadows
-                            position={[0, -1.6, 0]}
-                            opacity={inspectionMode === "material" ? 0.2 : inspectionMode === "toon" ? 0.12 : inspectionMode === "solid" ? 0.14 : 0.08}
-                            scale={18}
-                            blur={2.6}
-                            far={6}
-                            resolution={512}
-                            color="#000000"
-                            frames={1}
-                        />
-                    </ViewerErrorBoundary>
-                </Suspense>
+                        ) : null}
+                    </Bounds>
+                    <ContactShadows
+                        position={[0, -1.6, 0]}
+                        opacity={inspectionMode === "material" ? 0.2 : inspectionMode === "toon" ? 0.12 : inspectionMode === "solid" ? 0.14 : 0.08}
+                        scale={18}
+                        blur={2.6}
+                        far={6}
+                        resolution={512}
+                        color="#000000"
+                        frames={1}
+                    />
+                </ViewerErrorBoundary>
             </Canvas>
 
             {status === "loading" && <LoadingState message="Loading advanced viewer..." />}

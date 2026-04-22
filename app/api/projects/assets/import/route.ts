@@ -44,9 +44,9 @@ export async function POST(request: Request) {
     }
 
     const extension = path.extname(file.name).toLowerCase()
-    if (![".glb", ".gltf", ".zip"].includes(extension)) {
+    if (![".glb", ".gltf", ".fbx", ".obj", ".stl", ".zip"].includes(extension)) {
         return NextResponse.json({
-            error: "Import supports .glb, .gltf, or a ZIP package containing a .gltf/.glb asset with its textures",
+            error: "Import supports .glb, .gltf, .fbx, .obj, .stl, or a ZIP package containing one of those assets with its resources",
         }, { status: 400 })
     }
 

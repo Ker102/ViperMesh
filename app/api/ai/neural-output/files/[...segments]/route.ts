@@ -10,6 +10,14 @@ function getContentType(filePath: string): string {
             return "model/gltf-binary"
         case ".gltf":
             return "model/gltf+json"
+        case ".fbx":
+            return "model/vnd.autodesk.fbx"
+        case ".obj":
+            return "model/obj"
+        case ".stl":
+            return "model/stl"
+        case ".mtl":
+            return "text/plain; charset=utf-8"
         case ".bin":
             return "application/octet-stream"
         case ".png":
@@ -29,6 +37,8 @@ function getContentType(filePath: string): string {
             return "image/avif"
         case ".ktx2":
             return "image/ktx2"
+        case ".ktx":
+            return "image/ktx"
         default:
             return "application/octet-stream"
     }

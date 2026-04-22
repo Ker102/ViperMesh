@@ -32,6 +32,13 @@ interface GltfDocument {
     textures?: unknown[]
 }
 
+const EMPTY_MODEL_COUNTS = {
+    triangleCount: 0,
+    materialCount: 0,
+    textureCount: 0,
+    meshCount: 0,
+}
+
 const GLB_MAGIC = 0x46546c67
 const GLB_VERSION = 2
 const JSON_CHUNK_TYPE = 0x4e4f534a
@@ -110,6 +117,74 @@ async function readStatsForDocument(filePath: string, document: GltfDocument): P
     }
 }
 
+async function readGenericFileStats(filePath: string, partial?: Partial<ParsedGlbStats>): Promise<ParsedGlbStats> {
+    const fileStats = await stat(filePath)
+    return {
+        ...EMPTY_MODEL_COUNTS,
+        fileSizeBytes: fileStats.size,
+        ...partial,
+    }
+}
+
+function countObjTriangles(objSource: string) {
+    let triangles = 0
+    let meshCount = 0
+    const materials = new Set<string>()
+
+    for (const rawLine of objSource.split(/\r?\n/)) {
+        const line = rawLine.trim()
+        if (!line || line.startsWith("#")) {
+            continue
+        }
+
+        if (line.startsWith("o ") || line.startsWith("g ")) {
+            meshCount += 1
+            continue
+        }
+
+        if (line.startsWith("usemtl ")) {
+            const materialName = line.slice(7).trim()
+            if (materialName) {
+                materials.add(materialName)
+            }
+            continue
+        }
+
+        if (!line.startsWith("f ")) {
+            continue
+        }
+
+        const vertices = line
+            .slice(2)
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean)
+        if (vertices.length >= 3) {
+            triangles += Math.max(0, vertices.length - 2)
+        }
+    }
+
+    return {
+        triangleCount: triangles,
+        materialCount: materials.size,
+        meshCount: Math.max(meshCount, triangles > 0 ? 1 : 0),
+    }
+}
+
+function countStlTriangles(stlBuffer: Buffer) {
+    if (stlBuffer.length >= 84) {
+        const expectedFaceCount = stlBuffer.readUInt32LE(80)
+        const expectedBinaryLength = 84 + expectedFaceCount * 50
+        if (expectedBinaryLength === stlBuffer.length) {
+            return expectedFaceCount
+        }
+    }
+
+    const asciiSource = stlBuffer.toString("utf8")
+    const facetMatches = asciiSource.match(/\bfacet\s+normal\b/gi)
+    return facetMatches?.length ?? 0
+}
+
 export async function readModelStats(filePath: string): Promise<ParsedGlbStats> {
     const extension = path.extname(filePath).toLowerCase()
     const fileBuffer = await readFile(filePath)
@@ -124,7 +199,22 @@ export async function readModelStats(filePath: string): Promise<ParsedGlbStats> 
         return readStatsForDocument(filePath, document)
     }
 
-    throw new Error("Only GLB and GLTF model stats are supported")
+    if (extension === ".obj") {
+        return readGenericFileStats(filePath, countObjTriangles(fileBuffer.toString("utf8")))
+    }
+
+    if (extension === ".stl") {
+        return readGenericFileStats(filePath, {
+            triangleCount: countStlTriangles(fileBuffer),
+            meshCount: 1,
+        })
+    }
+
+    if (extension === ".fbx") {
+        return readGenericFileStats(filePath, { meshCount: 1 })
+    }
+
+    throw new Error("Only GLB, GLTF, OBJ, STL, and FBX model stats are supported")
 }
 
 export async function readGlbStats(filePath: string): Promise<ParsedGlbStats> {
