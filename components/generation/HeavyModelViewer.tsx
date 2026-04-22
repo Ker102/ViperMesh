@@ -11,6 +11,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
+import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import { cn } from "@/lib/utils";
 
@@ -835,10 +836,14 @@ function getInspectionGeometryVariant(mesh: THREE.Mesh, shadingMode: HeavyShadin
 
     if (!mesh.userData[variantKey]) {
         const sourceGeometry = mesh.userData[sourceKey] as THREE.BufferGeometry;
-        const geometry =
-            shadingMode === "flat"
-                ? (sourceGeometry.index ? sourceGeometry.toNonIndexed() : sourceGeometry.clone())
-                : sourceGeometry.clone();
+        const geometry = (() => {
+            if (shadingMode === "flat") {
+                return sourceGeometry.index ? sourceGeometry.toNonIndexed() : sourceGeometry.clone();
+            }
+
+            const smoothSource = sourceGeometry.index ? sourceGeometry.clone() : mergeVertices(sourceGeometry.clone(), 1e-4);
+            return smoothSource.index ? smoothSource : mergeVertices(smoothSource, 1e-4);
+        })();
 
         geometry.deleteAttribute("normal");
         geometry.computeVertexNormals();
