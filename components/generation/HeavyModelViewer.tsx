@@ -607,12 +607,20 @@ function stripFacetMutedMaps(material: THREE.Material) {
     const candidate = material as THREE.Material & {
         normalMap?: THREE.Texture | null;
         bumpMap?: THREE.Texture | null;
+        aoMap?: THREE.Texture | null;
+        specularMap?: THREE.Texture | null;
     };
     if ("normalMap" in candidate) {
         candidate.normalMap = null;
     }
     if ("bumpMap" in candidate) {
         candidate.bumpMap = null;
+    }
+    if ("aoMap" in candidate) {
+        candidate.aoMap = null;
+    }
+    if ("specularMap" in candidate) {
+        candidate.specularMap = null;
     }
     material.needsUpdate = true;
 }
@@ -629,6 +637,13 @@ function buildClassicPreviewMaterial(
         const material = original.clone();
         material.side = THREE.DoubleSide;
         material.flatShading = flatShading;
+        if (material instanceof THREE.MeshPhongMaterial) {
+            material.specular.multiplyScalar(0.3);
+            material.shininess = Math.min(material.shininess ?? 10, 8);
+            material.reflectivity = Math.min(material.reflectivity ?? 0.04, 0.04);
+            material.combine = THREE.MultiplyOperation;
+            material.envMap = null;
+        }
         if (flatShading) {
             stripFacetMutedMaps(material);
         }
@@ -674,10 +689,10 @@ function derivePbrFactors(original: THREE.Material) {
 
     const derivedMetalness = typeof source.metalness === "number"
         ? source.metalness
-        : THREE.MathUtils.clamp(specularStrength * 0.7 + reflectivity * 0.45, 0.04, 0.9);
+        : THREE.MathUtils.clamp(specularStrength * 1.15 + reflectivity * 0.85, 0.16, 0.94);
     const derivedRoughness = typeof source.roughness === "number"
         ? source.roughness
-        : THREE.MathUtils.clamp(1 - Math.min(shininess / 100, 1) * 0.72, 0.18, 0.96);
+        : THREE.MathUtils.clamp(1 - Math.min(shininess / 100, 1) * 0.9, 0.08, 0.64);
 
     return {
         metalness: derivedMetalness,
@@ -716,21 +731,31 @@ function buildReplacementMaterial(
         }
 
         const derived = derivePbrFactors(original);
+        const resolvedMetalness = THREE.MathUtils.clamp(
+            THREE.MathUtils.lerp(derived.metalness, previewMetalness, 0.42),
+            0,
+            1,
+        );
+        const resolvedRoughness = THREE.MathUtils.clamp(
+            THREE.MathUtils.lerp(derived.roughness, previewRoughness, 0.32),
+            0.04,
+            1,
+        );
 
         const material = new THREE.MeshStandardMaterial({
             color: "#ffffff",
             flatShading,
             side: THREE.DoubleSide,
-            metalness: THREE.MathUtils.clamp(derived.metalness * (0.55 + previewMetalness * 0.45), 0, 1),
-            roughness: THREE.MathUtils.clamp(derived.roughness * (0.45 + previewRoughness * 0.55), 0.04, 1),
+            metalness: resolvedMetalness,
+            roughness: resolvedRoughness,
         });
         copyCommonMaterialProps(material, original, flatShading, maxAnisotropy);
         material.side = THREE.DoubleSide;
         material.flatShading = flatShading;
-        material.envMapIntensity = 1.45;
+        material.envMapIntensity = 1.9;
         material.aoMapIntensity = 0.2;
-        material.metalness = THREE.MathUtils.clamp(derived.metalness * (0.55 + previewMetalness * 0.45), 0, 1);
-        material.roughness = THREE.MathUtils.clamp(derived.roughness * (0.45 + previewRoughness * 0.55), 0.04, 1);
+        material.metalness = resolvedMetalness;
+        material.roughness = resolvedRoughness;
         if (flatShading) {
             stripFacetMutedMaps(material);
         }
@@ -1088,6 +1113,86 @@ function HeavyModelViewerInner({
         typeof window.vipermesh?.revealItemInFolder === "function";
     const localRelativePath = useMemo(() => getNeuralOutputRelativePath(safeUrl), [safeUrl]);
     const modelExtension = useMemo(() => inferModelExtension(safeUrl), [safeUrl]);
+    const useMaterialView = inspectionMode === "material";
+    const useFlatLighting = useMaterialView && !unlitEnabled && shadingMode === "flat";
+    const materialAmbientIntensity = !useMaterialView
+        ? inspectionMode === "toon"
+            ? 0.92
+            : inspectionMode === "solid"
+                ? 0.84
+                : 0.92
+        : unlitEnabled
+            ? 0.15
+            : useFlatLighting
+                ? (pbrEnabled ? 0.26 : 0.18)
+                : pbrEnabled
+                    ? 0.62
+                    : 0.42;
+    const materialHemisphereIntensity = !useMaterialView
+        ? inspectionMode === "toon"
+            ? 1.45
+            : inspectionMode === "solid"
+                ? 1.2
+                : 1.45
+        : unlitEnabled
+            ? 0.15
+            : useFlatLighting
+                ? (pbrEnabled ? 0.36 : 0.22)
+                : pbrEnabled
+                    ? 1.15
+                    : 0.72;
+    const keyDirectionalIntensity = !useMaterialView
+        ? inspectionMode === "toon"
+            ? 2.3
+            : inspectionMode === "solid"
+                ? 2.25
+                : 2.15
+        : unlitEnabled
+            ? 0.1
+            : useFlatLighting
+                ? (pbrEnabled ? 2.9 : 2.4)
+                : pbrEnabled
+                    ? 2.1
+                    : 1.15;
+    const fillDirectionalIntensity = !useMaterialView
+        ? inspectionMode === "toon"
+            ? 1.1
+            : inspectionMode === "solid"
+                ? 1.0
+                : 0.9
+        : unlitEnabled
+            ? 0.08
+            : useFlatLighting
+                ? (pbrEnabled ? 0.22 : 0.16)
+                : pbrEnabled
+                    ? 0.95
+                    : 0.48;
+    const coolDirectionalIntensity = !useMaterialView
+        ? inspectionMode === "toon"
+            ? 0.7
+            : inspectionMode === "solid"
+                ? 0.5
+                : 0.45
+        : unlitEnabled
+            ? 0.06
+            : useFlatLighting
+                ? (pbrEnabled ? 0.18 : 0.12)
+                : pbrEnabled
+                    ? 0.62
+                    : 0.28;
+    const rimDirectionalIntensity = !useMaterialView
+        ? inspectionMode === "toon"
+            ? 0.45
+            : inspectionMode === "solid"
+                ? 0.36
+                : 0.28
+        : unlitEnabled
+            ? 0.04
+            : useFlatLighting
+                ? (pbrEnabled ? 0.12 : 0.08)
+                : pbrEnabled
+                    ? 0.32
+                    : 0.14;
 
     useEffect(() => {
         setStatus(modelExtension ? "loading" : "error");
@@ -1211,14 +1316,14 @@ function HeavyModelViewerInner({
             >
                 <color attach="background" args={[clearColorByMode[inspectionMode]]} />
                 <SceneEnvironmentController inspectionMode={inspectionMode} pbrEnabled={pbrEnabled} unlitEnabled={unlitEnabled} />
-                <ambientLight intensity={inspectionMode === "material" ? (unlitEnabled ? 0.15 : pbrEnabled ? 0.62 : 0.42) : inspectionMode === "toon" ? 0.92 : inspectionMode === "solid" ? 0.84 : 0.92} />
+                <ambientLight intensity={materialAmbientIntensity} />
                 <hemisphereLight
-                    args={["#f8fafc", "#1e293b", inspectionMode === "material" ? (unlitEnabled ? 0.15 : pbrEnabled ? 1.15 : 0.72) : inspectionMode === "toon" ? 1.45 : inspectionMode === "solid" ? 1.2 : 1.45]}
+                    args={["#f8fafc", "#1e293b", materialHemisphereIntensity]}
                 />
-                <directionalLight position={[5.5, 7, 4.5]} intensity={inspectionMode === "material" ? (unlitEnabled ? 0.1 : pbrEnabled ? 2.1 : 1.15) : inspectionMode === "toon" ? 2.3 : inspectionMode === "solid" ? 2.25 : 2.15} castShadow />
-                <directionalLight position={[-4, 3, -5]} intensity={inspectionMode === "material" ? (unlitEnabled ? 0.08 : pbrEnabled ? 0.95 : 0.48) : inspectionMode === "toon" ? 1.1 : inspectionMode === "solid" ? 1.0 : 0.9} />
-                <directionalLight position={[0, 4, -7]} intensity={inspectionMode === "material" ? (unlitEnabled ? 0.06 : pbrEnabled ? 0.62 : 0.28) : inspectionMode === "toon" ? 0.7 : inspectionMode === "solid" ? 0.5 : 0.45} color="#dbeafe" />
-                <directionalLight position={[0, -1.5, 5]} intensity={inspectionMode === "material" ? (unlitEnabled ? 0.04 : pbrEnabled ? 0.32 : 0.14) : inspectionMode === "toon" ? 0.45 : inspectionMode === "solid" ? 0.36 : 0.28} color="#f8fafc" />
+                <directionalLight position={[5.5, 7, 4.5]} intensity={keyDirectionalIntensity} castShadow />
+                <directionalLight position={[-4, 3, -5]} intensity={fillDirectionalIntensity} />
+                <directionalLight position={[0, 4, -7]} intensity={coolDirectionalIntensity} color="#dbeafe" />
+                <directionalLight position={[0, -1.5, 5]} intensity={rimDirectionalIntensity} color="#f8fafc" />
                 <ViewerErrorBoundary
                     onError={(error) => {
                         console.error("HeavyModelViewer: model load failure", error);
