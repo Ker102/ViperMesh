@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Loader2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, RefreshCw, SlidersHorizontal, Square } from "lucide-react"
 import { HeavyModelViewer } from "@/components/generation/HeavyModelViewer"
 import { cn } from "@/lib/utils"
@@ -124,6 +124,10 @@ function resolveInputDisplayValue(input: ToolInput, inputs: Record<string, strin
 
 function getImageInputKey(tool: ToolEntry): string | undefined {
     return tool.inputs.find((input) => input.type === "image")?.key
+}
+
+function getMeshInputKey(tool: ToolEntry): string | undefined {
+    return tool.inputs.find((input) => input.type === "mesh")?.key
 }
 
 function formatStageLabel(category: string): string {
@@ -2130,7 +2134,7 @@ export function StudioWorkspace({
     }, [neuralRun, onNeuralRunUpdate])
 
     useEffect(() => {
-        if (!selectedTool || selectedTool.type === "blender_agent") return
+        if (!selectedTool || selectedTool.type === "blender_agent" || !getMeshInputKey(selectedTool)) return
         onOpenAssetLibrary()
     }, [onOpenAssetLibrary, selectedTool])
 
@@ -2399,7 +2403,7 @@ export function StudioWorkspace({
         })
     }
 
-    const requestToolMeshSelection = (toolId: string, inputKey: string, currentInputs: Record<string, string>) => {
+    const requestToolMeshSelection = useCallback((toolId: string, inputKey: string, currentInputs: Record<string, string>) => {
         const token = `tool-mesh-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
         setToolDrafts((prev) => ({
             ...prev,
@@ -2418,9 +2422,9 @@ export function StudioWorkspace({
             token,
             label: getToolById(toolId)?.name ?? "current tool",
         })
-    }
+    }, [onRequestLibrarySelection])
 
-    const requestNeuralMeshSelection = (toolId: string, inputKey: string, currentInputs: Record<string, string>) => {
+    const requestNeuralMeshSelection = useCallback((toolId: string, inputKey: string, currentInputs: Record<string, string>) => {
         const token = `neural-mesh-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
         setNeuralRun((current) => {
             if (!current || current.tool.id !== toolId) return current
@@ -2442,7 +2446,22 @@ export function StudioWorkspace({
             token,
             label: getToolById(toolId)?.name ?? "current tool",
         })
-    }
+    }, [onRequestLibrarySelection])
+
+    useEffect(() => {
+        if (!selectedTool || selectedTool.type === "blender_agent") return
+        const meshInputKey = getMeshInputKey(selectedTool)
+        if (!meshInputKey) return
+        if (
+            pendingMeshSelection?.target === "tool" &&
+            pendingMeshSelection.toolId === selectedTool.id &&
+            pendingMeshSelection.inputKey === meshInputKey
+        ) {
+            return
+        }
+
+        requestToolMeshSelection(selectedTool.id, meshInputKey, toolDrafts[selectedTool.id] ?? {})
+    }, [pendingMeshSelection, requestToolMeshSelection, selectedTool, toolDrafts])
 
     const handleRunNeuralAgain = () => {
         if (!neuralRun) return

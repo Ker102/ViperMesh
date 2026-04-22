@@ -19,6 +19,11 @@ interface StudioLayoutProps {
 
 type NeuralStepPatch = Partial<Pick<WorkflowTimelineStep, "status" | "error" | "inputs" | "neuralState">>
 
+function isModelAssetUrl(viewerUrl?: string | null) {
+    if (!viewerUrl) return false
+    return /\.(glb|gltf|fbx|obj|stl)(?:$|[?#])/i.test(viewerUrl)
+}
+
 // ── API persistence helpers (replaces localStorage) ─────────────
 async function fetchPersistedSteps(projectId: string): Promise<WorkflowTimelineStep[]> {
     try {
@@ -513,18 +518,26 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         deletePersistedSteps(projectId)
     }, [projectId, selectedStepStorageKey])
 
-    const handleOpenGeneratedAsset = useCallback((stepId: string) => {
+    const handleOpenGeneratedAsset = useCallback((asset: GeneratedAssetItem, options?: { attachToActiveTool?: boolean }) => {
+        const stepId = asset.stepId
         const step = workflowStepsRef.current.find((item) => item.id === stepId)
         const tool = step ? getToolById(step.toolName) : undefined
         if (tool) {
             setActiveCategory(tool.category)
         }
+        if (options?.attachToActiveTool && librarySelectionMode && isModelAssetUrl(asset.viewerUrl)) {
+            setLibrarySelectionEvent({
+                token: librarySelectionMode.token,
+                asset,
+            })
+        } else {
+            setLibrarySelectionEvent(null)
+        }
         setSelectedStepId(stepId)
         setGeneratedAssetsOpen(false)
         setAssistantOpen(false)
         setLibrarySelectionMode(null)
-        setLibrarySelectionEvent(null)
-    }, [])
+    }, [librarySelectionMode])
 
     const handleRequestLibrarySelection = useCallback((selection: { token: string; label: string }) => {
         setLibrarySelectionMode(selection)

@@ -16,7 +16,7 @@ interface GeneratedAssetsShelfProps {
     projectId: string
     open: boolean
     assets: GeneratedAssetItem[]
-    onOpenAsset: (stepId: string) => void
+    onOpenAsset: (asset: GeneratedAssetItem, options?: { attachToActiveTool?: boolean }) => void
     onContinueToTool: (asset: GeneratedAssetItem, toolId: string) => void
     onUseAsset: (asset: GeneratedAssetItem) => void
     onImportAsset: (file: File) => Promise<void> | void
@@ -179,6 +179,7 @@ export function GeneratedAssetsShelf({
                                 isFavorite={favoriteAssetIds.includes(asset.id)}
                                 isSelected={selectedAsset?.id === asset.id}
                                 onOpenAsset={onOpenAsset}
+                                attachToSelectionMode={Boolean(selectionMode)}
                                 onSelectInfo={setSelectedAssetId}
                                 onToggleFavorite={toggleFavorite}
                             />
@@ -278,7 +279,9 @@ export function GeneratedAssetsShelf({
                             )}
                             <button
                                 type="button"
-                                onClick={() => onOpenAsset(selectedAsset.stepId)}
+                                onClick={() => onOpenAsset(selectedAsset, {
+                                    attachToActiveTool: Boolean(selectionMode && selectedAsset.assetKind === "model"),
+                                })}
                                 className="rounded-xl border px-3 py-2 text-xs font-semibold transition hover:opacity-90"
                                 style={{
                                     borderColor: "hsl(var(--forge-border))",
@@ -321,13 +324,15 @@ function AssetLibraryGridCard({
     isFavorite,
     isSelected,
     onOpenAsset,
+    attachToSelectionMode,
     onSelectInfo,
     onToggleFavorite,
 }: {
     asset: AssetLibraryItem
     isFavorite: boolean
     isSelected: boolean
-    onOpenAsset: (stepId: string) => void
+    onOpenAsset: (asset: AssetLibraryItem, options?: { attachToActiveTool?: boolean }) => void
+    attachToSelectionMode: boolean
     onSelectInfo: (assetId: string) => void
     onToggleFavorite: (assetId: string) => void
 }) {
@@ -344,7 +349,7 @@ function AssetLibraryGridCard({
         >
             <button
                 type="button"
-                onClick={() => onOpenAsset(asset.stepId)}
+                onClick={() => onOpenAsset(asset, { attachToActiveTool: attachToSelectionMode && asset.assetKind === "model" })}
                 className="group relative block aspect-square w-full overflow-hidden"
                 title="Open in viewer"
             >
