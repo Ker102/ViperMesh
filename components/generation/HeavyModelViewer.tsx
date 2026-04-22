@@ -291,6 +291,12 @@ function disposeLoadedAssetResources(root: THREE.Object3D) {
         if (mesh.geometry) {
             geometrySet.add(mesh.geometry);
         }
+        const cachedSourceGeometry = mesh.userData.__inspectionGeometrySource as THREE.BufferGeometry | undefined;
+        const cachedSmoothGeometry = mesh.userData.__inspectionGeometrySmooth as THREE.BufferGeometry | undefined;
+        const cachedFlatGeometry = mesh.userData.__inspectionGeometryFlat as THREE.BufferGeometry | undefined;
+        if (cachedSourceGeometry) geometrySet.add(cachedSourceGeometry);
+        if (cachedSmoothGeometry) geometrySet.add(cachedSmoothGeometry);
+        if (cachedFlatGeometry) geometrySet.add(cachedFlatGeometry);
 
         const originalMaterials =
             (mesh.userData.__originalMaterials as THREE.Material[] | undefined) ??
@@ -541,6 +547,29 @@ function copyCommonMaterialProps(
     dest.needsUpdate = true;
 }
 
+function buildPhongPreviewMaterial(
+    original: THREE.Material,
+    flatShading: boolean,
+    maxAnisotropy: number,
+) {
+    const material = new THREE.MeshPhongMaterial({
+        color: "#ffffff",
+        flatShading,
+        side: THREE.DoubleSide,
+        shininess: 14,
+        specular: new THREE.Color("#1f2937"),
+        reflectivity: 0.03,
+    });
+    copyCommonMaterialProps(material, original, flatShading, maxAnisotropy);
+    material.side = THREE.DoubleSide;
+    material.flatShading = flatShading;
+    material.combine = THREE.MultiplyOperation;
+    material.reflectivity = 0.03;
+    material.shininess = 14;
+    material.needsUpdate = true;
+    return material;
+}
+
 function buildReplacementMaterial(
     original: THREE.Material,
     mode: HeavyInspectionMode,
@@ -567,35 +596,24 @@ function buildReplacementMaterial(
             return material;
         }
 
+        if (!pbrEnabled) {
+            return buildPhongPreviewMaterial(original, flatShading, maxAnisotropy);
+        }
+
         const material = new THREE.MeshStandardMaterial({
             color: "#ffffff",
             flatShading,
             side: THREE.DoubleSide,
-            metalness: pbrEnabled ? previewMetalness : 0,
-            roughness: pbrEnabled ? previewRoughness : 0.95,
+            metalness: previewMetalness,
+            roughness: previewRoughness,
         });
         copyCommonMaterialProps(material, original, flatShading, maxAnisotropy);
         material.side = THREE.DoubleSide;
         material.flatShading = flatShading;
-        material.envMapIntensity = pbrEnabled ? 1.45 : 0.04;
-        material.aoMapIntensity = pbrEnabled ? 0.2 : 0;
-
-        if (pbrEnabled) {
-            material.metalness = previewMetalness;
-            material.roughness = previewRoughness;
-            material.needsUpdate = true;
-            return material;
-        }
-
-        material.normalMap = null;
-        material.metalnessMap = null;
-        material.roughnessMap = null;
-        material.aoMap = null;
-        material.emissiveMap = null;
-        material.emissive.set("#000000");
-        material.emissiveIntensity = 0;
-        material.metalness = 0;
-        material.roughness = 0.95;
+        material.envMapIntensity = 1.45;
+        material.aoMapIntensity = 0.2;
+        material.metalness = previewMetalness;
+        material.roughness = previewRoughness;
         material.needsUpdate = true;
         return material;
     }
@@ -658,22 +676,40 @@ function buildReplacementMaterial(
     });
 }
 
-function prepareInspectionGeometry(root: THREE.Object3D) {
-    root.traverse((child) => {
-        const mesh = child as THREE.Mesh;
-        if (!mesh.isMesh || !mesh.geometry) return;
+function getInspectionGeometryVariant(mesh: THREE.Mesh, shadingMode: HeavyShadingMode) {
+    const sourceKey = "__inspectionGeometrySource";
+    const variantKey =
+        shadingMode === "flat" ? "__inspectionGeometryFlat" : "__inspectionGeometrySmooth";
 
-        if (!mesh.userData.__inspectionGeometryCloned) {
-            mesh.geometry = mesh.geometry.clone();
-            mesh.userData.__inspectionGeometryCloned = true;
-        }
+    if (!mesh.userData[sourceKey]) {
+        mesh.userData[sourceKey] = mesh.geometry.clone();
+    }
 
-        const geometry = mesh.geometry as THREE.BufferGeometry;
+    if (!mesh.userData[variantKey]) {
+        const sourceGeometry = mesh.userData[sourceKey] as THREE.BufferGeometry;
+        const geometry =
+            shadingMode === "flat"
+                ? (sourceGeometry.index ? sourceGeometry.toNonIndexed() : sourceGeometry.clone())
+                : sourceGeometry.clone();
+
+        geometry.deleteAttribute("normal");
         geometry.computeVertexNormals();
         geometry.normalizeNormals();
         geometry.computeBoundingBox();
         geometry.computeBoundingSphere();
         geometry.attributes.normal.needsUpdate = true;
+        mesh.userData[variantKey] = geometry;
+    }
+
+    return mesh.userData[variantKey] as THREE.BufferGeometry;
+}
+
+function prepareInspectionGeometry(root: THREE.Object3D, shadingMode: HeavyShadingMode) {
+    root.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh || !mesh.geometry) return;
+
+        mesh.geometry = getInspectionGeometryVariant(mesh, shadingMode);
     });
 }
 
@@ -747,7 +783,7 @@ function applyInspectionMaterials(
     previewRoughness: number,
     maxAnisotropy: number,
 ) {
-    prepareInspectionGeometry(root);
+    prepareInspectionGeometry(root, shadingMode);
 
     root.traverse((child) => {
         const mesh = child as THREE.Mesh;

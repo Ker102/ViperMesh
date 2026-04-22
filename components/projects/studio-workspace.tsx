@@ -1013,6 +1013,8 @@ function NeuralViewerStage({
         wireframe: "Wireframe",
         stats: "Stats",
     }[inspectionMode]
+    const shadingControlsEnabled = !(inspectionMode === "material" && unlitEnabled)
+    const pbrControlsEnabled = !(inspectionMode === "material" && unlitEnabled)
 
     return (
         <div
@@ -1176,20 +1178,38 @@ function NeuralViewerStage({
                                     <button
                                         type="button"
                                         onClick={() => setShadingMode("smooth")}
+                                        disabled={!shadingControlsEnabled}
                                         className="rounded-full px-2.5 py-1 text-[11px] font-medium transition"
                                         style={shadingMode === "smooth"
-                                            ? { backgroundColor: "rgba(255,255,255,0.16)", color: "white" }
-                                            : { color: "rgba(226,232,240,0.78)" }}
+                                            ? {
+                                                backgroundColor: "rgba(255,255,255,0.16)",
+                                                color: "white",
+                                                opacity: shadingControlsEnabled ? 1 : 0.45,
+                                            }
+                                            : {
+                                                color: "rgba(226,232,240,0.78)",
+                                                opacity: shadingControlsEnabled ? 1 : 0.45,
+                                            }}
+                                        title={shadingControlsEnabled ? "Smooth shading" : "Disabled while unlit is on"}
                                     >
                                         Smooth
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => setShadingMode("flat")}
+                                        disabled={!shadingControlsEnabled}
                                         className="rounded-full px-2.5 py-1 text-[11px] font-medium transition"
                                         style={shadingMode === "flat"
-                                            ? { backgroundColor: "rgba(255,255,255,0.16)", color: "white" }
-                                            : { color: "rgba(226,232,240,0.78)" }}
+                                            ? {
+                                                backgroundColor: "rgba(255,255,255,0.16)",
+                                                color: "white",
+                                                opacity: shadingControlsEnabled ? 1 : 0.45,
+                                            }
+                                            : {
+                                                color: "rgba(226,232,240,0.78)",
+                                                opacity: shadingControlsEnabled ? 1 : 0.45,
+                                            }}
+                                        title={shadingControlsEnabled ? "Flat shading" : "Disabled while unlit is on"}
                                     >
                                         Flat
                                     </button>
@@ -1202,10 +1222,20 @@ function NeuralViewerStage({
                                     <button
                                         type="button"
                                         onClick={() => setPbrEnabled((current) => !current)}
+                                        disabled={!pbrControlsEnabled}
                                         className="rounded-full px-2.5 py-1 text-[11px] font-medium transition"
                                         style={pbrEnabled
-                                            ? { backgroundColor: "rgba(45,212,191,0.2)", color: "white" }
-                                            : { backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(226,232,240,0.78)" }}
+                                            ? {
+                                                backgroundColor: "rgba(45,212,191,0.2)",
+                                                color: "white",
+                                                opacity: pbrControlsEnabled ? 1 : 0.45,
+                                            }
+                                            : {
+                                                backgroundColor: "rgba(255,255,255,0.08)",
+                                                color: "rgba(226,232,240,0.78)",
+                                                opacity: pbrControlsEnabled ? 1 : 0.45,
+                                            }}
+                                        title={pbrControlsEnabled ? "Toggle PBR shading" : "Disabled while unlit is on"}
                                     >
                                         {pbrEnabled ? "On" : "Off"}
                                     </button>
