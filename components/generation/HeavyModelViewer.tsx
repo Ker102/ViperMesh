@@ -1274,12 +1274,12 @@ function HeavyModelViewerInner({
                 throw new Error(`Failed to resolve local file (${response.status})`);
             }
 
-            const payload = (await response.json()) as { localPath?: string; error?: string };
-            if (!payload.localPath) {
+            const payload = (await response.json()) as { relativePath?: string; error?: string };
+            if (!payload.relativePath) {
                 throw new Error(payload.error ?? "Resolved file path is missing");
             }
 
-            const revealResult = await window.vipermesh!.revealItemInFolder(payload.localPath);
+            const revealResult = await window.vipermesh!.revealItemInFolder(payload.relativePath);
             if (!revealResult.success) {
                 throw new Error(revealResult.error ?? "Desktop shell refused the file reveal request");
             }

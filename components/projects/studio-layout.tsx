@@ -24,6 +24,11 @@ function isModelAssetUrl(viewerUrl?: string | null) {
     return /\.(glb|gltf|fbx|obj|stl)(?:$|[?#])/i.test(viewerUrl)
 }
 
+function getToolInputKeyByType(toolId: string, type: "mesh" | "image"): string | null {
+    const tool = getToolById(toolId)
+    return tool?.inputs.find((input) => input.type === type)?.key ?? null
+}
+
 // ── API persistence helpers (replaces localStorage) ─────────────
 async function fetchPersistedSteps(projectId: string): Promise<WorkflowTimelineStep[]> {
     try {
@@ -563,11 +568,14 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         if (!targetTool) return
 
         const launchInputs: Record<string, string> = {}
-        if (targetTool.inputs.some((input) => input.type === "mesh")) {
-            launchInputs.meshUrl = asset.viewerUrl
+        const meshInputKey = getToolInputKeyByType(targetTool.id, "mesh")
+        const imageInputKey = getToolInputKeyByType(targetTool.id, "image")
+
+        if (meshInputKey) {
+            launchInputs[meshInputKey] = asset.viewerUrl
         }
-        if (asset.referenceImage && targetTool.inputs.some((input) => input.type === "image")) {
-            launchInputs.imageUrl = asset.referenceImage
+        if (asset.referenceImage && imageInputKey) {
+            launchInputs[imageInputKey] = asset.referenceImage
         }
 
         setSelectedStepId(null)
@@ -607,7 +615,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                 toolName: asset.toolName,
                 status: "done",
                 hiddenFromTimeline: true,
-                inputs: { meshUrl: asset.viewerUrl },
+                inputs: { viewerUrl: asset.viewerUrl },
                 neuralState: {
                     viewerUrl: asset.viewerUrl,
                     viewerLabel: asset.viewerLabel,

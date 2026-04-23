@@ -105,7 +105,9 @@ function Ensure-ContainerApp {
         $effectiveEnvVars += "API_BEARER_TOKEN=secretref:apitoken"
     }
 
-    if (Test-ContainerAppExists -Name $AppName) {
+    $isNewApp = -not (Test-ContainerAppExists -Name $AppName)
+
+    if (-not $isNewApp) {
         Write-Host "Updating Container App $AppName..."
         if ($ApiToken) {
             az containerapp secret set `
@@ -170,6 +172,15 @@ function Ensure-ContainerApp {
 
     if (-not $UseAnonymousRegistryPull.IsPresent) {
         Ensure-SystemIdentityAndRegistry -AppName $AppName -RegistryServer $script:RegistryServer -RegistryId $script:RegistryId
+
+        if ($isNewApp) {
+            Start-Sleep -Seconds 10
+            az containerapp update `
+                --name $AppName `
+                --resource-group $ResourceGroup `
+                --image $Image `
+                --only-show-errors 1>$null
+        }
     }
 }
 

@@ -113,7 +113,7 @@ export function buildProjectAssetLibrary(generatedAssets: GeneratedAssetItem[]):
         const assetKind = classifyKind(asset)
         return {
             ...asset,
-            librarySource: "generated",
+            librarySource: asset.librarySource,
             assetKind,
             densityBucket,
             libraryCategoryIds: classifyCategoryIds(asset),

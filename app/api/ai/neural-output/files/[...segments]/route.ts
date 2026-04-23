@@ -1,8 +1,14 @@
 import path from "node:path"
-import { readFile } from "node:fs/promises"
+import { createReadStream } from "node:fs"
 import { NextRequest, NextResponse } from "next/server"
+import { Readable } from "node:stream"
 import { auth } from "@/lib/auth"
-import { resolveNeuralOutputPath } from "@/lib/neural/output-files"
+import { prisma } from "@/lib/db"
+import {
+    getImportedNeuralOutputProjectId,
+    resolveNeuralOutputPath,
+    sanitizeDownloadFilename,
+} from "@/lib/neural/output-files"
 
 function getContentType(filePath: string): string {
     switch (path.extname(filePath).toLowerCase()) {
@@ -58,19 +64,37 @@ export async function GET(
         return NextResponse.json({ error: "Missing asset path" }, { status: 400 })
     }
 
-    const relativePath = segments.map((segment) => decodeURIComponent(segment)).join("/")
+    let relativePath: string
+    try {
+        relativePath = segments.map((segment) => decodeURIComponent(segment)).join("/")
+    } catch {
+        return NextResponse.json({ error: "Invalid asset path" }, { status: 400 })
+    }
+
     const safePath = resolveNeuralOutputPath(relativePath)
     if (!safePath) {
         return NextResponse.json({ error: "Invalid asset path" }, { status: 400 })
     }
 
+    const importedProjectId = getImportedNeuralOutputProjectId(safePath)
+    if (importedProjectId) {
+        const project = await prisma.project.findFirst({
+            where: { id: importedProjectId, userId: session.user.id, isDeleted: false },
+            select: { id: true },
+        })
+
+        if (!project) {
+            return NextResponse.json({ error: "Asset file not found" }, { status: 404 })
+        }
+    }
+
     try {
-        const buffer = await readFile(safePath)
         const shouldDownload = request.nextUrl.searchParams.get("download") === "1"
-        return new NextResponse(new Uint8Array(buffer), {
+        const stream = Readable.toWeb(createReadStream(safePath)) as ReadableStream
+        return new NextResponse(stream, {
             headers: {
                 "Content-Type": getContentType(safePath),
-                "Content-Disposition": `${shouldDownload ? "attachment" : "inline"}; filename="${path.basename(safePath)}"`,
+                "Content-Disposition": `${shouldDownload ? "attachment" : "inline"}; filename="${sanitizeDownloadFilename(path.basename(safePath))}"`,
                 "Cache-Control": "no-store",
             },
         })

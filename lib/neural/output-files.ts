@@ -48,22 +48,20 @@ export function resolveNeuralOutputPath(candidatePath: string): string | null {
 }
 
 export function buildNeuralOutputUrl(modelPath: string): string {
-    const safePath = resolveNeuralOutputPath(modelPath)
-    if (!safePath) {
+    const relativePath = getNeuralOutputRelativePath(modelPath)
+    if (!relativePath) {
         throw new Error("Neural output path must resolve inside the output directory")
     }
 
-    const relativePath = path.relative(getCanonicalOutputRoot(), safePath).split(path.sep).join("/")
     return `/api/ai/neural-output?path=${encodeURIComponent(relativePath)}`
 }
 
 export function buildNeuralOutputFileUrl(modelPath: string): string {
-    const safePath = resolveNeuralOutputPath(modelPath)
-    if (!safePath) {
+    const relativePath = getNeuralOutputRelativePath(modelPath)
+    if (!relativePath) {
         throw new Error("Neural output path must resolve inside the output directory")
     }
 
-    const relativePath = path.relative(getCanonicalOutputRoot(), safePath).split(path.sep).join("/")
     const encodedSegments = relativePath
         .split("/")
         .filter(Boolean)
@@ -71,6 +69,38 @@ export function buildNeuralOutputFileUrl(modelPath: string): string {
         .join("/")
 
     return `/api/ai/neural-output/files/${encodedSegments}`
+}
+
+export function getNeuralOutputRelativePath(candidatePath: string): string | null {
+    const safePath = resolveNeuralOutputPath(candidatePath)
+    if (!safePath) {
+        return null
+    }
+
+    return path.relative(getCanonicalOutputRoot(), safePath).split(path.sep).join("/")
+}
+
+export function getImportedNeuralOutputProjectId(candidatePath: string): string | null {
+    const relativePath = getNeuralOutputRelativePath(candidatePath)
+    if (!relativePath) {
+        return null
+    }
+
+    const segments = relativePath.split("/").filter(Boolean)
+    if (segments[0] !== "imports") {
+        return null
+    }
+
+    return segments[1] ?? null
+}
+
+export function sanitizeDownloadFilename(filename: string): string {
+    const sanitized = filename
+        .replace(/[\r\n"]/g, "_")
+        .replace(/[^\x20-\x7E]/g, "_")
+        .trim()
+
+    return sanitized || "download"
 }
 
 export function extractNeuralOutputRelativePath(candidateUrl: string): string | null {
@@ -82,7 +112,7 @@ export function extractNeuralOutputRelativePath(candidateUrl: string): string | 
         const parsed = new URL(candidateUrl, baseUrl)
         if (parsed.pathname === "/api/ai/neural-output") {
             const relativePath = parsed.searchParams.get("path")
-            return relativePath ? decodeURIComponent(relativePath) : null
+            return relativePath || null
         }
 
         const pathPrefix = "/api/ai/neural-output/files/"

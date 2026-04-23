@@ -37,17 +37,17 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const session = await auth()
+    
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     if (!STRIPE_ENABLED || !stripe) {
       return NextResponse.json(
         { error: "Billing is not configured in this environment" },
         { status: 503 }
       )
-    }
-
-    const session = await auth()
-    
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const { priceId, successUrl, cancelUrl } = await req.json()

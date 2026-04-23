@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { prisma } from "@/lib/db"
 import { readModelStats } from "@/lib/neural/model-stats"
-import { resolveNeuralOutputPath } from "@/lib/neural/output-files"
+import { getImportedNeuralOutputProjectId, resolveNeuralOutputPath } from "@/lib/neural/output-files"
 
 export async function GET(request: NextRequest) {
     const session = await auth()
@@ -19,11 +20,22 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Invalid model path" }, { status: 400 })
     }
 
+    const importedProjectId = getImportedNeuralOutputProjectId(safePath)
+    if (importedProjectId) {
+        const project = await prisma.project.findFirst({
+            where: { id: importedProjectId, userId: session.user.id, isDeleted: false },
+            select: { id: true },
+        })
+
+        if (!project) {
+            return NextResponse.json({ error: "Model file not found" }, { status: 404 })
+        }
+    }
+
     try {
         const stats = await readModelStats(safePath)
         return NextResponse.json({ stats })
-    } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to read model stats"
-        return NextResponse.json({ error: message }, { status: 500 })
+    } catch {
+        return NextResponse.json({ error: "Failed to read model stats" }, { status: 500 })
     }
 }

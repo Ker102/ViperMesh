@@ -13,43 +13,77 @@ param(
 
 $ErrorActionPreference = "Stop"
 $env:PYTHONIOENCODING = "utf-8"
+$trackingTag = "{0}-track-{1}" -f $Tag, ([guid]::NewGuid().ToString("N").Substring(0, 12))
+$runLookupDeadline = (Get-Date).AddMinutes(5)
+$statusDeadline = (Get-Date).AddSeconds($TimeoutSeconds + 600)
 
-$beforeRuns = @(az acr task list-runs -r $RegistryName --query "[].runId" -o tsv 2>$null)
+Write-Host "Queueing ACR build for $ImageName`:$Tag (tracking tag: $trackingTag)"
 
-az acr build `
+$null = az acr build `
     -r $RegistryName `
     -f $Dockerfile `
     -t "$ImageName`:$Tag" `
+    -t "$ImageName`:$trackingTag" `
     --timeout $TimeoutSeconds `
     --no-logs `
-    $Context | Out-Null
+    --no-wait `
+    -o json `
+    $Context
 
-$deadline = (Get-Date).AddMinutes(10)
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to queue ACR build for $ImageName`:$Tag."
+}
+
 $runId = $null
-
 do {
-    $currentRuns = @(az acr task list-runs -r $RegistryName --query "[].runId" -o tsv)
-    $runId = $currentRuns | Where-Object { $_ -and $_ -notin $beforeRuns } | Select-Object -First 1
+    $runId = az acr task list-runs `
+        -r $RegistryName `
+        --image "$ImageName`:$trackingTag" `
+        --top 1 `
+        --query "[0].runId" `
+        -o tsv
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to look up the queued ACR build run for tracking tag $trackingTag."
+    }
+
     if ($runId) { break }
     Start-Sleep -Seconds 5
-} while ((Get-Date) -lt $deadline)
+} while ((Get-Date) -lt $runLookupDeadline)
 
 if (-not $runId) {
-    throw "Could not determine the ACR run id for the queued build."
+    throw "Could not determine the ACR run id for the queued build tagged as $ImageName`:$trackingTag."
 }
 
 Write-Host "Queued ACR build run: $runId"
 
 do {
-    $status = az acr task list-runs -r $RegistryName --query "[?runId=='$runId'].status | [0]" -o tsv
+    $status = az acr task list-runs `
+        -r $RegistryName `
+        --image "$ImageName`:$trackingTag" `
+        --top 1 `
+        --query "[0].status" `
+        -o tsv
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to query ACR build status for run $runId."
+    }
+
     Write-Host "$(Get-Date -Format s) $runId $status"
-    if ($status -and $status -notin @("Queued", "Running", "Started")) {
-        if ($status -ne "Succeeded") {
-            throw "ACR build $runId failed with status: $status"
-        }
+
+    if ($status -eq "Succeeded") {
         break
     }
+
+    if ($status -and $status -notin @("Queued", "Running", "Started")) {
+        throw "ACR build $runId failed with status: $status"
+    }
+
     Start-Sleep -Seconds 15
-} while ($true)
+} while ((Get-Date) -lt $statusDeadline)
+
+if ((Get-Date) -ge $statusDeadline) {
+    throw "ACR build $runId did not finish before the polling deadline."
+}
 
 Write-Host "ACR build succeeded: $ImageName`:$Tag"

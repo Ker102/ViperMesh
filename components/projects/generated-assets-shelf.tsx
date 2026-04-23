@@ -340,7 +340,7 @@ function AssetLibraryGridCard({
 
     return (
         <div
-            className="overflow-hidden rounded-2xl border transition-all duration-200"
+            className="relative overflow-hidden rounded-2xl border transition-all duration-200"
             style={{
                 borderColor: isSelected ? "hsl(var(--forge-accent))" : "hsl(var(--forge-border))",
                 backgroundColor: "hsl(var(--forge-surface-dim))",
@@ -350,85 +350,81 @@ function AssetLibraryGridCard({
             <button
                 type="button"
                 onClick={() => onOpenAsset(asset, { attachToActiveTool: attachToSelectionMode && asset.assetKind === "model" })}
-                className="group relative block aspect-square w-full overflow-hidden"
+                className="group block w-full text-left"
                 title="Open in viewer"
             >
-                <AssetPreviewTile
-                    imageUrl={asset.previewImageUrl}
-                    alt={asset.viewerLabel ?? asset.title}
-                    stageLabel={asset.stageLabel}
-                    providerLabel={asset.providerLabel}
-                    className="h-full w-full object-cover"
-                />
+                <div className="relative aspect-square w-full overflow-hidden">
+                    <AssetPreviewTile
+                        imageUrl={asset.previewImageUrl}
+                        alt={asset.viewerLabel ?? asset.title}
+                        stageLabel={asset.stageLabel}
+                        providerLabel={asset.providerLabel}
+                        className="h-full w-full object-cover"
+                    />
 
-                <span
-                    className="absolute left-2 top-2 rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]"
-                    style={{
-                        backgroundColor: "rgba(15,23,42,0.78)",
-                        color: "white",
-                    }}
-                >
-                    {asset.stageLabel ?? tool?.category ?? "Asset"}
-                </span>
+                    <span
+                        className="absolute left-2 top-2 rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]"
+                        style={{
+                            backgroundColor: "rgba(15,23,42,0.78)",
+                            color: "white",
+                        }}
+                    >
+                        {asset.stageLabel ?? tool?.category ?? "Asset"}
+                    </span>
 
-                <button
-                    type="button"
-                    onClick={(event) => {
-                        event.stopPropagation()
-                        onToggleFavorite(asset.id)
-                    }}
-                    className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full border transition hover:opacity-90"
-                    style={{
-                        borderColor: "rgba(255,255,255,0.22)",
-                        backgroundColor: "rgba(15,23,42,0.72)",
-                        color: isFavorite ? "#facc15" : "rgba(255,255,255,0.9)",
-                    }}
-                    aria-label={isFavorite ? "Remove favorite" : "Favorite asset"}
-                    title={isFavorite ? "Favorited" : "Add to favorites"}
-                >
-                    <Star className={`h-4 w-4 ${isFavorite ? "fill-current" : ""}`} />
-                </button>
+                    <span
+                        className="absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-full border"
+                        style={{
+                            borderColor: "rgba(255,255,255,0.22)",
+                            backgroundColor: "rgba(15,23,42,0.72)",
+                            color: "rgba(255,255,255,0.9)",
+                        }}
+                        aria-hidden="true"
+                    >
+                        <ArrowUpRight className="h-4 w-4" />
+                    </span>
+                </div>
 
-                <button
-                    type="button"
-                    onClick={(event) => {
-                        event.stopPropagation()
-                        onSelectInfo(asset.id)
-                    }}
-                    className="absolute bottom-2 left-2 inline-flex h-8 w-8 items-center justify-center rounded-full border transition hover:opacity-90"
-                    style={{
-                        borderColor: "rgba(255,255,255,0.22)",
-                        backgroundColor: "rgba(15,23,42,0.72)",
-                        color: "rgba(255,255,255,0.9)",
-                    }}
-                    aria-label="View asset details"
-                    title="View asset details"
-                >
-                    <Info className="h-4 w-4" />
-                </button>
-
-                <span
-                    className="absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-full border"
-                    style={{
-                        borderColor: "rgba(255,255,255,0.22)",
-                        backgroundColor: "rgba(15,23,42,0.72)",
-                        color: "rgba(255,255,255,0.9)",
-                    }}
-                    aria-hidden="true"
-                >
-                    <ArrowUpRight className="h-4 w-4" />
-                </span>
+                <div className="px-3 py-2.5">
+                    <p className="truncate text-sm font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
+                        {asset.viewerLabel ?? asset.title}
+                    </p>
+                    <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed" style={{ color: "hsl(var(--forge-text-muted))" }}>
+                        {asset.stageLabel ?? tool?.category ?? "Asset"}
+                        {asset.providerLabel ? ` • ${asset.providerLabel}` : ""}
+                    </p>
+                </div>
             </button>
 
-            <div className="px-3 py-2.5">
-                <p className="truncate text-sm font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
-                    {asset.viewerLabel ?? asset.title}
-                </p>
-                <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed" style={{ color: "hsl(var(--forge-text-muted))" }}>
-                    {asset.stageLabel ?? tool?.category ?? "Asset"}
-                    {asset.providerLabel ? ` • ${asset.providerLabel}` : ""}
-                </p>
-            </div>
+            <button
+                type="button"
+                onClick={() => onToggleFavorite(asset.id)}
+                className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full border transition hover:opacity-90"
+                style={{
+                    borderColor: "rgba(255,255,255,0.22)",
+                    backgroundColor: "rgba(15,23,42,0.72)",
+                    color: isFavorite ? "#facc15" : "rgba(255,255,255,0.9)",
+                }}
+                aria-label={isFavorite ? "Remove favorite" : "Favorite asset"}
+                title={isFavorite ? "Favorited" : "Add to favorites"}
+            >
+                <Star className={`h-4 w-4 ${isFavorite ? "fill-current" : ""}`} />
+            </button>
+
+            <button
+                type="button"
+                onClick={() => onSelectInfo(asset.id)}
+                className="absolute bottom-16 left-2 inline-flex h-8 w-8 items-center justify-center rounded-full border transition hover:opacity-90"
+                style={{
+                    borderColor: "rgba(255,255,255,0.22)",
+                    backgroundColor: "rgba(15,23,42,0.72)",
+                    color: "rgba(255,255,255,0.9)",
+                }}
+                aria-label="View asset details"
+                title="View asset details"
+            >
+                <Info className="h-4 w-4" />
+            </button>
         </div>
     )
 }

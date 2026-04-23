@@ -14,6 +14,7 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 from PIL import Image
+from starlette.background import BackgroundTask
 
 
 REPO_DIR = Path(os.environ.get("HUNYUAN_REPO_DIR", "/app/hunyuan3d"))
@@ -24,6 +25,9 @@ API_BEARER_TOKEN = os.environ.get("API_BEARER_TOKEN", "").strip()
 ENABLE_FLASHVDM = os.environ.get("ENABLE_FLASHVDM", "0") == "1"
 ENABLE_COMPILE = os.environ.get("ENABLE_COMPILE", "0") == "1"
 FLASHVDM_MC_ALGO = os.environ.get("FLASHVDM_MC_ALGO", "mc")
+
+if not API_BEARER_TOKEN:
+    raise RuntimeError("API_BEARER_TOKEN must be configured for the Hunyuan Shape API.")
 
 if str(HY3DSHAPE_DIR) not in sys.path:
     sys.path.insert(0, str(HY3DSHAPE_DIR))
@@ -50,9 +54,6 @@ MODEL_LOCK = threading.Lock()
 
 
 def require_auth(authorization: str | None) -> None:
-    if not API_BEARER_TOKEN:
-        return
-
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing bearer token")
 
@@ -64,7 +65,7 @@ def require_auth(authorization: str | None) -> None:
 def _decode_base64_payload(value: str) -> bytes:
     payload = value.split(",", 1)[1] if value.startswith("data:") and "," in value else value
     try:
-        return base64.b64decode(payload)
+        return base64.b64decode(payload, validate=True)
     except (ValueError, binascii.Error) as exc:
         raise HTTPException(status_code=422, detail=f"Invalid base64 payload: {exc}") from exc
 
@@ -111,6 +112,13 @@ def _export_mesh(mesh, output_path: Path) -> Path:
     return output_path
 
 
+def _cleanup_temp_file(candidate: Path) -> None:
+    try:
+        candidate.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
 app = FastAPI(
     title="Hunyuan Shape API",
     description="Azure-friendly image-to-shape wrapper for Hunyuan3D Shape 2.1",
@@ -132,7 +140,7 @@ async def health():
 
 
 @app.post("/generate")
-async def generate(request: ShapeRequest, authorization: str | None = Header(default=None)):
+def generate(request: ShapeRequest, authorization: str | None = Header(default=None)):
     require_auth(authorization)
 
     if not request.image:
@@ -152,8 +160,11 @@ async def generate(request: ShapeRequest, authorization: str | None = Header(def
             str(final_output),
             media_type="model/gltf-binary",
             filename=final_output.name,
+            background=BackgroundTask(_cleanup_temp_file, final_output),
         )
     except HTTPException:
+        _cleanup_temp_file(output_path)
         raise
     except Exception as exc:
+        _cleanup_temp_file(output_path)
         raise HTTPException(status_code=500, detail=f"Hunyuan Shape failed: {exc}") from exc

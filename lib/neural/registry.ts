@@ -161,8 +161,9 @@ export async function createNeuralClient(slug: ProviderSlug): Promise<Neural3DCl
     const hasRunPod = !!process.env.RUNPOD_API_KEY
     const hasRunPodPaint = hasRunPod && !!process.env.RUNPOD_ENDPOINT_HUNYUAN_PAINT
     const hasRunPodPart = hasRunPod && !!process.env.RUNPOD_ENDPOINT_HUNYUAN_PART
-    const hasDedicatedShapeEndpoint = !!process.env.HUNYUAN_SHAPE_API_URL
-    const hasDedicatedPaintEndpoint = !!process.env.HUNYUAN_PAINT_API_URL
+    const hasSharedHunyuanEndpoint = !!process.env.HUNYUAN_API_URL
+    const hasDedicatedShapeEndpoint = !!process.env.HUNYUAN_SHAPE_API_URL || hasSharedHunyuanEndpoint
+    const hasDedicatedPaintEndpoint = !!process.env.HUNYUAN_PAINT_API_URL || hasSharedHunyuanEndpoint
     const forceSelfHosted = providerPreference === "self-hosted"
     const forceFal = providerPreference === "fal"
 

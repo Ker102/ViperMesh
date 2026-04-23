@@ -5,7 +5,9 @@ import { prisma } from "@/lib/db"
 import Stripe from "stripe"
 
 export async function POST(req: Request) {
-  if (!STRIPE_ENABLED || !stripe) {
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim()
+
+  if (!STRIPE_ENABLED || !stripe || !webhookSecret) {
     return NextResponse.json(
       { error: "Stripe webhooks are not configured in this environment" },
       { status: 503 }
@@ -29,7 +31,7 @@ export async function POST(req: Request) {
     event = stripe.webhooks.constructEvent(
       body,
       signature,
-      process.env.STRIPE_WEBHOOK_SECRET!
+      webhookSecret
     )
   } catch (err) {
     console.error("Webhook signature verification failed:", err)

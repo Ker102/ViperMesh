@@ -969,11 +969,13 @@ function NeuralRunStatusBadge({ status }: { status: NeuralRunStatus }) {
 
 function buildToolLaunchInputs(tool: ToolEntry, meshUrl: string, referenceImage?: string): Record<string, string> {
     const inputs: Record<string, string> = {}
-    if (tool.inputs.some((input) => input.type === "mesh")) {
-        inputs.meshUrl = meshUrl
+    const meshInputKey = getMeshInputKey(tool)
+    const imageInputKey = getImageInputKey(tool)
+    if (meshInputKey) {
+        inputs[meshInputKey] = meshUrl
     }
-    if (referenceImage && tool.inputs.some((input) => input.type === "image")) {
-        inputs.imageUrl = referenceImage
+    if (referenceImage && imageInputKey) {
+        inputs[imageInputKey] = referenceImage
     }
     return inputs
 }
@@ -2452,6 +2454,8 @@ export function StudioWorkspace({
         if (!selectedTool || selectedTool.type === "blender_agent") return
         const meshInputKey = getMeshInputKey(selectedTool)
         if (!meshInputKey) return
+        const currentDraft = toolDrafts[selectedTool.id] ?? {}
+        if (currentDraft[meshInputKey]) return
         if (
             pendingMeshSelection?.target === "tool" &&
             pendingMeshSelection.toolId === selectedTool.id &&
@@ -2460,7 +2464,7 @@ export function StudioWorkspace({
             return
         }
 
-        requestToolMeshSelection(selectedTool.id, meshInputKey, toolDrafts[selectedTool.id] ?? {})
+        requestToolMeshSelection(selectedTool.id, meshInputKey, currentDraft)
     }, [pendingMeshSelection, requestToolMeshSelection, selectedTool, toolDrafts])
 
     const handleRunNeuralAgain = () => {
