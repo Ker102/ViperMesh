@@ -1028,7 +1028,7 @@ function NeuralViewerStage({
     const supportsTintControls = inspectionMode === "geometry" || inspectionMode === "wireframe"
     const supportsMaterialControls = inspectionMode === "material"
     const shadingControlsEnabled = !(inspectionMode === "material" && unlitEnabled)
-    const pbrControlsEnabled = !(inspectionMode === "material" && unlitEnabled)
+    const pbrControlsEnabled = supportsMaterialControls
 
     const viewSettingsOpen = showViewSettings && Boolean(viewerUrl) && inspectionMode !== "stats"
 
@@ -1268,7 +1268,7 @@ function NeuralViewerStage({
                                                                 color: "rgba(226,232,240,0.84)",
                                                                 opacity: pbrControlsEnabled ? 1 : 0.45,
                                                             }}
-                                                        title={pbrControlsEnabled ? "Toggle PBR shading" : "Disabled while unlit is on"}
+                                                        title="Toggle PBR shading"
                                                     >
                                                         <span>Physical</span>
                                                         <span>{pbrEnabled ? "On" : "Off"}</span>
@@ -1291,7 +1291,7 @@ function NeuralViewerStage({
                                                     </button>
                                                 </div>
                                             </div>
-                                            {pbrEnabled && !unlitEnabled && (
+                                            {pbrEnabled && (
                                                 <div className="space-y-3 rounded-2xl border px-3 py-3" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
                                                     <label className="flex items-center gap-3">
                                                         <span className="w-16 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>

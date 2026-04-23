@@ -684,16 +684,16 @@ function derivePbrFactors(original: THREE.Material) {
 
     const specularStrength = source.specular
         ? (source.specular.r + source.specular.g + source.specular.b) / 3
-        : 0.18;
-    const reflectivity = typeof source.reflectivity === "number" ? source.reflectivity : 0.2;
-    const shininess = typeof source.shininess === "number" ? source.shininess : 28;
+        : 0.08;
+    const reflectivity = typeof source.reflectivity === "number" ? source.reflectivity : 0.08;
+    const shininess = typeof source.shininess === "number" ? source.shininess : 18;
 
     const derivedMetalness = typeof source.metalness === "number"
         ? source.metalness
-        : THREE.MathUtils.clamp(specularStrength * 1.15 + reflectivity * 0.85, 0.16, 0.94);
+        : THREE.MathUtils.clamp(specularStrength * 0.55 + reflectivity * 0.35, 0.02, 0.52);
     const derivedRoughness = typeof source.roughness === "number"
         ? source.roughness
-        : THREE.MathUtils.clamp(1 - Math.min(shininess / 100, 1) * 0.9, 0.08, 0.64);
+        : THREE.MathUtils.clamp(1 - Math.min(shininess / 120, 1) * 0.72, 0.16, 0.82);
 
     return {
         metalness: derivedMetalness,
@@ -755,7 +755,7 @@ function buildReplacementMaterial(
         copyCommonMaterialProps(material, original, flatShading, maxAnisotropy);
         material.side = THREE.DoubleSide;
         material.flatShading = flatShading;
-        material.envMapIntensity = 1.9;
+        material.envMapIntensity = 0.82;
         material.aoMapIntensity = 0.2;
         material.metalness = resolvedMetalness;
         material.roughness = resolvedRoughness;
@@ -903,7 +903,7 @@ function SceneEnvironmentController({
         /* eslint-disable react-hooks/immutability */
         if (inspectionMode === "material" && !unlitEnabled) {
             scene.environment = envTextureRef.current;
-            scene.environmentIntensity = pbrEnabled ? 1.55 : 0.28;
+            scene.environmentIntensity = pbrEnabled ? 0.62 : 0.2;
         } else if (inspectionMode === "toon") {
             scene.environment = envTextureRef.current;
             scene.environmentIntensity = 0.38;
@@ -1157,10 +1157,10 @@ function HeavyModelViewerInner({
         : unlitEnabled
             ? 0.15
             : useFlatLighting
-                ? (pbrEnabled ? 0.26 : 0.18)
+                ? (pbrEnabled ? 0.18 : 0.24)
                 : pbrEnabled
-                    ? 0.62
-                    : 0.42;
+                    ? 0.34
+                    : 0.5;
     const materialHemisphereIntensity = !useMaterialView
         ? inspectionMode === "toon"
             ? 1.45
@@ -1170,10 +1170,10 @@ function HeavyModelViewerInner({
         : unlitEnabled
             ? 0.15
             : useFlatLighting
-                ? (pbrEnabled ? 0.36 : 0.22)
+                ? (pbrEnabled ? 0.24 : 0.34)
                 : pbrEnabled
-                    ? 1.15
-                    : 0.72;
+                    ? 0.62
+                    : 0.92;
     const keyDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
             ? 2.3
@@ -1183,10 +1183,10 @@ function HeavyModelViewerInner({
         : unlitEnabled
             ? 0.1
             : useFlatLighting
-                ? (pbrEnabled ? 2.9 : 2.4)
+                ? (pbrEnabled ? 2.15 : 2.4)
                 : pbrEnabled
-                    ? 2.1
-                    : 1.15;
+                    ? 1.35
+                    : 1.68;
     const fillDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
             ? 1.1
@@ -1196,10 +1196,10 @@ function HeavyModelViewerInner({
         : unlitEnabled
             ? 0.08
             : useFlatLighting
-                ? (pbrEnabled ? 0.22 : 0.16)
+                ? (pbrEnabled ? 0.16 : 0.22)
                 : pbrEnabled
-                    ? 0.95
-                    : 0.48;
+                    ? 0.42
+                    : 0.58;
     const coolDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
             ? 0.7
@@ -1209,10 +1209,10 @@ function HeavyModelViewerInner({
         : unlitEnabled
             ? 0.06
             : useFlatLighting
-                ? (pbrEnabled ? 0.18 : 0.12)
+                ? (pbrEnabled ? 0.12 : 0.18)
                 : pbrEnabled
-                    ? 0.62
-                    : 0.28;
+                    ? 0.22
+                    : 0.34;
     const rimDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
             ? 0.45
@@ -1222,10 +1222,10 @@ function HeavyModelViewerInner({
         : unlitEnabled
             ? 0.04
             : useFlatLighting
-                ? (pbrEnabled ? 0.12 : 0.08)
+                ? (pbrEnabled ? 0.08 : 0.12)
                 : pbrEnabled
-                    ? 0.32
-                    : 0.14;
+                    ? 0.12
+                    : 0.2;
 
     useEffect(() => {
         setStatus(modelExtension ? "loading" : "error");
