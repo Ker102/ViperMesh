@@ -17,7 +17,8 @@ from starlette.background import BackgroundTask
 
 REPO_DIR = Path(os.environ.get("HUNYUAN_REPO_DIR", "/app/hunyuan3d"))
 PAINT_DIR = REPO_DIR / "hy3dpaint"
-TEMP_ROOT = Path(os.environ.get("PAINT_WORK_DIR", tempfile.mkdtemp(prefix="azure_paint_")))
+_paint_work_dir = os.environ.get("PAINT_WORK_DIR")
+TEMP_ROOT = Path(_paint_work_dir) if _paint_work_dir else Path(tempfile.mkdtemp(prefix="azure_paint_"))
 API_BEARER_TOKEN = os.environ.get("API_BEARER_TOKEN", "").strip()
 
 if not API_BEARER_TOKEN:
@@ -46,7 +47,7 @@ class PaintRequest(BaseModel):
         default=None,
         description="Optional style/reference image as a data URL or base64 string",
     )
-    output_format: str = Field(default="glb", pattern="^(glb|obj)$")
+    output_format: str = Field(default="glb", pattern="^(glb)$")
 
 
 MODEL = None
@@ -223,7 +224,7 @@ def texturize(request: PaintRequest, authorization: str | None = Header(default=
             final_output = _convert_obj_output_to_glb(final_output, output_glb_path)
         return FileResponse(
             str(final_output),
-            media_type="model/gltf-binary" if request.output_format == "glb" else "application/octet-stream",
+            media_type="model/gltf-binary",
             filename=final_output.name,
             background=BackgroundTask(
                 _cleanup_temp_files,

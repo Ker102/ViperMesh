@@ -19,7 +19,8 @@ from starlette.background import BackgroundTask
 
 REPO_DIR = Path(os.environ.get("HUNYUAN_REPO_DIR", "/app/hunyuan3d"))
 HY3DSHAPE_DIR = REPO_DIR / "hy3dshape"
-TEMP_ROOT = Path(os.environ.get("SHAPE_WORK_DIR", tempfile.mkdtemp(prefix="azure_shape_")))
+_shape_work_dir = os.environ.get("SHAPE_WORK_DIR")
+TEMP_ROOT = Path(_shape_work_dir) if _shape_work_dir else Path(tempfile.mkdtemp(prefix="azure_shape_"))
 MODEL_PATH = os.environ.get("MODEL_PATH", "tencent/Hunyuan3D-2.1")
 API_BEARER_TOKEN = os.environ.get("API_BEARER_TOKEN", "").strip()
 ENABLE_FLASHVDM = os.environ.get("ENABLE_FLASHVDM", "0") == "1"
@@ -51,6 +52,7 @@ class ShapeRequest(BaseModel):
 MODEL = None
 BACKGROUND_REMOVER = None
 MODEL_LOCK = threading.Lock()
+INFERENCE_LOCK = threading.Lock()
 
 
 def require_auth(authorization: str | None) -> None:
@@ -149,12 +151,13 @@ def generate(request: ShapeRequest, authorization: str | None = Header(default=N
             detail="The self-hosted Hunyuan Shape service currently requires a reference image.",
         )
 
-    shape_pipeline, _ = _load_model()
     image = _prepare_image(request.image)
     output_path = TEMP_ROOT / f"shape_{uuid.uuid4().hex[:10]}.{request.output_format}"
 
     try:
-        mesh = shape_pipeline(image=image)[0]
+        shape_pipeline, _ = _load_model()
+        with INFERENCE_LOCK:
+            mesh = shape_pipeline(image=image)[0]
         final_output = _export_mesh(mesh, output_path)
         return FileResponse(
             str(final_output),

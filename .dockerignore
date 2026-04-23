@@ -2,5 +2,8 @@
 *
 
 # Only include the deploy directories needed for container builds
+!deploy/
 !deploy/runpod/
+!deploy/runpod/**
 !deploy/azure/
+!deploy/azure/**

@@ -1,9 +1,8 @@
 import path from "node:path"
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
-import { prisma } from "@/lib/db"
+import { userOwnsNeuralOutput } from "@/lib/neural/output-access"
 import {
-    getImportedNeuralOutputProjectId,
     getNeuralOutputRelativePath,
     resolveNeuralOutputPath,
 } from "@/lib/neural/output-files"
@@ -24,16 +23,9 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Invalid model path" }, { status: 400 })
     }
 
-    const importedProjectId = getImportedNeuralOutputProjectId(safePath)
-    if (importedProjectId) {
-        const project = await prisma.project.findFirst({
-            where: { id: importedProjectId, userId: session.user.id, isDeleted: false },
-            select: { id: true },
-        })
-
-        if (!project) {
-            return NextResponse.json({ error: "Model file not found" }, { status: 404 })
-        }
+    const ownsAsset = await userOwnsNeuralOutput(session.user.id, safePath)
+    if (!ownsAsset) {
+        return NextResponse.json({ error: "Model file not found" }, { status: 404 })
     }
 
     const relativePath = getNeuralOutputRelativePath(safePath)

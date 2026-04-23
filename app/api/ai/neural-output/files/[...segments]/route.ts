@@ -2,10 +2,10 @@ import path from "node:path"
 import { createReadStream } from "node:fs"
 import { NextRequest, NextResponse } from "next/server"
 import { Readable } from "node:stream"
+import { stat } from "node:fs/promises"
 import { auth } from "@/lib/auth"
-import { prisma } from "@/lib/db"
+import { userOwnsNeuralOutput } from "@/lib/neural/output-access"
 import {
-    getImportedNeuralOutputProjectId,
     resolveNeuralOutputPath,
     sanitizeDownloadFilename,
 } from "@/lib/neural/output-files"
@@ -76,26 +76,24 @@ export async function GET(
         return NextResponse.json({ error: "Invalid asset path" }, { status: 400 })
     }
 
-    const importedProjectId = getImportedNeuralOutputProjectId(safePath)
-    if (importedProjectId) {
-        const project = await prisma.project.findFirst({
-            where: { id: importedProjectId, userId: session.user.id, isDeleted: false },
-            select: { id: true },
-        })
-
-        if (!project) {
-            return NextResponse.json({ error: "Asset file not found" }, { status: 404 })
-        }
+    const ownsAsset = await userOwnsNeuralOutput(session.user.id, safePath)
+    if (!ownsAsset) {
+        return NextResponse.json({ error: "Asset file not found" }, { status: 404 })
     }
 
     try {
+        await stat(safePath)
         const shouldDownload = request.nextUrl.searchParams.get("download") === "1"
+        const contentType = getContentType(safePath)
+        const isSvg = path.extname(safePath).toLowerCase() === ".svg"
         const stream = Readable.toWeb(createReadStream(safePath)) as ReadableStream
         return new NextResponse(stream, {
             headers: {
-                "Content-Type": getContentType(safePath),
-                "Content-Disposition": `${shouldDownload ? "attachment" : "inline"}; filename="${sanitizeDownloadFilename(path.basename(safePath))}"`,
+                "Content-Type": contentType,
+                "Content-Disposition": `${shouldDownload || isSvg ? "attachment" : "inline"}; filename="${sanitizeDownloadFilename(path.basename(safePath))}"`,
                 "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+                ...(isSvg ? { "Content-Security-Policy": "sandbox" } : {}),
             },
         })
     } catch {

@@ -17,7 +17,8 @@ param(
     [int]$ShapeMaxReplicas = 3,
     [int]$PaintMinReplicas = 1,
     [int]$PaintMaxReplicas = 1,
-    [switch]$UseAnonymousRegistryPull
+    [switch]$UseAnonymousRegistryPull,
+    [string]$BootstrapImage = "mcr.microsoft.com/k8se/quickstart:latest"
 )
 
 $ErrorActionPreference = "Stop"
@@ -117,7 +118,7 @@ function Ensure-ContainerApp {
                 --only-show-errors 1>$null
         }
 
-        $args = @(
+        $cliArgs = @(
             "containerapp", "update",
             "--name", $AppName,
             "--resource-group", $ResourceGroup,
@@ -130,25 +131,16 @@ function Ensure-ContainerApp {
             "--set-env-vars"
         ) + $effectiveEnvVars
 
-        az @args --only-show-errors
-        az containerapp ingress enable `
-            --name $AppName `
-            --resource-group $ResourceGroup `
-            --type external `
-            --target-port 8080 `
-            --transport auto `
-            --only-show-errors 1>$null
+        az @cliArgs --only-show-errors
     } else {
         Write-Host "Creating Container App $AppName..."
-        $args = @(
+        $initialImage = if ($UseAnonymousRegistryPull.IsPresent) { $Image } else { $BootstrapImage }
+        $cliArgs = @(
             "containerapp", "create",
             "--name", $AppName,
             "--resource-group", $ResourceGroup,
             "--environment", $EnvironmentName,
-            "--image", $Image,
-            "--ingress", "external",
-            "--target-port", "8080",
-            "--transport", "auto",
+            "--image", $initialImage,
             "--cpu", $Cpu,
             "--memory", $Memory,
             "--min-replicas", "$MinReplicas",
@@ -156,18 +148,22 @@ function Ensure-ContainerApp {
             "--workload-profile-name", $WorkloadProfile
         )
 
-        if ($ApiToken) {
-            $args += @("--secrets", "apitoken=$ApiToken")
+        if ($UseAnonymousRegistryPull.IsPresent) {
+            $cliArgs += @("--ingress", "external", "--target-port", "8080", "--transport", "auto")
         }
 
-        $args += @("--env-vars")
-        $args += $effectiveEnvVars
+        if ($ApiToken) {
+            $cliArgs += @("--secrets", "apitoken=$ApiToken")
+        }
+
+        $cliArgs += @("--env-vars")
+        $cliArgs += $effectiveEnvVars
 
         if (-not $UseAnonymousRegistryPull.IsPresent) {
-            $args += @("--system-assigned", "--registry-server", $script:RegistryServer, "--registry-identity", "system")
+            $cliArgs += @("--system-assigned", "--registry-server", $script:RegistryServer, "--registry-identity", "system")
         }
 
-        az @args --only-show-errors
+        az @cliArgs --only-show-errors
     }
 
     if (-not $UseAnonymousRegistryPull.IsPresent) {
@@ -182,6 +178,14 @@ function Ensure-ContainerApp {
                 --only-show-errors 1>$null
         }
     }
+
+    az containerapp ingress enable `
+        --name $AppName `
+        --resource-group $ResourceGroup `
+        --type external `
+        --target-port 8080 `
+        --transport auto `
+        --only-show-errors 1>$null
 }
 
 $registry = az acr show --name $RegistryName --resource-group $ResourceGroup -o json | ConvertFrom-Json

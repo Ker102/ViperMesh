@@ -86,7 +86,7 @@ function buildPersistedNeuralState(run: ActiveNeuralRun): WorkflowTimelineNeural
         viewerSource: run.viewerSource,
         generationTimeMs: run.generationTimeMs,
         assetStats: run.assetStats ?? null,
-        assetOrigin: run.assetOrigin ?? "generated",
+        assetOrigin: run.assetOrigin ?? undefined,
     }
 }
 
@@ -2137,8 +2137,10 @@ export function StudioWorkspace({
 
     useEffect(() => {
         if (!selectedTool || selectedTool.type === "blender_agent" || !getMeshInputKey(selectedTool)) return
+        const meshInputKey = getMeshInputKey(selectedTool)
+        if (meshInputKey && toolDrafts[selectedTool.id]?.[meshInputKey]) return
         onOpenAssetLibrary()
-    }, [onOpenAssetLibrary, selectedTool])
+    }, [onOpenAssetLibrary, selectedTool, toolDrafts])
 
     useEffect(() => {
         if (!incomingLibrarySelection || !pendingMeshSelection) return
@@ -2267,10 +2269,11 @@ export function StudioWorkspace({
 
         const stepId = onNeuralRunStart(tool, inputs, existingStepId)
         const imageInputKey = getImageInputKey(tool)
+        const meshInputKey = getMeshInputKey(tool)
         const imageDataUrl = imageInputKey ? inputs[imageInputKey] : undefined
         const resolutionValue = inputs.resolution ? Number(inputs.resolution) : undefined
         const targetFacesValue = inputs.targetFaces ? Number(inputs.targetFaces) : undefined
-        const carriedViewerUrl = inputs.meshUrl || null
+        const carriedViewerUrl = meshInputKey ? inputs[meshInputKey] || null : null
         const linkedAsset = findGeneratedAssetByUrl(generatedAssets, carriedViewerUrl)
         const abortController = new AbortController()
 
@@ -2298,7 +2301,7 @@ export function StudioWorkspace({
                     provider: tool.provider,
                     prompt: inputs.prompt,
                     imageDataUrl,
-                    meshUrl: inputs.meshUrl,
+                    meshUrl: meshInputKey ? inputs[meshInputKey] : undefined,
                     resolution: Number.isFinite(resolutionValue) ? resolutionValue : undefined,
                     textureResolution: inputs.textureResolution,
                     targetFaces: Number.isFinite(targetFacesValue) ? targetFacesValue : undefined,
@@ -2509,9 +2512,11 @@ export function StudioWorkspace({
         const relativePath = extractNeuralOutputRelativePath(neuralRun.viewerUrl)
         if (!relativePath) return
 
-        let cancelled = false
+        const abortController = new AbortController()
 
-        fetch(`/api/ai/neural-output/stats?path=${encodeURIComponent(relativePath)}`)
+        fetch(`/api/ai/neural-output/stats?path=${encodeURIComponent(relativePath)}`, {
+            signal: abortController.signal,
+        })
             .then(async (response) => {
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`)
@@ -2519,7 +2524,7 @@ export function StudioWorkspace({
                 return response.json() as Promise<{ stats?: Partial<AssetInspectionStats> }>
             })
             .then((payload) => {
-                if (cancelled || !payload.stats) return
+                if (!payload.stats) return
                 setNeuralRun((current) => {
                     if (!current || current.viewerUrl !== neuralRun.viewerUrl) {
                         return current
@@ -2531,15 +2536,15 @@ export function StudioWorkspace({
                 })
             })
             .catch((statsError) => {
-                if (!cancelled) {
+                if (!(statsError instanceof DOMException && statsError.name === "AbortError")) {
                     console.warn("Failed to inspect generated asset", statsError)
                 }
             })
 
         return () => {
-            cancelled = true
+            abortController.abort()
         }
-    }, [generatedAssets, neuralRun])
+    }, [generatedAssets, neuralRun?.viewerUrl, neuralRun?.viewerSource, neuralRun?.assetStats])
 
     const handleContinueToSuggestedTool = (toolId: string) => {
         if (!neuralRun?.viewerUrl) return
@@ -2547,7 +2552,8 @@ export function StudioWorkspace({
         const targetTool = getToolById(toolId)
         if (!targetTool) return
 
-        const carriedReference = neuralRun.inputs.imageUrl ?? neuralRun.inputs.referenceImage
+        const sourceImageInputKey = getImageInputKey(neuralRun.tool)
+        const carriedReference = (sourceImageInputKey ? neuralRun.inputs[sourceImageInputKey] : undefined) ?? neuralRun.inputs.referenceImage
         const draft = buildToolLaunchInputs(targetTool, neuralRun.viewerUrl, carriedReference)
 
         setToolDrafts((prev) => ({

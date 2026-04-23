@@ -89,12 +89,12 @@ function getToonGradientTexture() {
     }
 
     const colors = new Uint8Array([
-        68, 76, 92,
-        126, 140, 166,
-        196, 210, 236,
-        250, 250, 255,
+        68, 76, 92, 255,
+        126, 140, 166, 255,
+        196, 210, 236, 255,
+        250, 250, 255, 255,
     ]);
-    const texture = new THREE.DataTexture(colors, 4, 1, THREE.RGBFormat);
+    const texture = new THREE.DataTexture(colors, 4, 1, THREE.RGBAFormat);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.magFilter = THREE.NearestFilter;
     texture.minFilter = THREE.NearestFilter;
@@ -732,13 +732,15 @@ function buildReplacementMaterial(
         }
 
         const derived = derivePbrFactors(original);
+        const metalnessAlpha = previewMetalness === 1 ? 0 : 0.42;
+        const roughnessAlpha = previewRoughness === 1 ? 0 : 0.32;
         const resolvedMetalness = THREE.MathUtils.clamp(
-            THREE.MathUtils.lerp(derived.metalness, previewMetalness, 0.42),
+            THREE.MathUtils.lerp(derived.metalness, previewMetalness, metalnessAlpha),
             0,
             1,
         );
         const resolvedRoughness = THREE.MathUtils.clamp(
-            THREE.MathUtils.lerp(derived.roughness, previewRoughness, 0.32),
+            THREE.MathUtils.lerp(derived.roughness, previewRoughness, roughnessAlpha),
             0.04,
             1,
         );
@@ -841,8 +843,7 @@ function getInspectionGeometryVariant(mesh: THREE.Mesh, shadingMode: HeavyShadin
                 return sourceGeometry.index ? sourceGeometry.toNonIndexed() : sourceGeometry.clone();
             }
 
-            const smoothSource = sourceGeometry.index ? sourceGeometry.clone() : mergeVertices(sourceGeometry.clone(), 1e-4);
-            return smoothSource.index ? smoothSource : mergeVertices(smoothSource, 1e-4);
+            return mergeVertices(sourceGeometry.clone(), 1e-4);
         })();
 
         geometry.deleteAttribute("normal");
@@ -1253,7 +1254,7 @@ function HeavyModelViewerInner({
             document.body.appendChild(anchor);
             anchor.click();
             anchor.remove();
-            URL.revokeObjectURL(objectUrl);
+            window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
         } catch (downloadError) {
             console.warn("HeavyModelViewer: falling back to direct download", downloadError);
             window.open(getDownloadUrl(safeUrl), "_blank", "noopener,noreferrer");

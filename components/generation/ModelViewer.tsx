@@ -331,7 +331,7 @@ export function ModelViewer({
             document.body.appendChild(anchor);
             anchor.click();
             anchor.remove();
-            URL.revokeObjectURL(objectUrl);
+            window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
         } catch (downloadError) {
             console.warn("ModelViewer: falling back to direct download", downloadError);
             window.open(safeUrl, "_blank", "noopener,noreferrer");
