@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { prisma } from "@/lib/db"
-import { stripe } from "@/lib/stripe"
+import { STRIPE_ENABLED, stripe } from "@/lib/stripe"
 
 /**
  * Session shape returned by auth() — matches the interface previously
@@ -29,6 +29,10 @@ export interface Session {
  * auth() invocation (idempotent — skips if already linked).
  */
 async function ensureStripeCustomer(userId: string) {
+  if (!STRIPE_ENABLED || !stripe) {
+    return
+  }
+
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
@@ -158,9 +162,11 @@ export async function auth(): Promise<Session | null> {
     }
 
     // Ensure Stripe customer exists (idempotent)
-    ensureStripeCustomer(dbUser.id).catch((err) =>
-      console.error("Background Stripe sync failed:", err)
-    )
+    if (STRIPE_ENABLED) {
+      ensureStripeCustomer(dbUser.id).catch((err) =>
+        console.error("Background Stripe sync failed:", err)
+      )
+    }
 
     return {
       user: {

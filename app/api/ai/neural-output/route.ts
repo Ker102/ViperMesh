@@ -1,8 +1,14 @@
 import path from "node:path"
-import { readFile } from "node:fs/promises"
+import { createReadStream } from "node:fs"
 import { NextRequest, NextResponse } from "next/server"
+import { Readable } from "node:stream"
+import { stat } from "node:fs/promises"
 import { auth } from "@/lib/auth"
-import { resolveNeuralOutputPath } from "@/lib/neural/output-files"
+import { userOwnsNeuralOutput } from "@/lib/neural/output-access"
+import {
+    resolveNeuralOutputPath,
+    sanitizeDownloadFilename,
+} from "@/lib/neural/output-files"
 
 export async function GET(request: NextRequest) {
     const session = await auth()
@@ -19,17 +25,26 @@ export async function GET(request: NextRequest) {
     if (!safePath) {
         return NextResponse.json({ error: "Invalid model path" }, { status: 400 })
     }
+
+    const ownsAsset = await userOwnsNeuralOutput(session.user.id, safePath)
+    if (!ownsAsset) {
+        return NextResponse.json({ error: "Model file not found" }, { status: 404 })
+    }
+
     if (path.extname(safePath).toLowerCase() !== ".glb") {
         return NextResponse.json({ error: "Only .glb neural outputs can be streamed" }, { status: 400 })
     }
 
     try {
-        const buffer = await readFile(safePath)
-        return new NextResponse(new Uint8Array(buffer), {
+        await stat(safePath)
+        const shouldDownload = request.nextUrl.searchParams.get("download") === "1"
+        const stream = Readable.toWeb(createReadStream(safePath)) as ReadableStream
+        return new NextResponse(stream, {
             headers: {
                 "Content-Type": "model/gltf-binary",
-                "Content-Disposition": `inline; filename="${path.basename(safePath)}"`,
+                "Content-Disposition": `${shouldDownload ? "attachment" : "inline"}; filename="${sanitizeDownloadFilename(path.basename(safePath))}"`,
                 "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
             },
         })
     } catch {

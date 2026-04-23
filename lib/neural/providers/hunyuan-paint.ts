@@ -4,10 +4,10 @@
  * Takes an untextured mesh + reference image and generates production-ready
  * PBR textures (albedo, roughness, metallic, normal).
  *
- * Uses the same server as Hunyuan Shape (api_server.py handles both models).
- *
  * Env vars:
- *  - HUNYUAN_API_URL  (same server as Shape — runs both models)
+ *  - HUNYUAN_PAINT_API_URL  (preferred dedicated paint endpoint)
+ *  - HUNYUAN_PAINT_API_TOKEN (optional bearer token for dedicated paint endpoint)
+ *  - HUNYUAN_API_URL        (legacy shared shape/paint endpoint fallback)
  */
 
 import { Neural3DClient } from "../base-client"
@@ -19,6 +19,7 @@ import type {
 } from "../types"
 import { PROVIDERS } from "../registry"
 import fs from "fs/promises"
+import { sanitizeGlbForPaint } from "../glb-sanitize"
 
 export class HunyuanPaintClient extends Neural3DClient {
     readonly name = "Hunyuan3D Paint 2.1"
@@ -26,16 +27,33 @@ export class HunyuanPaintClient extends Neural3DClient {
     readonly meta: Neural3DProviderMeta = PROVIDERS["hunyuan-paint"]
 
     private readonly baseUrl: string
+    private readonly apiToken?: string
 
     constructor() {
         super()
-        this.baseUrl = process.env.HUNYUAN_API_URL ?? "http://localhost:8080"
+        this.baseUrl =
+            process.env.HUNYUAN_PAINT_API_URL ??
+            process.env.HUNYUAN_API_URL ??
+            "http://localhost:8080"
+        this.apiToken = process.env.HUNYUAN_PAINT_API_TOKEN?.trim() || undefined
+    }
+
+    private buildHeaders(contentType?: string): HeadersInit {
+        const headers: Record<string, string> = {}
+        if (contentType) {
+            headers["Content-Type"] = contentType
+        }
+        if (this.apiToken) {
+            headers.Authorization = `Bearer ${this.apiToken}`
+        }
+        return headers
     }
 
     async healthCheck(): Promise<boolean> {
         try {
             const res = await fetch(`${this.baseUrl}/health`, {
                 method: "GET",
+                headers: this.buildHeaders(),
                 signal: AbortSignal.timeout(5_000),
             })
             return res.ok
@@ -61,10 +79,10 @@ export class HunyuanPaintClient extends Neural3DClient {
             let meshBase64: string
             if (request.meshUrl.startsWith("http")) {
                 const meshRes = await fetch(request.meshUrl)
-                const buf = Buffer.from(await meshRes.arrayBuffer())
+                const buf = sanitizeGlbForPaint(Buffer.from(await meshRes.arrayBuffer()))
                 meshBase64 = buf.toString("base64")
             } else {
-                const buf = await fs.readFile(request.meshUrl)
+                const buf = sanitizeGlbForPaint(await fs.readFile(request.meshUrl))
                 meshBase64 = buf.toString("base64")
             }
 
@@ -90,7 +108,7 @@ export class HunyuanPaintClient extends Neural3DClient {
 
             const response = await fetch(`${this.baseUrl}/texturize`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: this.buildHeaders("application/json"),
                 body: JSON.stringify(payload),
             })
 

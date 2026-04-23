@@ -1,5 +1,9 @@
 # Exclude everything from Docker build context
 *
 
-# Only include the deploy directory
+# Only include the deploy directories needed for container builds
+!deploy/
 !deploy/runpod/
+!deploy/runpod/**
+!deploy/azure/
+!deploy/azure/**

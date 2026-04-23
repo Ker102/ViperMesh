@@ -3,6 +3,67 @@
 ## Current Session: 2026-04-08
 
 ### What Was Done
+1. **Scaffolded the Azure GPU deployment direction for neural models:**
+   - Added `docs/plans/2026-04-08-azure-container-apps-neural-deployment.md`
+   - Captured the current preferred migration path:
+     - Azure Container Apps with serverless GPUs
+     - Azure Container Registry
+     - GitHub Actions CI/CD
+   - Explicitly documented that AKS is not the first migration target
+
+2. **Documented the key portability constraint between RunPod and Azure:**
+   - Added `deploy/azure/README.md`
+   - Confirmed from the existing code that the current images under `deploy/runpod/**` are RunPod worker containers whose entrypoint ends in `runpod.serverless.start(...)`
+   - That means they are **not** direct Azure Container Apps images and should not be treated as drop-in deploy targets for ACR + ACA
+
+3. **Defined the intended Azure service split:**
+   - `hunyuan-api`
+     - future Azure HTTP service for:
+       - `POST /generate`
+       - `POST /texturize`
+       - `GET /health`
+     - aligns with the existing `HUNYUAN_API_URL` client contract
+   - `hunyuan-part-api`
+     - future Azure HTTP service for:
+       - `POST /segment`
+       - `GET /health`
+     - aligns with the existing `HUNYUAN_PART_URL` contract
+
+4. **Added Azure CI/CD examples without enabling broken workflows prematurely:**
+   - Added `deploy/azure/github-actions/azure-neural-container-apps.yml.example`
+   - The example workflow documents the desired GitHub Actions path:
+     - GitHub OIDC login to Azure
+     - build/push to ACR
+     - update existing Azure Container App revisions
+   - Kept it as an **example** rather than an active workflow because the Azure-ready HTTP Dockerfiles do not exist yet
+
+5. **Added GitHub/Azure configuration docs for the future deployment path:**
+   - Added `deploy/azure/github-actions/vars-and-secrets.example.md`
+   - Documented the expected GitHub secrets:
+     - `AZURE_CLIENT_ID`
+     - `AZURE_TENANT_ID`
+     - `AZURE_SUBSCRIPTION_ID`
+   - Documented the expected GitHub variables:
+     - `AZURE_RESOURCE_GROUP`
+     - `AZURE_ACR_NAME`
+     - `AZURE_CONTAINER_APP_HUNYUAN_API`
+     - `AZURE_CONTAINER_APP_HUNYUAN_PART`
+
+6. **Created explicit placeholders for the future Azure HTTP images:**
+   - Added:
+     - `deploy/azure/hunyuan-api/README.md`
+     - `deploy/azure/hunyuan-part-api/README.md`
+   - This gives the repo a concrete home for the future Azure container implementations instead of leaving the migration path implicit
+
+### Notes
+- The current state is **infrastructure scaffolding only**.
+- No runtime provider switch to Azure was made yet.
+- The next actual implementation step, once ACR and the Container Apps path are ready, is to build the Azure-ready HTTP service images for:
+  - `hunyuan-api`
+  - `hunyuan-part-api`
+- Only after that should an active GitHub Actions deployment workflow be moved into `.github/workflows`.
+
+### What Was Done
 1. **Applied the verified CodeRabbit review fixes for PR #28:**
    - Treated CodeRabbit comments as hypotheses and only patched the ones that were defensible against the current code and runtime behavior
    - Skipped broader or ambiguous suggestions that would have required feature-scope changes rather than review-driven corrections
@@ -1039,6 +1100,65 @@
    - Cross-checked Tencent's official Hunyuan3D 2.1 setup guidance, which states they test with Python 3.10 and `torch==2.5.1`, `torchvision==0.20.1`, `torchaudio==2.5.1`, plus pinned `transformers==4.46.0`, `diffusers==0.30.0`, `accelerate==1.1.1`, and `huggingface-hub==0.30.2`
    - Updated `deploy/runpod/hunyuan-paint/Dockerfile` and `deploy/runpod/hunyuan-part/Dockerfile` to pin those core dependency versions instead of floating them, so future RunPod builds stop drifting into startup-crash combinations
    - Confirmed the Hugging Face repo reference itself is valid (`tencent/Hunyuan3D-2` / `tencent/Hunyuan3D-2.1`); the browser-side `404` came from checking an invalid page URL format with a colonized revision string rather than from a missing upstream model repository
+22. **Azure GPU Setup Hardening + Split Endpoint Prep**:
+   - While turning the Azure migration notes into a concrete setup checklist, identified an architectural mismatch in the first draft: the docs assumed a single `hunyuan-api` service for both Shape and Paint, but the current provider metadata and Azure GPU lanes make that a poor long-term fit because Shape belongs on the lighter lane while Paint belongs on the heavier lane
+   - Added dedicated runtime env-var support in the app clients: `lib/neural/providers/hunyuan-shape.ts` now prefers `HUNYUAN_SHAPE_API_URL` and falls back to `HUNYUAN_API_URL`, while `lib/neural/providers/hunyuan-paint.ts` now prefers `HUNYUAN_PAINT_API_URL` and falls back to the same legacy shared URL
+   - Updated the Azure migration scaffolding to recommend three services instead of one combined Hunyuan service: `hunyuan-shape-api`, `hunyuan-paint-api`, and `hunyuan-part-api`, while keeping the old combined `deploy/azure/hunyuan-api/README.md` only as a compatibility note
+   - Added `deploy/azure/setup-checklist.md` with the exact one-time Azure setup order: region choice (`Sweden Central`), ACR Premium, Container Apps environment, managed identity/AcrPull wiring, app names, recommended `minReplicas`/`maxReplicas`, GitHub Actions variables, and rollout order
+   - Added `deploy/azure/gpu-and-quota-reference.md` with the current ViperMesh GPU mapping and the exact quota labels/search terms to request for both Azure Container Apps (`Managed Environment Consumption T4 Gpus`, `Managed Environment Consumption NCA100 Gpus`) and AKS fallback (`Standard NCASv3_T4 Family vCPUs`, `Standard NCADS_A100_v4 Family vCPUs`)
+   - Updated the Azure GitHub Actions example and vars/secrets template so future CI/CD is already aligned with the split-service Azure layout instead of the earlier single combined app assumption
+23. **First Azure-Ready Hunyuan Service Implementation Slice**:
+   - Implemented a real Azure-ready `deploy/azure/hunyuan-shape-api/Dockerfile` and `start.sh` that run Tencent's official `Hunyuan3D-2.1` FastAPI `api_server.py` on `0.0.0.0:${PORT:-8080}`, rather than relying on a RunPod worker entrypoint
+   - Implemented `deploy/azure/hunyuan-paint-api/app.py` as a dedicated FastAPI wrapper for the existing ViperMesh `/texturize` contract, decoding base64 mesh/image payloads, lazily loading `Hunyuan3DPaintPipeline`, and returning a binary GLB/OBJ file response
+   - Added `deploy/azure/hunyuan-paint-api/Dockerfile` and `start.sh`, including the paint-specific `custom_rasterizer` and `DifferentiableRenderer` build steps from Tencent's official Hunyuan3D 2.1 setup instructions plus the Real-ESRGAN checkpoint download required by the paint stack
+   - Updated the Azure docs to reflect the actual state of the repo: Shape and Paint now have implemented HTTP container scaffolds, while `hunyuan-part-api` remains a planned later slice and should not yet be included in the active GitHub Actions deployment workflow
+24. **Azure CI/CD Activation + Current Environment Wiring**:
+   - Added the real workflow at `.github/workflows/deploy-azure-neural-gpu.yml`, activating build-and-push for `hunyuan-shape-api` and `hunyuan-paint-api` and supporting both Azure auth modes: `AZURE_CREDENTIALS` service-principal JSON or the OIDC-style `AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID`
+   - Added `deploy/azure/create-container-apps.ps1`, a PowerShell helper that targets the live Azure environment (`gpumodels`, `managedEnvironment-gpumodels-970d`, `vipershreg`, `T4profile`, `a100profile`) and can create or update the Shape and Paint Container Apps against the ACR images
+   - Verified with Azure CLI that the current registry is not anonymously pullable: `vipershreg` has `publicNetworkAccess=Enabled` but `anonymousPullEnabled=false`, so Container Apps still need registry auth unless anonymous pull is explicitly enabled later
+   - Updated the Azure setup docs and GitHub variable template with the current concrete Azure resource names plus the extra repository variables used by the new workflow and helper script
+25. **Azure Service Bearer Auth + OIDC Fix**:
+   - Added backend-only bearer token support to the Azure Shape and Paint paths so the services are no longer protected only by undisclosed URLs
+   - Implemented `deploy/azure/hunyuan-shape-api/app.py` as an authenticated FastAPI proxy in front of Tencent's local `api_server.py`, leaving `/health` open while protecting `/generate`
+   - Updated `deploy/azure/hunyuan-paint-api/app.py` to enforce an optional `API_BEARER_TOKEN` on `/texturize`, again leaving `/health` open for readiness checks
+   - Updated `lib/neural/providers/hunyuan-shape.ts` and `lib/neural/providers/hunyuan-paint.ts` to send `Authorization: Bearer ...` when `HUNYUAN_SHAPE_API_TOKEN` / `HUNYUAN_PAINT_API_TOKEN` are configured on the ViperMesh backend
+   - Updated `lib/neural/registry.ts` so dedicated Azure Shape/Paint endpoints take precedence over RunPod when `HUNYUAN_SHAPE_API_URL` / `HUNYUAN_PAINT_API_URL` are set
+   - Extended `deploy/azure/create-container-apps.ps1` so it can inject the service tokens into each Container App as secret-backed `API_BEARER_TOKEN` environment variables
+   - Verified and fixed the GitHub OIDC Azure app setup: the federated credential subject originally targeted `refs/heads/Main`, but the repo default branch is `main`, so the credential was replaced with `repo:Ker102/ViperMesh:ref:refs/heads/main`
+   - Added the missing GitHub secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` for the OIDC-based Azure deploy workflow
+26. **Local Azure Container Smoke-Test Harness**:
+   - Added `deploy/azure/docker-compose.local.yml` to run the Azure-targeted `hunyuan-shape-api` and `hunyuan-paint-api` images locally, without having to wait for another ACR build or Azure Container Apps rollout
+   - Added `deploy/azure/smoke-test-local.ps1`, a PowerShell smoke script that can build and launch the selected local service, wait for `/health`, and perform cheap contract checks before a cloud deployment
+   - The Paint smoke path now explicitly verifies that `RealESRGAN_x4plus.pth` exists at `/app/hunyuan3d/hy3dpaint/ckpt/RealESRGAN_x4plus.pth`, which would have caught the previous Azure checkpoint-path bug before the image was pushed
+   - The same script supports optional end-to-end local requests when a real input image or mesh path is provided, so we can choose between a fast boot/path smoke test and a heavier full request test
+   - Updated `deploy/azure/README.md` and `deploy/azure/setup-checklist.md` so the local Compose smoke test is now part of the expected pre-rollout path rather than tribal knowledge
+27. **Azure Paint Config Path Regression Fix**:
+   - Reproduced the latest Paint regression locally through the new Docker Compose smoke path instead of guessing from Azure-only failures
+   - Confirmed Tencent's `Hunyuan3DPaintConfig` defaults `multiview_cfg_path` to the relative path `hy3dpaint/cfgs/hunyuan-paint-pbr.yaml`, which only resolves if the process starts from the repository root
+   - Identified that the Azure wrapper runs from `/app`, so requests were failing at runtime with `No such file or directory: '/app/hy3dpaint/cfgs/hunyuan-paint-pbr.yaml'` even though the config file actually exists at `/app/hunyuan3d/hy3dpaint/cfgs/hunyuan-paint-pbr.yaml`
+   - Updated `deploy/azure/hunyuan-paint-api/app.py` so `load_model()` now overrides `config.multiview_cfg_path` to the absolute repo-aware path before constructing `Hunyuan3DPaintPipeline`
+   - Tightened `deploy/azure/smoke-test-local.ps1` to verify both required runtime assets for Paint: the RealESRGAN checkpoint and the `hunyuan-paint-pbr.yaml` config file, so this class of path regression is caught before the next Azure rollout
+   - Updated `deploy/azure/README.md` to document that both runtime assets are part of the expected local Paint smoke test
+28. **Azure Paint Health-Probe Concurrency Fix**:
+   - Investigated a later `503 upstream connect error or disconnect/reset before headers` failure and correlated it with a `~63.7s` request time plus a delayed container restart in Azure metrics, which did not match the documented Azure Container Apps ingress timeout (`240s`) and instead pointed to the app becoming unresponsive during inference
+   - Confirmed the paint wrapper used `async def /texturize` while performing long synchronous GPU/model work on the main event loop, which blocks `/health` responses during inference and lets Azure health probes mark the replica unhealthy even though the revision later recovers
+   - Updated `deploy/azure/hunyuan-paint-api/app.py` so `/texturize` is now a synchronous FastAPI handler, allowing FastAPI/Uvicorn to run the heavy work in the threadpool rather than on the event loop
+   - Added an `INFERENCE_LOCK` around the paint pipeline call to keep model access serialized inside the single replica while still allowing `/health` to respond concurrently
+   - This change is intended to stop long Paint requests from starving the health probes and triggering ingress-level upstream resets during otherwise valid inference runs
+29. **Azure Paint Memory Lift + Attachment Viewer Simplification**:
+   - Investigated the next failure round where Azure restarted the Paint replica again and the Studio input model preview reported `webglcontextlost`, even after the probe-starvation fix landed
+   - Confirmed from Azure metrics that the failing Paint request still ran for about `63.4s`, drove `MemoryPercentage` to `99%`, and then restarted the replica, shifting the likely root cause from ingress/probe starvation to process memory exhaustion during model load or inference
+   - Updated `deploy/azure/hunyuan-paint-api/app.py` to preload the paint model during FastAPI startup, so the Azure revision now has to prove it can hold the model before traffic is routed to it instead of failing only on the first user request
+   - Updated `deploy/azure/create-container-apps.ps1` defaults for Paint to a larger runtime envelope (`4 CPU`, `24Gi` memory) and reduced `PAINT_MAX_NUM_VIEW` from `6` to `4` to lower runtime pressure on the A100 lane
+   - Rolled the live Paint app to `vipershreg.azurecr.io/vipermesh/hunyuan-paint-api:memfix-20260419190251` and updated the active Azure revision to `vipermesh-paint-api--memfix20260419190251`
+   - Removed the nested `ModelViewer` from `MeshAttachmentCard` in `components/projects/studio-workspace.tsx`, replacing it with a lightweight asset preview card so the side panel no longer competes with the main stage for another WebGL context while the source mesh is already visible in the primary viewer
+30. **TRELLIS-to-Paint GLB Sanitization + Static Attachment Preview**:
+   - Investigated the next immediate Paint failure and confirmed it was no longer a container restart issue: Hunyuan Paint was rejecting the attached TRELLIS GLB because the source file embedded `image/webp` textures that the loader could not decode (`Unknown image format. STB cannot decode image data`)
+   - Verified against the actual local TRELLIS output (`tmp/neural-output/fal-trellis-1774966329800.glb`) that it contained `2` embedded images, `2` textures, `1` material, and `EXT_texture_webp`
+   - Added `lib/neural/glb-sanitize.ts`, a backend-side helper that strips images, textures, samplers, material assignments, and texture/material extension declarations from GLB inputs while preserving the geometry payload, which is the correct contract for the Paint stage
+   - Updated `lib/neural/providers/hunyuan-paint.ts` so all GLB mesh inputs are sanitized before the mesh bytes are posted to the Azure Paint service
+   - Reworked `MeshAttachmentCard` in `components/projects/studio-workspace.tsx` so it can show a static preview image when one is available (for example the carried source/reference image) without spinning up another live `<model-viewer>` instance inside the side panel
+   - Added `deploy/azure/acr-build.ps1` as a Windows-safe ACR build helper that avoids the Azure CLI log-stream Unicode issue by using `--no-logs` and polling the queued build status instead of streaming the problematic console output
 
 ### Validation
 - `npx tsc --noEmit`

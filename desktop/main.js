@@ -65,6 +65,48 @@ function resolveManagedAssetCacheRoot(libraryRoot = resolveManagedAssetLibraryRo
   return path.join(libraryRoot, "cache")
 }
 
+function resolveNeuralOutputRoot() {
+  const envRoot = process.env.NEURAL_3D_OUTPUT_DIR?.trim()
+  if (envRoot) {
+    return path.resolve(envRoot)
+  }
+
+  return path.resolve(process.cwd(), "tmp", "neural-output")
+}
+
+function getCanonicalExistingPath(candidatePath) {
+  try {
+    return fs.realpathSync(candidatePath)
+  } catch {
+    return null
+  }
+}
+
+function isPathInsideRoot(candidatePath, rootPath) {
+  return candidatePath === rootPath || candidatePath.startsWith(`${rootPath}${path.sep}`)
+}
+
+function resolveAllowedRevealPath(targetPath) {
+  if (!targetPath || typeof targetPath !== "string") {
+    return null
+  }
+
+  const outputRoot = getCanonicalExistingPath(resolveNeuralOutputRoot()) ?? resolveNeuralOutputRoot()
+  const libraryRoot = getCanonicalExistingPath(resolveManagedAssetLibraryRoot()) ?? resolveManagedAssetLibraryRoot()
+  const resolvedTarget = path.isAbsolute(targetPath)
+    ? targetPath
+    : path.resolve(outputRoot, targetPath)
+  const canonicalTarget = getCanonicalExistingPath(resolvedTarget)
+
+  if (!canonicalTarget) {
+    return null
+  }
+
+  return [outputRoot, libraryRoot].some((root) => isPathInsideRoot(canonicalTarget, root))
+    ? canonicalTarget
+    : null
+}
+
 function readManagedCatalogAssetCount(catalogPath) {
   if (!fs.existsSync(catalogPath)) {
     return 0
@@ -566,6 +608,21 @@ ipcMain.handle("assets:open-managed-folder", () => {
   const { libraryRoot } = ensureManagedAssetDefaults()
   shell.openPath(libraryRoot)
   return { opened: true, path: libraryRoot }
+})
+
+ipcMain.handle("shell:show-item-in-folder", async (event, targetPath) => {
+  try {
+    const safeTargetPath = resolveAllowedRevealPath(targetPath)
+    if (!safeTargetPath) {
+      return { success: false, error: "File path is outside the allowed asset roots" }
+    }
+
+    shell.showItemInFolder(safeTargetPath)
+    return { success: true, path: safeTargetPath }
+  } catch (error) {
+    console.error("[Desktop] Failed to reveal file:", error)
+    return { success: false, error: error.message }
+  }
 })
 
 // Open URL in system browser (not Electron window)

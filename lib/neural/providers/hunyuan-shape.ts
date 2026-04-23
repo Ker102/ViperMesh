@@ -9,7 +9,9 @@
  *  - text_to_3d:  Text prompt → untextured mesh (via built-in caption model)
  *
  * Env vars:
- *  - HUNYUAN_API_URL  (e.g. http://localhost:8080 or Azure endpoint URL)
+ *  - HUNYUAN_SHAPE_API_URL  (preferred dedicated shape endpoint)
+ *  - HUNYUAN_SHAPE_API_TOKEN (optional bearer token for dedicated shape endpoint)
+ *  - HUNYUAN_API_URL        (legacy shared shape/paint endpoint fallback)
  */
 
 import { Neural3DClient } from "../base-client"
@@ -27,10 +29,26 @@ export class HunyuanShapeClient extends Neural3DClient {
     readonly meta: Neural3DProviderMeta = PROVIDERS["hunyuan-shape"]
 
     private readonly baseUrl: string
+    private readonly apiToken?: string
 
     constructor() {
         super()
-        this.baseUrl = process.env.HUNYUAN_API_URL ?? "http://localhost:8080"
+        this.baseUrl =
+            process.env.HUNYUAN_SHAPE_API_URL ??
+            process.env.HUNYUAN_API_URL ??
+            "http://localhost:8080"
+        this.apiToken = process.env.HUNYUAN_SHAPE_API_TOKEN?.trim() || undefined
+    }
+
+    private buildHeaders(contentType?: string): HeadersInit {
+        const headers: Record<string, string> = {}
+        if (contentType) {
+            headers["Content-Type"] = contentType
+        }
+        if (this.apiToken) {
+            headers.Authorization = `Bearer ${this.apiToken}`
+        }
+        return headers
     }
 
     // -------------------------------------------------------------------------
@@ -41,6 +59,7 @@ export class HunyuanShapeClient extends Neural3DClient {
         try {
             const res = await fetch(`${this.baseUrl}/health`, {
                 method: "GET",
+                headers: this.buildHeaders(),
                 signal: AbortSignal.timeout(5_000),
             })
             return res.ok
@@ -49,6 +68,7 @@ export class HunyuanShapeClient extends Neural3DClient {
             try {
                 const res = await fetch(this.baseUrl, {
                     method: "GET",
+                    headers: this.buildHeaders(),
                     signal: AbortSignal.timeout(5_000),
                 })
                 return res.ok
@@ -92,7 +112,7 @@ export class HunyuanShapeClient extends Neural3DClient {
 
             const response = await fetch(`${this.baseUrl}/generate`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: this.buildHeaders("application/json"),
                 body: JSON.stringify(payload),
             })
 

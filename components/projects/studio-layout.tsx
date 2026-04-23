@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import { StudioSidebar } from "./studio-sidebar"
 import { StudioWorkspace } from "./studio-workspace"
 import { StudioAdvisor } from "./studio-advisor"
@@ -17,6 +18,16 @@ interface StudioLayoutProps {
 }
 
 type NeuralStepPatch = Partial<Pick<WorkflowTimelineStep, "status" | "error" | "inputs" | "neuralState">>
+
+function isModelAssetUrl(viewerUrl?: string | null) {
+    if (!viewerUrl) return false
+    return /\.(glb|gltf|fbx|obj|stl)(?:$|[?#])/i.test(viewerUrl)
+}
+
+function getToolInputKeyByType(toolId: string, type: "mesh" | "image"): string | null {
+    const tool = getToolById(toolId)
+    return tool?.inputs.find((input) => input.type === type)?.key ?? null
+}
 
 // ── API persistence helpers (replaces localStorage) ─────────────
 async function fetchPersistedSteps(projectId: string): Promise<WorkflowTimelineStep[]> {
@@ -101,6 +112,15 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         toolId: string
         inputs: Record<string, string>
     } | null>(null)
+    const [librarySelectionMode, setLibrarySelectionMode] = useState<{
+        token: string
+        label: string
+    } | null>(null)
+    const [librarySelectionEvent, setLibrarySelectionEvent] = useState<{
+        token: string
+        asset: GeneratedAssetItem
+    } | null>(null)
+    const [libraryImportInFlight, setLibraryImportInFlight] = useState(false)
 
     // Keep ref in sync with state
     useEffect(() => {
@@ -503,34 +523,126 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         deletePersistedSteps(projectId)
     }, [projectId, selectedStepStorageKey])
 
-    const handleOpenGeneratedAsset = useCallback((stepId: string) => {
+    const handleOpenGeneratedAsset = useCallback((asset: GeneratedAssetItem, options?: { attachToActiveTool?: boolean }) => {
+        const stepId = asset.stepId
         const step = workflowStepsRef.current.find((item) => item.id === stepId)
         const tool = step ? getToolById(step.toolName) : undefined
         if (tool) {
             setActiveCategory(tool.category)
         }
+        if (options?.attachToActiveTool && librarySelectionMode && isModelAssetUrl(asset.viewerUrl)) {
+            setLibrarySelectionEvent({
+                token: librarySelectionMode.token,
+                asset,
+            })
+        } else {
+            setLibrarySelectionEvent(null)
+        }
         setSelectedStepId(stepId)
         setGeneratedAssetsOpen(false)
         setAssistantOpen(false)
+        setLibrarySelectionMode(null)
+    }, [librarySelectionMode])
+
+    const handleRequestLibrarySelection = useCallback((selection: { token: string; label: string }) => {
+        setLibrarySelectionMode(selection)
+        setGeneratedAssetsOpen(true)
+        setAssistantOpen(false)
     }, [])
 
-    const handleContinueGeneratedAssetToPaint = useCallback((asset: GeneratedAssetItem) => {
-        const paintTool = getToolById("hunyuan-paint")
-        if (!paintTool) return
+    const handleUseLibraryAsset = useCallback((asset: GeneratedAssetItem) => {
+        if (!librarySelectionMode) return
+        setLibrarySelectionEvent({
+            token: librarySelectionMode.token,
+            asset,
+        })
+    }, [librarySelectionMode])
+
+    const handleConsumeLibrarySelection = useCallback((token: string) => {
+        setLibrarySelectionEvent((current) => (current?.token === token ? null : current))
+        setLibrarySelectionMode((current) => (current?.token === token ? null : current))
+    }, [])
+
+    const handleContinueGeneratedAssetToTool = useCallback((asset: GeneratedAssetItem, toolId: string) => {
+        const targetTool = getToolById(toolId)
+        if (!targetTool) return
+
+        const launchInputs: Record<string, string> = {}
+        const meshInputKey = getToolInputKeyByType(targetTool.id, "mesh")
+        const imageInputKey = getToolInputKeyByType(targetTool.id, "image")
+
+        if (meshInputKey) {
+            launchInputs[meshInputKey] = asset.viewerUrl
+        }
+        if (asset.referenceImage && imageInputKey) {
+            launchInputs[imageInputKey] = asset.referenceImage
+        }
 
         setSelectedStepId(null)
         setAssistantOpen(false)
         setGeneratedAssetsOpen(false)
-        setActiveCategory(paintTool.category)
+        setLibrarySelectionMode(null)
+        setLibrarySelectionEvent(null)
+        setActiveCategory(targetTool.category)
         setExternalToolLaunch({
             token: `${asset.stepId}:${Date.now()}`,
-            toolId: paintTool.id,
-            inputs: {
-                meshUrl: asset.viewerUrl,
-                ...(asset.referenceImage ? { imageUrl: asset.referenceImage } : {}),
-            },
+            toolId: targetTool.id,
+            inputs: launchInputs,
         })
     }, [])
+
+    const handleImportLibraryAsset = useCallback(async (file: File) => {
+        setLibraryImportInFlight(true)
+        try {
+            const formData = new FormData()
+            formData.append("projectId", projectId)
+            formData.append("file", file)
+
+            const response = await fetch("/api/projects/assets/import", {
+                method: "POST",
+                body: formData,
+            })
+
+            const payload = await response.json().catch(() => null)
+            if (!response.ok || !payload?.asset) {
+                throw new Error(payload?.error ?? `Import failed with HTTP ${response.status}`)
+            }
+
+            const asset = payload.asset as GeneratedAssetItem
+            const importedStep: WorkflowTimelineStep = {
+                id: asset.stepId,
+                title: asset.title,
+                toolName: asset.toolName,
+                status: "done",
+                hiddenFromTimeline: true,
+                inputs: { viewerUrl: asset.viewerUrl },
+                neuralState: {
+                    viewerUrl: asset.viewerUrl,
+                    viewerLabel: asset.viewerLabel,
+                    viewerSource: "input",
+                    assetOrigin: "imported",
+                    assetStats: asset.assetStats ?? null,
+                },
+            }
+
+            setWorkflowSteps((prev) => {
+                const withoutExisting = prev.filter((step) => step.id !== importedStep.id)
+                return [...withoutExisting, importedStep]
+            })
+
+            if (librarySelectionMode) {
+                setLibrarySelectionEvent({
+                    token: librarySelectionMode.token,
+                    asset,
+                })
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed to import model"
+            window.alert(message)
+        } finally {
+            setLibraryImportInFlight(false)
+        }
+    }, [librarySelectionMode, projectId])
 
     const handleToolRunNow = useCallback(
         (tool: ToolEntry, inputs: Record<string, string>) => {
@@ -645,7 +757,10 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
 
     const selectedStep = workflowSteps.find((s) => s.id === selectedStepId) ?? null
     const selectedStepTool = selectedStep ? getToolById(selectedStep.toolName) : undefined
-    const selectedNeuralStep = selectedStep && selectedStepTool?.type === "neural" ? selectedStep : null
+    const selectedNeuralStep = selectedStep &&
+        (selectedStepTool?.type === "neural" || selectedStep.neuralState?.assetOrigin === "imported")
+        ? selectedStep
+        : null
 
     return (
         <div
@@ -661,25 +776,11 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                 <StudioSidebar
                     activeCategory={activeCategory}
                     onCategoryChange={setActiveCategory}
-                    onGeneratedAssetsToggle={() => {
-                        setGeneratedAssetsOpen((open) => !open)
-                        setAssistantOpen(false)
-                    }}
-                    generatedAssetsOpen={generatedAssetsOpen}
-                    generatedAssetCount={generatedAssets.length}
                     onAssistantToggle={() => {
                         setAssistantOpen((o) => !o)
                         setGeneratedAssetsOpen(false)
                     }}
                     assistantOpen={assistantOpen}
-                />
-
-                <GeneratedAssetsShelf
-                    open={generatedAssetsOpen}
-                    assets={generatedAssets}
-                    onClose={() => setGeneratedAssetsOpen(false)}
-                    onOpenAsset={handleOpenGeneratedAsset}
-                    onContinueToPaint={handleContinueGeneratedAssetToPaint}
                 />
 
                 <StudioWorkspace
@@ -690,7 +791,58 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                     onNeuralRunUpdate={handleNeuralRunUpdate}
                     selectedPipelineStep={selectedNeuralStep}
                     onRequestCategoryChange={setActiveCategory}
+                    onOpenAssetLibrary={() => {
+                        setGeneratedAssetsOpen(true)
+                        setAssistantOpen(false)
+                    }}
+                    onRequestLibrarySelection={handleRequestLibrarySelection}
+                    incomingLibrarySelection={librarySelectionEvent}
+                    onConsumeLibrarySelection={handleConsumeLibrarySelection}
                     externalToolLaunch={externalToolLaunch}
+                    generatedAssets={generatedAssets}
+                />
+
+                <button
+                    type="button"
+                    onClick={() => {
+                        setGeneratedAssetsOpen((open) => !open)
+                        setAssistantOpen(false)
+                    }}
+                    className="absolute bottom-1/2 right-0 z-30 inline-flex h-16 w-7 translate-x-0 translate-y-1/2 items-center justify-center rounded-l-2xl border border-r-0 transition-all duration-300 hover:opacity-90"
+                    style={{
+                        right: generatedAssetsOpen ? "320px" : "0px",
+                        borderColor: "hsl(var(--forge-border))",
+                        backgroundColor: "hsl(var(--forge-surface))",
+                        color: "hsl(var(--forge-text-muted))",
+                        boxShadow: "0 10px 30px rgba(15,23,42,0.08)",
+                    }}
+                    aria-label={generatedAssetsOpen ? "Collapse asset library" : "Open asset library"}
+                    title={generatedAssetsOpen ? "Collapse asset library" : "Open asset library"}
+                >
+                    {generatedAssetsOpen ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+                    {generatedAssets.length > 0 && !generatedAssetsOpen && (
+                        <span
+                            className="absolute -left-2 -top-2 min-w-[18px] rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+                            style={{
+                                backgroundColor: "hsl(var(--forge-accent))",
+                                color: "white",
+                            }}
+                        >
+                            {generatedAssets.length > 9 ? "9+" : generatedAssets.length}
+                        </span>
+                    )}
+                </button>
+
+                <GeneratedAssetsShelf
+                    projectId={projectId}
+                    open={generatedAssetsOpen}
+                    assets={generatedAssets}
+                    onOpenAsset={handleOpenGeneratedAsset}
+                    onContinueToTool={handleContinueGeneratedAssetToTool}
+                    onUseAsset={handleUseLibraryAsset}
+                    onImportAsset={handleImportLibraryAsset}
+                    selectionMode={librarySelectionMode}
+                    importInFlight={libraryImportInFlight}
                 />
 
                 <StudioAdvisor

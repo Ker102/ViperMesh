@@ -1,9 +1,19 @@
 import Stripe from 'stripe'
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder', {
-  apiVersion: '2025-02-24.acacia',
-  typescript: true,
-})
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY?.trim() || ''
+const looksLikePlaceholder =
+  stripeSecretKey.length === 0 ||
+  stripeSecretKey === 'sk_test_placeholder' ||
+  stripeSecretKey.includes('placeholder')
+
+export const STRIPE_ENABLED = !looksLikePlaceholder
+
+export const stripe = STRIPE_ENABLED
+  ? new Stripe(stripeSecretKey, {
+      apiVersion: '2025-02-24.acacia',
+      typescript: true,
+    })
+  : null
 
 export const PRICING_TIERS = {
   FREE: {

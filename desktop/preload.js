@@ -29,6 +29,10 @@ contextBridge.exposeInMainWorld("vipermesh", {
     return ipcRenderer.invoke("assets:open-managed-folder")
   },
 
+  revealItemInFolder: async (targetPath) => {
+    return ipcRenderer.invoke("shell:show-item-in-folder", targetPath)
+  },
+
   // Open URL in system browser (not Electron window)
   openExternal: async (url) => {
     return ipcRenderer.invoke("shell:open-external", url)

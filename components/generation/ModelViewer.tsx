@@ -11,9 +11,24 @@ interface ModelViewerProps {
     showControls?: boolean;
     showFooter?: boolean;
     interactive?: boolean;
+    inspectionMode?: "material" | "geometry" | "clay";
+    inspectionTint?: "neutral" | "violet" | "cyan";
 }
 
 type ViewerStatus = "booting" | "loading" | "ready" | "error";
+
+type MaterialSnapshot = {
+    material: any;
+    baseColorFactor: number[];
+    metallicFactor: number;
+    roughnessFactor: number;
+    baseColorTexture: any;
+    metallicRoughnessTexture: any;
+    normalTexture: any;
+    occlusionTexture: any;
+    emissiveTexture: any;
+    emissiveFactor: number[];
+};
 
 let modelViewerRegistration: Promise<void> | null = null;
 
@@ -91,9 +106,12 @@ export function ModelViewer({
     showControls = true,
     showFooter = true,
     interactive = true,
+    inspectionMode = "material",
+    inspectionTint = "neutral",
 }: ModelViewerProps) {
     const viewerRef = useRef<ModelViewerElement | null>(null);
     const frameRef = useRef<HTMLDivElement | null>(null);
+    const materialSnapshotRef = useRef<MaterialSnapshot[] | null>(null);
     const descriptionId = useId();
     const [isRegistered, setIsRegistered] = useState<boolean>(() => {
         if (typeof window === "undefined") return false;
@@ -178,6 +196,10 @@ export function ModelViewer({
         };
     }, [safeUrl]);
 
+    useEffect(() => {
+        materialSnapshotRef.current = null;
+    }, [safeUrl]);
+
     const handleResetView = () => {
         viewerRef.current?.jumpCameraToGoal();
     };
@@ -213,21 +235,14 @@ export function ModelViewer({
                 return "model.glb";
             }
 
-            return candidate.toLowerCase().endsWith(".glb") ? candidate : `${candidate}.glb`;
+            if (/\.(glb|gltf)$/i.test(candidate)) {
+                return candidate;
+            }
+
+            return `${candidate}.glb`;
         } catch {
             return "model.glb";
         }
-    };
-
-    const handleDownload = () => {
-        if (!safeUrl) return;
-
-        const anchor = document.createElement("a");
-        anchor.href = safeUrl;
-        anchor.download = getDownloadFilename();
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
     };
 
     const activeError =
@@ -239,6 +254,89 @@ export function ModelViewer({
           : loadedUrl === safeUrl
             ? "ready"
             : "loading";
+
+    useEffect(() => {
+        if (status !== "ready") return;
+
+        const viewer = viewerRef.current as (ModelViewerElement & { model?: { materials?: any[] } }) | null;
+
+        const materials = viewer?.model?.materials;
+        if (!materials || materials.length === 0) return;
+
+        if (!materialSnapshotRef.current) {
+            materialSnapshotRef.current = materials.map((material) => ({
+                material,
+                baseColorFactor: [...material.pbrMetallicRoughness.baseColorFactor],
+                metallicFactor: material.pbrMetallicRoughness.metallicFactor,
+                roughnessFactor: material.pbrMetallicRoughness.roughnessFactor,
+                baseColorTexture: material.pbrMetallicRoughness.baseColorTexture?.texture ?? null,
+                metallicRoughnessTexture: material.pbrMetallicRoughness.metallicRoughnessTexture?.texture ?? null,
+                normalTexture: material.normalTexture?.texture ?? null,
+                occlusionTexture: material.occlusionTexture?.texture ?? null,
+                emissiveTexture: material.emissiveTexture?.texture ?? null,
+                emissiveFactor: [...material.emissiveFactor],
+            }));
+        }
+
+        const snapshot = materialSnapshotRef.current;
+        if (!snapshot) return;
+
+        const tintPalette: Record<NonNullable<ModelViewerProps["inspectionTint"]>, number[]> = {
+            neutral: [0.83, 0.84, 0.86, 1],
+            violet: [0.9, 0.8, 0.98, 1],
+            cyan: [0.79, 0.93, 0.97, 1],
+        };
+        const tint = tintPalette[inspectionTint];
+
+        for (const entry of snapshot) {
+            if (inspectionMode === "clay" || inspectionMode === "geometry") {
+                entry.material.pbrMetallicRoughness.baseColorTexture?.setTexture(null);
+                entry.material.pbrMetallicRoughness.metallicRoughnessTexture?.setTexture(null);
+                entry.material.emissiveTexture?.setTexture(null);
+                entry.material.pbrMetallicRoughness.setBaseColorFactor(tint);
+                entry.material.pbrMetallicRoughness.setMetallicFactor(0);
+                entry.material.pbrMetallicRoughness.setRoughnessFactor(inspectionMode === "geometry" ? 0.68 : 1);
+                entry.material.normalTexture?.setTexture(inspectionMode === "geometry" ? entry.normalTexture : null);
+                entry.material.occlusionTexture?.setTexture(inspectionMode === "geometry" ? entry.occlusionTexture : null);
+                entry.material.setEmissiveFactor([0, 0, 0]);
+                continue;
+            }
+
+            entry.material.pbrMetallicRoughness.setBaseColorFactor(entry.baseColorFactor);
+            entry.material.pbrMetallicRoughness.setMetallicFactor(entry.metallicFactor);
+            entry.material.pbrMetallicRoughness.setRoughnessFactor(entry.roughnessFactor);
+            entry.material.pbrMetallicRoughness.baseColorTexture?.setTexture(entry.baseColorTexture);
+            entry.material.pbrMetallicRoughness.metallicRoughnessTexture?.setTexture(entry.metallicRoughnessTexture);
+            entry.material.normalTexture?.setTexture(entry.normalTexture);
+            entry.material.occlusionTexture?.setTexture(entry.occlusionTexture);
+            entry.material.emissiveTexture?.setTexture(entry.emissiveTexture);
+            entry.material.setEmissiveFactor(entry.emissiveFactor);
+        }
+    }, [inspectionMode, inspectionTint, status]);
+
+    const handleDownload = async () => {
+        if (!safeUrl) return;
+
+        try {
+            const response = await fetch(safeUrl, { credentials: "include" });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const blob = await response.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            const anchor = document.createElement("a");
+            anchor.href = objectUrl;
+            anchor.download = getDownloadFilename();
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
+        } catch (downloadError) {
+            console.warn("ModelViewer: falling back to direct download", downloadError);
+            window.open(safeUrl, "_blank", "noopener,noreferrer");
+        }
+    };
 
     if (!url) return null;
 

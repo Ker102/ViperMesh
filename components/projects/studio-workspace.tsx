@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { Loader2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, RefreshCw, Square } from "lucide-react"
-import { ModelViewer } from "@/components/generation/ModelViewer"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { Loader2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, RefreshCw, SlidersHorizontal, Square } from "lucide-react"
+import { HeavyModelViewer } from "@/components/generation/HeavyModelViewer"
 import { cn } from "@/lib/utils"
 import {
     CATEGORIES,
@@ -13,7 +13,13 @@ import {
     type ToolEntry,
     type ToolInput,
 } from "@/lib/orchestration/tool-catalog"
-import type { WorkflowTimelineNeuralState, WorkflowTimelineStep } from "./workflow-timeline"
+import { AssetPreviewTile, AssetStatsPanel, AssetStatsPills } from "./asset-inspection"
+import {
+    buildNextSuggestionsForAsset,
+    isRenderablePreviewImage,
+    type GeneratedAssetItem,
+} from "./generated-assets"
+import type { AssetInspectionStats, WorkflowTimelineNeuralState, WorkflowTimelineStep } from "./workflow-timeline"
 
 interface StudioWorkspaceProps {
     activeCategory: string
@@ -23,6 +29,14 @@ interface StudioWorkspaceProps {
     onNeuralRunUpdate: (stepId: string, patch: Partial<Pick<WorkflowTimelineStep, "status" | "error" | "inputs" | "neuralState">>) => void
     selectedPipelineStep?: WorkflowTimelineStep | null
     onRequestCategoryChange?: (category: StudioCategory) => void
+    onOpenAssetLibrary: () => void
+    onRequestLibrarySelection: (selection: { token: string; label: string }) => void
+    incomingLibrarySelection?: {
+        token: string
+        asset: GeneratedAssetItem
+    } | null
+    onConsumeLibrarySelection: (token: string) => void
+    generatedAssets: GeneratedAssetItem[]
     externalToolLaunch?: {
         token: string
         toolId: string
@@ -46,6 +60,8 @@ interface ActiveNeuralRun {
     viewerSource?: NeuralViewerSource
     error?: string
     generationTimeMs?: number
+    assetStats?: AssetInspectionStats | null
+    assetOrigin?: "generated" | "imported"
 }
 
 interface NeuralRunResponse {
@@ -69,7 +85,16 @@ function buildPersistedNeuralState(run: ActiveNeuralRun): WorkflowTimelineNeural
         viewerLabel: run.viewerLabel,
         viewerSource: run.viewerSource,
         generationTimeMs: run.generationTimeMs,
+        assetStats: run.assetStats ?? null,
+        assetOrigin: run.assetOrigin ?? undefined,
     }
+}
+
+interface PendingMeshSelection {
+    token: string
+    target: "tool" | "neural"
+    toolId: string
+    inputKey: string
 }
 
 function mapTimelineStatusToNeuralStatus(status: WorkflowTimelineStep["status"]): NeuralRunStatus {
@@ -99,6 +124,92 @@ function resolveInputDisplayValue(input: ToolInput, inputs: Record<string, strin
 
 function getImageInputKey(tool: ToolEntry): string | undefined {
     return tool.inputs.find((input) => input.type === "image")?.key
+}
+
+function getMeshInputKey(tool: ToolEntry): string | undefined {
+    return tool.inputs.find((input) => input.type === "mesh")?.key
+}
+
+function formatStageLabel(category: string): string {
+    switch (category) {
+        case "shape":
+            return "Geometry"
+        case "cleanup":
+            return "Cleanup"
+        case "paint":
+            return "Texturing"
+        case "skeleton":
+            return "Rigging"
+        case "export":
+            return "Export"
+        default:
+            return category.charAt(0).toUpperCase() + category.slice(1)
+    }
+}
+
+function formatProviderLabel(rawProvider?: string): string | undefined {
+    if (!rawProvider) return undefined
+    const normalized = rawProvider.replace(/-/g, " ")
+    return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function buildAssetStatsSeed(tool: ToolEntry): AssetInspectionStats {
+    return {
+        sourceToolId: tool.id,
+        sourceToolLabel: tool.name,
+        sourceProvider: formatProviderLabel(tool.provider),
+        stageLabel: formatStageLabel(tool.category),
+    }
+}
+
+function findGeneratedAssetByUrl(assets: GeneratedAssetItem[], viewerUrl?: string | null): GeneratedAssetItem | null {
+    if (!viewerUrl) return null
+    return assets.find((asset) => asset.viewerUrl === viewerUrl) ?? null
+}
+
+function extractNeuralOutputRelativePath(candidateUrl: string): string | null {
+    try {
+        const baseUrl =
+            typeof window !== "undefined"
+                ? window.location.origin
+                : "http://127.0.0.1"
+        const parsed = new URL(candidateUrl, baseUrl)
+        const relativePath = parsed.searchParams.get("path")
+        return relativePath ? decodeURIComponent(relativePath) : null
+    } catch {
+        return null
+    }
+}
+
+function mergeAssetStats(
+    tool: ToolEntry,
+    stats?: Partial<AssetInspectionStats> | null,
+    linkedAsset?: GeneratedAssetItem | null,
+): AssetInspectionStats {
+    return {
+        ...buildAssetStatsSeed(tool),
+        ...(linkedAsset?.assetStats ?? {}),
+        sourceToolId: linkedAsset?.assetStats?.sourceToolId ?? linkedAsset?.toolName ?? tool.id,
+        sourceToolLabel: linkedAsset?.assetStats?.sourceToolLabel ?? linkedAsset?.toolLabel ?? tool.name,
+        sourceProvider: linkedAsset?.assetStats?.sourceProvider ?? linkedAsset?.providerLabel ?? formatProviderLabel(tool.provider),
+        stageLabel: linkedAsset?.assetStats?.stageLabel ?? linkedAsset?.stageLabel ?? formatStageLabel(tool.category),
+        ...(stats ?? {}),
+    }
+}
+
+function getMeshPreviewImage(
+    tool: ToolEntry,
+    inputs: Record<string, string>,
+    linkedAsset?: GeneratedAssetItem | null,
+): string | undefined {
+    if (isRenderablePreviewImage(linkedAsset?.previewImageUrl)) {
+        return linkedAsset.previewImageUrl
+    }
+
+    const imageKey = getImageInputKey(tool)
+    if (!imageKey) return undefined
+    const candidate = inputs[imageKey]
+    return isRenderablePreviewImage(candidate) ? candidate : undefined
 }
 
 function PreviewImage(props: React.ImgHTMLAttributes<HTMLImageElement> & { alt: string }) {
@@ -153,22 +264,47 @@ function MeshAttachmentCard({
     value,
     emptyMessage,
     description,
+    previewImageUrl,
+    assetStats,
+    stageLabel,
+    providerLabel,
+    onChooseModel,
 }: {
     value?: string
     emptyMessage: string
     description?: string
+    previewImageUrl?: string
+    assetStats?: AssetInspectionStats | null
+    stageLabel?: string
+    providerLabel?: string
+    onChooseModel?: () => void
 }) {
     if (!value) {
         return (
-            <div
-                className="rounded-xl border px-4 py-3 text-sm"
-                style={{
-                    borderColor: "hsl(var(--forge-border))",
-                    backgroundColor: "hsl(var(--forge-surface-dim))",
-                    color: "hsl(var(--forge-text-muted))",
-                }}
-            >
-                {emptyMessage}
+            <div className="space-y-3">
+                <div
+                    className="rounded-xl border px-4 py-3 text-sm"
+                    style={{
+                        borderColor: "hsl(var(--forge-border))",
+                        backgroundColor: "hsl(var(--forge-surface-dim))",
+                        color: "hsl(var(--forge-text-muted))",
+                    }}
+                >
+                    {emptyMessage}
+                </div>
+                {onChooseModel && (
+                    <button
+                        type="button"
+                        onClick={onChooseModel}
+                        className="rounded-xl border px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+                        style={{
+                            borderColor: "hsl(var(--forge-border))",
+                            color: "hsl(var(--forge-text-muted))",
+                        }}
+                    >
+                        Choose from Asset Library
+                    </button>
+                )}
             </div>
         )
     }
@@ -183,18 +319,19 @@ function MeshAttachmentCard({
         >
             <div className="flex items-start gap-4">
                 <div
-                    className="h-24 w-24 shrink-0 overflow-hidden rounded-2xl border"
+                    className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border"
                     style={{
                         borderColor: "hsl(var(--forge-border))",
-                        backgroundColor: "hsl(var(--forge-surface))",
+                        background:
+                            "radial-gradient(circle at top, rgba(45,212,191,0.22), rgba(15,23,42,0.92) 65%)",
                     }}
                 >
-                    <ModelViewer
-                        url={value}
-                        className="h-full w-full rounded-none border-0"
-                        showControls={false}
-                        showFooter={false}
-                        interactive={false}
+                    <AssetPreviewTile
+                        imageUrl={previewImageUrl}
+                        alt="Attached model preview"
+                        stageLabel={stageLabel}
+                        providerLabel={providerLabel}
+                        className="h-full w-full"
                     />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -204,9 +341,28 @@ function MeshAttachmentCard({
                     <p className="mt-1 text-sm font-medium" style={{ color: "hsl(var(--forge-text))" }}>
                         {getAssetDisplayLabel(value)}
                     </p>
+                    {(stageLabel || providerLabel) && (
+                        <p className="mt-1 text-xs" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                            {[stageLabel, providerLabel].filter(Boolean).join(" • ")}
+                        </p>
+                    )}
                     <p className="mt-1 text-xs leading-relaxed" style={{ color: "hsl(var(--forge-text-muted))" }}>
                         {description ?? "This tool will use the current project model as its source mesh."}
                     </p>
+                    <AssetStatsPills stats={assetStats} className="mt-3 flex flex-wrap gap-2" />
+                    {onChooseModel && (
+                        <button
+                            type="button"
+                            onClick={onChooseModel}
+                            className="mt-3 rounded-xl border px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+                            style={{
+                                borderColor: "hsl(var(--forge-border))",
+                                color: "hsl(var(--forge-text-muted))",
+                            }}
+                        >
+                            Change attached model
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
@@ -356,24 +512,26 @@ function ToolDetailView({
     onBack,
     onSubmit,
     onRunNow,
-    initialInputs,
+    inputs,
+    onInputChange,
+    generatedAssets,
+    onRequestMeshSelection,
 }: {
     tool: ToolEntry
     onBack: () => void
     onSubmit: (tool: ToolEntry, inputs: Record<string, string>) => void
     onRunNow: (tool: ToolEntry, inputs: Record<string, string>) => void
-    initialInputs?: Record<string, string>
+    inputs: Record<string, string>
+    onInputChange: (key: string, value: string) => void
+    generatedAssets: GeneratedAssetItem[]
+    onRequestMeshSelection: (inputKey: string, currentInputs: Record<string, string>) => void
 }) {
-    const [inputs, setInputs] = useState<Record<string, string>>(initialInputs ?? {})
-
     const handleSubmit = () => {
         onSubmit(tool, inputs)
-        setInputs({})
     }
 
     const handleRunNow = () => {
         onRunNow(tool, inputs)
-        setInputs({})
     }
 
     return (
@@ -568,9 +726,7 @@ function ToolDetailView({
                                 {input.type === "text" && (
                                     <textarea
                                         value={inputs[input.key] ?? ""}
-                                        onChange={(e) =>
-                                            setInputs({ ...inputs, [input.key]: e.target.value })
-                                        }
+                                        onChange={(e) => onInputChange(input.key, e.target.value)}
                                         placeholder={input.placeholder}
                                         rows={4}
                                         className="w-full rounded-xl border px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 transition"
@@ -588,9 +744,7 @@ function ToolDetailView({
                                             inputs[input.key] ??
                                             (input.defaultValue?.toString() ?? "")
                                         }
-                                        onChange={(e) =>
-                                            setInputs({ ...inputs, [input.key]: e.target.value })
-                                        }
+                                        onChange={(e) => onInputChange(input.key, e.target.value)}
                                         className="w-full rounded-xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 transition"
                                         style={{
                                             borderColor: "hsl(var(--forge-border))",
@@ -611,7 +765,16 @@ function ToolDetailView({
                                 {input.type === "mesh" && (
                                     <MeshAttachmentCard
                                         value={inputs[input.key]}
-                                        emptyMessage="No model is attached yet. Continue from a generated result or a future asset selector to populate this field."
+                                        emptyMessage="No model is attached yet. Pick one from the project asset library or import a GLB there first."
+                                        previewImageUrl={getMeshPreviewImage(
+                                            tool,
+                                            inputs,
+                                            findGeneratedAssetByUrl(generatedAssets, inputs[input.key]),
+                                        )}
+                                        assetStats={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.assetStats}
+                                        stageLabel={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.stageLabel}
+                                        providerLabel={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.providerLabel}
+                                        onChooseModel={() => onRequestMeshSelection(input.key, inputs)}
                                     />
                                 )}
 
@@ -628,7 +791,7 @@ function ToolDetailView({
                                                 />
                                                 <button
                                                     type="button"
-                                                    onClick={() => setInputs({ ...inputs, [input.key]: "" })}
+                                                    onClick={() => onInputChange(input.key, "")}
                                                     className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md"
                                                     style={{ backgroundColor: "hsl(0 84% 60%)" }}
                                                     aria-label="Remove image"
@@ -684,7 +847,7 @@ function ToolDetailView({
                                                         }
                                                         const reader = new FileReader()
                                                         reader.onload = () => {
-                                                            setInputs({ ...inputs, [input.key]: reader.result as string })
+                                                            onInputChange(input.key, reader.result as string)
                                                         }
                                                         reader.onerror = () => {
                                                             console.error("Failed to read image file")
@@ -707,9 +870,7 @@ function ToolDetailView({
                                             value={
                                                 inputs[input.key] ?? input.defaultValue ?? "50"
                                             }
-                                            onChange={(e) =>
-                                                setInputs({ ...inputs, [input.key]: e.target.value })
-                                            }
+                                            onChange={(e) => onInputChange(input.key, e.target.value)}
                                             className="w-full accent-[hsl(var(--forge-accent))]"
                                         />
                                         <div className="flex justify-between text-xs" style={{ color: "hsl(var(--forge-text-subtle))" }}>
@@ -733,7 +894,8 @@ function ToolDetailView({
                             </div>
                         ))}
 
-                        <div className="flex gap-3 mt-4">
+                        <div className="mt-4">
+                            <div className="flex gap-3">
                             <button
                                 onClick={handleRunNow}
                                 className="flex-1 py-3 rounded-xl text-sm font-semibold text-white transition-all duration-200 hover:opacity-90"
@@ -756,6 +918,7 @@ function ToolDetailView({
                             >
                                 + Add to Workflow
                             </button>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -804,6 +967,19 @@ function NeuralRunStatusBadge({ status }: { status: NeuralRunStatus }) {
     )
 }
 
+function buildToolLaunchInputs(tool: ToolEntry, meshUrl: string, referenceImage?: string): Record<string, string> {
+    const inputs: Record<string, string> = {}
+    const meshInputKey = getMeshInputKey(tool)
+    const imageInputKey = getImageInputKey(tool)
+    if (meshInputKey) {
+        inputs[meshInputKey] = meshUrl
+    }
+    if (referenceImage && imageInputKey) {
+        inputs[imageInputKey] = referenceImage
+    }
+    return inputs
+}
+
 function NeuralViewerStage({
     title,
     status,
@@ -812,6 +988,7 @@ function NeuralViewerStage({
     viewerSource,
     error,
     generationTimeMs,
+    assetStats,
 }: {
     title: string
     status: NeuralRunStatus
@@ -820,11 +997,40 @@ function NeuralViewerStage({
     viewerSource?: NeuralViewerSource
     error?: string
     generationTimeMs?: number
+    assetStats?: AssetInspectionStats | null
 }) {
+    const [inspectionMode, setInspectionMode] = useState<"material" | "geometry" | "solid" | "toon" | "wireframe" | "stats">("material")
+    const [inspectionTint, setInspectionTint] = useState<"neutral" | "violet" | "cyan">("neutral")
+    const [shadingMode, setShadingMode] = useState<"smooth" | "flat">("smooth")
+    const [pbrEnabled, setPbrEnabled] = useState(true)
+    const [unlitEnabled, setUnlitEnabled] = useState(false)
+    const [previewMetalness, setPreviewMetalness] = useState(0.5)
+    const [previewRoughness, setPreviewRoughness] = useState(0.55)
+    const [showViewSettings, setShowViewSettings] = useState(false)
     const displayViewerLabel =
         viewerSource === "input" && viewerUrl
             ? getAssetDisplayLabel(viewerUrl)
             : viewerLabel
+    const metadataSummary = [assetStats?.stageLabel, assetStats?.sourceProvider].filter(Boolean).join(" • ")
+    const activeInspectionLabel = {
+        material: "Texture",
+        toon: "Toon",
+        geometry: "Geometry",
+        solid: "Solid",
+        wireframe: "Wireframe",
+        stats: "Stats",
+    }[inspectionMode]
+    const supportsShadingControls =
+        inspectionMode === "material" ||
+        inspectionMode === "toon" ||
+        inspectionMode === "geometry" ||
+        inspectionMode === "solid"
+    const supportsTintControls = inspectionMode === "geometry" || inspectionMode === "wireframe"
+    const supportsMaterialControls = inspectionMode === "material"
+    const shadingControlsEnabled = !(inspectionMode === "material" && unlitEnabled)
+    const pbrControlsEnabled = !(inspectionMode === "material" && unlitEnabled)
+
+    const viewSettingsOpen = showViewSettings && Boolean(viewerUrl) && inspectionMode !== "stats"
 
     return (
         <div
@@ -834,9 +1040,16 @@ function NeuralViewerStage({
             }}
         >
             {viewerUrl ? (
-                <ModelViewer
+                <HeavyModelViewer
                     url={viewerUrl}
                     className="h-full min-h-0 rounded-none border-0"
+                    inspectionMode={inspectionMode === "stats" ? "material" : inspectionMode}
+                    inspectionTint={inspectionTint}
+                    shadingMode={shadingMode}
+                    pbrEnabled={pbrEnabled}
+                    unlitEnabled={unlitEnabled}
+                    previewMetalness={previewMetalness}
+                    previewRoughness={previewRoughness}
                 />
             ) : (
                 <div
@@ -862,6 +1075,14 @@ function NeuralViewerStage({
                                 ? "The viewer stage stays in place while the neural model runs. The first result will appear here automatically."
                                 : error ?? "This area will render the first generated GLB as soon as it is available."}
                         </p>
+                    </div>
+                </div>
+            )}
+
+            {inspectionMode === "stats" && viewerUrl && (
+                <div className="pointer-events-none absolute inset-x-0 bottom-24 z-20 flex justify-center px-4">
+                    <div className="pointer-events-auto w-[min(340px,calc(100%-2rem))]">
+                        <AssetStatsPanel stats={assetStats} />
                     </div>
                 </div>
             )}
@@ -895,7 +1116,7 @@ function NeuralViewerStage({
                 </div>
             )}
 
-            <div className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-white/95 via-white/60 to-transparent px-6 pb-10 pt-5 sm:pr-[22rem]">
+            <div className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-slate-50/82 via-slate-100/28 to-transparent px-6 pb-8 pt-5 sm:pr-[22rem]">
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
                         Neural viewer
@@ -938,8 +1159,323 @@ function NeuralViewerStage({
                         )}
                         <NeuralRunStatusBadge status={status} />
                     </div>
+                    {(metadataSummary || assetStats) && (
+                        <div className="pointer-events-auto mt-3 max-w-[44rem] space-y-2">
+                            {metadataSummary && (
+                                <p
+                                    className="text-xs font-medium"
+                                    style={{ color: "hsl(var(--forge-text-muted))" }}
+                                >
+                                    {metadataSummary}
+                                </p>
+                            )}
+                            <AssetStatsPills stats={assetStats} className="flex flex-wrap gap-2" />
+                        </div>
+                    )}
                 </div>
             </div>
+
+            {viewerUrl && (
+                <div className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex justify-center px-6">
+                    <div className="pointer-events-auto flex flex-col items-center gap-2">
+                        {viewSettingsOpen && (
+                            <div
+                                className="w-[min(360px,calc(100vw-3rem))] rounded-3xl border px-4 py-4 text-[11px] font-medium shadow-2xl backdrop-blur"
+                                style={{
+                                    borderColor: "rgba(255,255,255,0.14)",
+                                    backgroundColor: "rgba(15, 23, 42, 0.84)",
+                                    color: "rgba(241,245,249,0.96)",
+                                }}
+                            >
+                                <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                        <p className="text-[10px] font-semibold uppercase tracking-[0.24em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                            View settings
+                                        </p>
+                                        <p className="mt-1 text-sm font-semibold">{activeInspectionLabel}</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowViewSettings(false)}
+                                        className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] transition"
+                                        style={{
+                                            border: "1px solid rgba(255,255,255,0.12)",
+                                            color: "rgba(226,232,240,0.82)",
+                                        }}
+                                    >
+                                        Hide
+                                    </button>
+                                </div>
+                                <div className="mt-4 space-y-3">
+                                    {supportsShadingControls && (
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                Shading
+                                            </p>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {[
+                                                    { id: "smooth", label: "Smooth" },
+                                                    { id: "flat", label: "Flat" },
+                                                ].map((option) => {
+                                                    const active = shadingMode === option.id
+                                                    return (
+                                                        <button
+                                                            key={option.id}
+                                                            type="button"
+                                                            onClick={() => setShadingMode(option.id as "smooth" | "flat")}
+                                                            disabled={!shadingControlsEnabled}
+                                                            className="rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                                            style={active
+                                                                ? {
+                                                                    backgroundColor: "rgba(96,165,250,0.24)",
+                                                                    color: "white",
+                                                                    opacity: shadingControlsEnabled ? 1 : 0.45,
+                                                                }
+                                                                : {
+                                                                    backgroundColor: "rgba(255,255,255,0.05)",
+                                                                    color: "rgba(226,232,240,0.84)",
+                                                                    opacity: shadingControlsEnabled ? 1 : 0.45,
+                                                                }}
+                                                            title={shadingControlsEnabled ? `${option.label} shading` : "Disabled while unlit is on"}
+                                                        >
+                                                            {option.label}
+                                                        </button>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {supportsMaterialControls && (
+                                        <div className="space-y-3">
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="space-y-2">
+                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                        PBR
+                                                    </p>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setPbrEnabled((current) => !current)}
+                                                        disabled={!pbrControlsEnabled}
+                                                        className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                                        style={pbrEnabled
+                                                            ? {
+                                                                backgroundColor: "rgba(45,212,191,0.2)",
+                                                                color: "white",
+                                                                opacity: pbrControlsEnabled ? 1 : 0.45,
+                                                            }
+                                                            : {
+                                                                backgroundColor: "rgba(255,255,255,0.05)",
+                                                                color: "rgba(226,232,240,0.84)",
+                                                                opacity: pbrControlsEnabled ? 1 : 0.45,
+                                                            }}
+                                                        title={pbrControlsEnabled ? "Toggle PBR shading" : "Disabled while unlit is on"}
+                                                    >
+                                                        <span>Physical</span>
+                                                        <span>{pbrEnabled ? "On" : "Off"}</span>
+                                                    </button>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                        Unlit
+                                                    </p>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setUnlitEnabled((current) => !current)}
+                                                        className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                                        style={unlitEnabled
+                                                            ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
+                                                            : { backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(226,232,240,0.84)" }}
+                                                    >
+                                                        <span>Lighting</span>
+                                                        <span>{unlitEnabled ? "Off" : "On"}</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            {pbrEnabled && !unlitEnabled && (
+                                                <div className="space-y-3 rounded-2xl border px-3 py-3" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+                                                    <label className="flex items-center gap-3">
+                                                        <span className="w-16 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                            Metallic
+                                                        </span>
+                                                        <input
+                                                            type="range"
+                                                            min={0}
+                                                            max={1}
+                                                            step={0.05}
+                                                            value={previewMetalness}
+                                                            onChange={(event) => setPreviewMetalness(Number(event.target.value))}
+                                                            className="flex-1"
+                                                        />
+                                                        <span className="w-8 text-right tabular-nums">{previewMetalness.toFixed(2)}</span>
+                                                    </label>
+                                                    <label className="flex items-center gap-3">
+                                                        <span className="w-16 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                            Roughness
+                                                        </span>
+                                                        <input
+                                                            type="range"
+                                                            min={0}
+                                                            max={1}
+                                                            step={0.05}
+                                                            value={previewRoughness}
+                                                            onChange={(event) => setPreviewRoughness(Number(event.target.value))}
+                                                            className="flex-1"
+                                                        />
+                                                        <span className="w-8 text-right tabular-nums">{previewRoughness.toFixed(2)}</span>
+                                                    </label>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                    {supportsTintControls && (
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                Tint
+                                            </p>
+                                            <div className="flex items-center gap-2">
+                                                {[
+                                                    { id: "neutral", label: "Neutral tint", color: "#d4d4d8" },
+                                                    { id: "violet", label: "Violet tint", color: "#e879f9" },
+                                                    { id: "cyan", label: "Cyan tint", color: "#67e8f9" },
+                                                ].map((tint) => {
+                                                    const active = inspectionTint === tint.id
+                                                    return (
+                                                        <button
+                                                            key={tint.id}
+                                                            type="button"
+                                                            onClick={() => setInspectionTint(tint.id as "neutral" | "violet" | "cyan")}
+                                                            className="h-8 w-8 rounded-full border transition"
+                                                            aria-label={tint.label}
+                                                            title={tint.label}
+                                                            style={{
+                                                                backgroundColor: tint.color,
+                                                                borderColor: active ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.2)",
+                                                                boxShadow: active ? "0 0 0 2px rgba(15,23,42,0.35)" : "none",
+                                                            }}
+                                                        />
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                        <div
+                            className="inline-flex items-center gap-1 rounded-full border px-1 py-1 shadow-lg backdrop-blur"
+                            style={{
+                                borderColor: "hsl(var(--forge-border))",
+                                backgroundColor: "rgba(15, 23, 42, 0.78)",
+                            }}
+                        >
+                        {[
+                            {
+                                id: "material",
+                                label: "Texture",
+                                icon: (
+                                    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                                        <path d="M4.5 11.8C3.4 10.6 3 9.55 3 8.25C3 5.35 5.35 3 8.25 3c1.2 0 2.22.34 3.36 1.28c1 .82 2.12 1.16 3.06 1.16c1.26 0 2.33.88 2.33 2.17c0 5.15-4.17 9.39-9.31 9.39c-2.06 0-3.69-1.3-3.69-3.05c0-.8.24-1.46.5-2.15Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                                        <circle cx="8" cy="7.2" r="1" fill="currentColor" />
+                                        <circle cx="11.4" cy="5.9" r=".9" fill="currentColor" />
+                                        <circle cx="12.7" cy="9" r=".9" fill="currentColor" />
+                                    </svg>
+                                ),
+                            },
+                            {
+                                id: "toon",
+                                label: "Toon",
+                                icon: (
+                                    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                                        <path d="M4 13.5c0-3.9 2.4-7 6-7s6 3.1 6 7c0 1.7-1.3 3-3 3H7c-1.7 0-3-1.3-3-3Z" stroke="currentColor" strokeWidth="1.6" />
+                                        <path d="M7 11.5h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                                        <path d="M8.25 8.5h3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                                    </svg>
+                                ),
+                            },
+                            {
+                                id: "geometry",
+                                label: "Geometry",
+                                icon: (
+                                    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                                        <path d="M10 3l6 3.5v7L10 17l-6-3.5v-7L10 3Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+                                        <path d="M4 6.5L10 10m6-3.5L10 10m0 0v7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                ),
+                            },
+                            {
+                                id: "solid",
+                                label: "Solid",
+                                icon: (
+                                    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                                        <path d="M10 3.5c3.58 0 6.5 2.92 6.5 6.5s-2.92 6.5-6.5 6.5S3.5 13.58 3.5 10 6.42 3.5 10 3.5Z" stroke="currentColor" strokeWidth="1.6" />
+                                        <path d="M10 3.5A6.5 6.5 0 0 1 16.5 10H10V3.5Z" fill="currentColor" fillOpacity=".28" />
+                                    </svg>
+                                ),
+                            },
+                            {
+                                id: "wireframe",
+                                label: "Wireframe",
+                                icon: (
+                                    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                                        <path d="M10 3l6 3.5v7L10 17l-6-3.5v-7L10 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                                        <path d="M4 6.5 10 10l6-3.5M10 10v7M4 13.5 10 10l6 3.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                ),
+                            },
+                            {
+                                id: "stats",
+                                label: "Stats",
+                                icon: (
+                                    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                                        <path d="M4 15.5V10m4 5.5V7.5m4 8V11m4 4.5V5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                                    </svg>
+                                ),
+                            },
+                        ].map((mode) => {
+                            const active = inspectionMode === mode.id
+                            return (
+                                <button
+                                    key={mode.id}
+                                    type="button"
+                                    onClick={() => setInspectionMode(mode.id as "material" | "geometry" | "solid" | "toon" | "wireframe" | "stats")}
+                                    className="rounded-full p-2.5 transition"
+                                    aria-label={mode.label}
+                                    title={mode.label}
+                                    style={active
+                                        ? {
+                                            backgroundColor: "rgba(255,255,255,0.18)",
+                                            color: "white",
+                                        }
+                                        : {
+                                            color: "rgba(226,232,240,0.86)",
+                                        }}
+                                >
+                                    {mode.icon}
+                                </button>
+                            )
+                        })}
+                        <span className="mx-1 h-6 w-px" style={{ backgroundColor: "rgba(255,255,255,0.12)" }} />
+                        <button
+                            type="button"
+                            onClick={() => setShowViewSettings((current) => !current)}
+                            className="rounded-full p-2.5 transition"
+                            aria-label="View settings"
+                            title="View settings"
+                            style={showViewSettings
+                                ? {
+                                    backgroundColor: "rgba(255,255,255,0.18)",
+                                    color: "white",
+                                }
+                                : {
+                                    color: "rgba(226,232,240,0.86)",
+                                }}
+                        >
+                            <SlidersHorizontal className="h-4 w-4" />
+                        </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
@@ -947,11 +1483,15 @@ function NeuralViewerStage({
 function NeuralRerunFields({
     tool,
     inputs,
+    generatedAssets,
     onChange,
+    onRequestMeshSelection,
 }: {
     tool: ToolEntry
     inputs: Record<string, string>
+    generatedAssets: GeneratedAssetItem[]
     onChange: (key: string, value: string) => void
+    onRequestMeshSelection: (inputKey: string, currentInputs: Record<string, string>) => void
 }) {
     return (
         <div className="space-y-4">
@@ -1028,7 +1568,16 @@ function NeuralRerunFields({
                     {input.type === "mesh" && (
                         <MeshAttachmentCard
                             value={inputs[input.key]}
-                            emptyMessage="No model is attached yet. Continue from a generated result or a future asset selector to populate this field."
+                            emptyMessage="No model is attached yet. Pick one from the project asset library or import a GLB there first."
+                            previewImageUrl={getMeshPreviewImage(
+                                tool,
+                                inputs,
+                                findGeneratedAssetByUrl(generatedAssets, inputs[input.key]),
+                            )}
+                            assetStats={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.assetStats}
+                            stageLabel={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.stageLabel}
+                            providerLabel={findGeneratedAssetByUrl(generatedAssets, inputs[input.key])?.providerLabel}
+                            onChooseModel={() => onRequestMeshSelection(input.key, inputs)}
                         />
                     )}
 
@@ -1120,9 +1669,11 @@ function NeuralRunOverlay({
     referenceImage,
     viewerSamples,
     draftInputs,
+    generatedAssets,
     onLoadDemo,
     onDraftInputChange,
-    onContinueToNextTool,
+    onRequestMeshSelection,
+    onContinueToSuggestedTool,
     onCollapse,
     onToggleFocus,
     onStop,
@@ -1132,15 +1683,20 @@ function NeuralRunOverlay({
     referenceImage?: string
     viewerSamples: ViewerSample[]
     draftInputs: Record<string, string>
+    generatedAssets: GeneratedAssetItem[]
     onLoadDemo: (sample: ViewerSample) => void
     onDraftInputChange: (key: string, value: string) => void
-    onContinueToNextTool: () => void
+    onRequestMeshSelection: (inputKey: string, currentInputs: Record<string, string>) => void
+    onContinueToSuggestedTool: (toolId: string) => void
     onCollapse: () => void
     onToggleFocus: () => void
     onStop: () => void
     onRunAgain: () => void
 }) {
     const isFocus = run.dockMode === "focus"
+    const nextSuggestions = run.status === "ready" && run.viewerUrl && run.viewerSource === "generated"
+        ? buildNextSuggestionsForAsset(run.tool.id, run.inputs)
+        : []
 
     return (
         <aside
@@ -1375,6 +1931,14 @@ function NeuralRunOverlay({
                                         <MeshAttachmentCard
                                             value={value}
                                             emptyMessage="No model is attached yet."
+                                            previewImageUrl={getMeshPreviewImage(
+                                                run.tool,
+                                                run.inputs,
+                                                findGeneratedAssetByUrl(generatedAssets, value),
+                                            )}
+                                            assetStats={findGeneratedAssetByUrl(generatedAssets, value)?.assetStats}
+                                            stageLabel={findGeneratedAssetByUrl(generatedAssets, value)?.stageLabel}
+                                            providerLabel={findGeneratedAssetByUrl(generatedAssets, value)?.providerLabel}
                                         />
                                         {input.helpText && (
                                             <p className="text-xs" style={{ color: "hsl(var(--forge-text-subtle))" }}>
@@ -1421,7 +1985,9 @@ function NeuralRunOverlay({
                             <NeuralRerunFields
                                 tool={run.tool}
                                 inputs={draftInputs}
+                                generatedAssets={generatedAssets}
                                 onChange={onDraftInputChange}
+                                onRequestMeshSelection={onRequestMeshSelection}
                             />
                         </div>
                     )}
@@ -1438,7 +2004,7 @@ function NeuralRunOverlay({
                     </p>
                 </div>
 
-                {run.status === "ready" && run.viewerUrl && run.viewerSource === "generated" && (
+                {nextSuggestions.length > 0 && (
                     <div
                         className="rounded-2xl border p-4"
                         style={{
@@ -1451,17 +2017,33 @@ function NeuralRunOverlay({
                                 Suggested next step
                             </p>
                             <p className="text-sm leading-relaxed" style={{ color: "hsl(var(--forge-text-muted))" }}>
-                                Continue this generated geometry into the texturing stage without re-uploading the mesh.
+                                Move this asset to the next stage without re-uploading the mesh or rebuilding the pipeline context.
                             </p>
                         </div>
-                        <button
-                            type="button"
-                            onClick={onContinueToNextTool}
-                            className="mt-3 w-full rounded-xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
-                            style={{ backgroundColor: "hsl(var(--forge-accent))" }}
-                        >
-                            Continue to Hunyuan3D Paint
-                        </button>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            {nextSuggestions.map((suggestion) => (
+                                <button
+                                    key={suggestion.toolId}
+                                    type="button"
+                                    onClick={() => onContinueToSuggestedTool(suggestion.toolId)}
+                                    className="rounded-xl px-4 py-3 text-sm font-semibold transition hover:opacity-90"
+                                    style={suggestion.variant === "primary"
+                                        ? {
+                                            backgroundColor: "hsl(var(--forge-accent))",
+                                            color: "white",
+                                        }
+                                        : {
+                                            borderColor: "hsl(var(--forge-border))",
+                                            borderWidth: "1px",
+                                            backgroundColor: "rgba(255,255,255,0.74)",
+                                            color: "hsl(var(--forge-text-muted))",
+                                        }}
+                                    title={suggestion.description}
+                                >
+                                    {suggestion.label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>
@@ -1509,6 +2091,11 @@ export function StudioWorkspace({
     onNeuralRunUpdate,
     selectedPipelineStep,
     onRequestCategoryChange,
+    onOpenAssetLibrary,
+    onRequestLibrarySelection,
+    incomingLibrarySelection,
+    onConsumeLibrarySelection,
+    generatedAssets,
     externalToolLaunch,
 }: StudioWorkspaceProps) {
     const [selectedTool, setSelectedTool] = useState<ToolEntry | null>(null)
@@ -1516,6 +2103,7 @@ export function StudioWorkspace({
     const [neuralRun, setNeuralRun] = useState<ActiveNeuralRun | null>(null)
     const [savedNeuralRuns, setSavedNeuralRuns] = useState<Record<string, ActiveNeuralRun>>({})
     const [viewerSamples, setViewerSamples] = useState<ViewerSample[]>([])
+    const [pendingMeshSelection, setPendingMeshSelection] = useState<PendingMeshSelection | null>(null)
     const neuralAbortRef = useRef<AbortController | null>(null)
     const handledExternalLaunchTokenRef = useRef<string | null>(null)
     const category = CATEGORIES.find(
@@ -1548,12 +2136,58 @@ export function StudioWorkspace({
     }, [neuralRun, onNeuralRunUpdate])
 
     useEffect(() => {
+        if (!selectedTool || selectedTool.type === "blender_agent" || !getMeshInputKey(selectedTool)) return
+        const meshInputKey = getMeshInputKey(selectedTool)
+        if (meshInputKey && toolDrafts[selectedTool.id]?.[meshInputKey]) return
+        onOpenAssetLibrary()
+    }, [onOpenAssetLibrary, selectedTool, toolDrafts])
+
+    useEffect(() => {
+        if (!incomingLibrarySelection || !pendingMeshSelection) return
+        if (incomingLibrarySelection.token !== pendingMeshSelection.token) return
+
+        const nextUrl = incomingLibrarySelection.asset.viewerUrl
+
+        if (pendingMeshSelection.target === "tool") {
+            setToolDrafts((prev) => ({
+                ...prev,
+                [pendingMeshSelection.toolId]: {
+                    ...(prev[pendingMeshSelection.toolId] ?? {}),
+                    [pendingMeshSelection.inputKey]: nextUrl,
+                },
+            }))
+        } else {
+            setNeuralRun((current) => {
+                if (!current || current.tool.id !== pendingMeshSelection.toolId) {
+                    return current
+                }
+
+                return {
+                    ...current,
+                    inputs: {
+                        ...current.inputs,
+                        [pendingMeshSelection.inputKey]: nextUrl,
+                    },
+                    draftInputs: {
+                        ...current.draftInputs,
+                        [pendingMeshSelection.inputKey]: nextUrl,
+                    },
+                }
+            })
+        }
+
+        setPendingMeshSelection(null)
+        onConsumeLibrarySelection(incomingLibrarySelection.token)
+    }, [incomingLibrarySelection, onConsumeLibrarySelection, pendingMeshSelection])
+
+    useEffect(() => {
         if (!selectedPipelineStep) return
         if (selectedTool) return
 
         const tool = getToolById(selectedPipelineStep.toolName)
-        if (!tool || tool.type !== "neural") return
         const persistedState = selectedPipelineStep.neuralState ?? undefined
+        const isImportedAsset = persistedState?.assetOrigin === "imported"
+        if (!tool || (!isImportedAsset && tool.type !== "neural")) return
 
         setSelectedTool(null)
         setNeuralRun((current) => {
@@ -1574,6 +2208,8 @@ export function StudioWorkspace({
                 viewerSource: persistedState?.viewerSource,
                 error: selectedPipelineStep.error,
                 generationTimeMs: persistedState?.generationTimeMs,
+                assetStats: persistedState?.assetStats,
+                assetOrigin: persistedState?.assetOrigin,
             }
         })
     }, [savedNeuralRuns, selectedPipelineStep, selectedTool])
@@ -1628,17 +2264,17 @@ export function StudioWorkspace({
         }
     }, [])
 
-    if (!category) return null
-
     const runNeuralTool = async (tool: ToolEntry, inputs: Record<string, string>, existingStepId?: string) => {
         if (!tool.provider) return
 
         const stepId = onNeuralRunStart(tool, inputs, existingStepId)
         const imageInputKey = getImageInputKey(tool)
+        const meshInputKey = getMeshInputKey(tool)
         const imageDataUrl = imageInputKey ? inputs[imageInputKey] : undefined
         const resolutionValue = inputs.resolution ? Number(inputs.resolution) : undefined
         const targetFacesValue = inputs.targetFaces ? Number(inputs.targetFaces) : undefined
-        const carriedViewerUrl = inputs.meshUrl || null
+        const carriedViewerUrl = meshInputKey ? inputs[meshInputKey] || null : null
+        const linkedAsset = findGeneratedAssetByUrl(generatedAssets, carriedViewerUrl)
         const abortController = new AbortController()
 
         neuralAbortRef.current?.abort()
@@ -1654,6 +2290,7 @@ export function StudioWorkspace({
             viewerUrl: carriedViewerUrl,
             viewerLabel: carriedViewerUrl ? getAssetDisplayLabel(carriedViewerUrl) : undefined,
             viewerSource: carriedViewerUrl ? "input" : undefined,
+            assetStats: carriedViewerUrl ? mergeAssetStats(tool, undefined, linkedAsset) : mergeAssetStats(tool),
         })
 
         try {
@@ -1664,7 +2301,7 @@ export function StudioWorkspace({
                     provider: tool.provider,
                     prompt: inputs.prompt,
                     imageDataUrl,
-                    meshUrl: inputs.meshUrl,
+                    meshUrl: meshInputKey ? inputs[meshInputKey] : undefined,
                     resolution: Number.isFinite(resolutionValue) ? resolutionValue : undefined,
                     textureResolution: inputs.textureResolution,
                     targetFaces: Number.isFinite(targetFacesValue) ? targetFacesValue : undefined,
@@ -1687,6 +2324,7 @@ export function StudioWorkspace({
                     viewerSource: "generated",
                     error: undefined,
                     generationTimeMs: data.generationTimeMs,
+                    assetStats: mergeAssetStats(current.tool),
                 }
             })
             onNeuralRunUpdate(stepId, { status: "done" })
@@ -1770,6 +2408,68 @@ export function StudioWorkspace({
         })
     }
 
+    const requestToolMeshSelection = useCallback((toolId: string, inputKey: string, currentInputs: Record<string, string>) => {
+        const token = `tool-mesh-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+        setToolDrafts((prev) => ({
+            ...prev,
+            [toolId]: {
+                ...(prev[toolId] ?? {}),
+                ...currentInputs,
+            },
+        }))
+        setPendingMeshSelection({
+            token,
+            target: "tool",
+            toolId,
+            inputKey,
+        })
+        onRequestLibrarySelection({
+            token,
+            label: getToolById(toolId)?.name ?? "current tool",
+        })
+    }, [onRequestLibrarySelection])
+
+    const requestNeuralMeshSelection = useCallback((toolId: string, inputKey: string, currentInputs: Record<string, string>) => {
+        const token = `neural-mesh-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+        setNeuralRun((current) => {
+            if (!current || current.tool.id !== toolId) return current
+            return {
+                ...current,
+                draftInputs: {
+                    ...current.draftInputs,
+                    ...currentInputs,
+                },
+            }
+        })
+        setPendingMeshSelection({
+            token,
+            target: "neural",
+            toolId,
+            inputKey,
+        })
+        onRequestLibrarySelection({
+            token,
+            label: getToolById(toolId)?.name ?? "current tool",
+        })
+    }, [onRequestLibrarySelection])
+
+    useEffect(() => {
+        if (!selectedTool || selectedTool.type === "blender_agent") return
+        const meshInputKey = getMeshInputKey(selectedTool)
+        if (!meshInputKey) return
+        const currentDraft = toolDrafts[selectedTool.id] ?? {}
+        if (currentDraft[meshInputKey]) return
+        if (
+            pendingMeshSelection?.target === "tool" &&
+            pendingMeshSelection.toolId === selectedTool.id &&
+            pendingMeshSelection.inputKey === meshInputKey
+        ) {
+            return
+        }
+
+        requestToolMeshSelection(selectedTool.id, meshInputKey, currentDraft)
+    }, [pendingMeshSelection, requestToolMeshSelection, selectedTool, toolDrafts])
+
     const handleRunNeuralAgain = () => {
         if (!neuralRun) return
         void runNeuralTool(neuralRun.tool, neuralRun.draftInputs, neuralRun.stepId)
@@ -1783,36 +2483,92 @@ export function StudioWorkspace({
                 viewerUrl: sample.url,
                 viewerLabel: sample.name,
                 viewerSource: "demo",
+                assetStats: null,
             }
         })
     }
 
-    const handleContinueToPaint = () => {
+    useEffect(() => {
+        if (!neuralRun?.viewerUrl || neuralRun.viewerSource === "demo") return
+
+        const linkedAsset = findGeneratedAssetByUrl(generatedAssets, neuralRun.viewerUrl)
+        if (linkedAsset?.assetStats && !neuralRun.assetStats) {
+            setNeuralRun((current) => {
+                if (!current || current.viewerUrl !== neuralRun.viewerUrl || current.assetStats) {
+                    return current
+                }
+                return {
+                    ...current,
+                    assetStats: mergeAssetStats(current.tool, linkedAsset.assetStats, linkedAsset),
+                }
+            })
+            return
+        }
+
+        if (neuralRun.assetStats?.triangleCount != null || neuralRun.assetStats?.fileSizeBytes != null) {
+            return
+        }
+
+        const relativePath = extractNeuralOutputRelativePath(neuralRun.viewerUrl)
+        if (!relativePath) return
+
+        const abortController = new AbortController()
+
+        fetch(`/api/ai/neural-output/stats?path=${encodeURIComponent(relativePath)}`, {
+            signal: abortController.signal,
+        })
+            .then(async (response) => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`)
+                }
+                return response.json() as Promise<{ stats?: Partial<AssetInspectionStats> }>
+            })
+            .then((payload) => {
+                if (!payload.stats) return
+                setNeuralRun((current) => {
+                    if (!current || current.viewerUrl !== neuralRun.viewerUrl) {
+                        return current
+                    }
+                    return {
+                        ...current,
+                        assetStats: mergeAssetStats(current.tool, payload.stats, linkedAsset),
+                    }
+                })
+            })
+            .catch((statsError) => {
+                if (!(statsError instanceof DOMException && statsError.name === "AbortError")) {
+                    console.warn("Failed to inspect generated asset", statsError)
+                }
+            })
+
+        return () => {
+            abortController.abort()
+        }
+    }, [generatedAssets, neuralRun?.viewerUrl, neuralRun?.viewerSource, neuralRun?.assetStats])
+
+    const handleContinueToSuggestedTool = (toolId: string) => {
         if (!neuralRun?.viewerUrl) return
 
-        const paintTool = getToolById("hunyuan-paint")
-        if (!paintTool) return
+        const targetTool = getToolById(toolId)
+        if (!targetTool) return
 
-        const carriedReference = neuralRun.inputs.imageUrl ?? neuralRun.inputs.referenceImage
-        const draft: Record<string, string> = {
-            meshUrl: neuralRun.viewerUrl,
-        }
-
-        if (carriedReference) {
-            draft.imageUrl = carriedReference
-        }
+        const sourceImageInputKey = getImageInputKey(neuralRun.tool)
+        const carriedReference = (sourceImageInputKey ? neuralRun.inputs[sourceImageInputKey] : undefined) ?? neuralRun.inputs.referenceImage
+        const draft = buildToolLaunchInputs(targetTool, neuralRun.viewerUrl, carriedReference)
 
         setToolDrafts((prev) => ({
             ...prev,
-            [paintTool.id]: draft,
+            [targetTool.id]: draft,
         }))
         setSavedNeuralRuns((prev) =>
             neuralRun ? { ...prev, [neuralRun.stepId]: neuralRun } : prev
         )
         setNeuralRun(null)
-        onRequestCategoryChange?.(paintTool.category)
-        setSelectedTool(paintTool)
+        onRequestCategoryChange?.(targetTool.category)
+        setSelectedTool(targetTool)
     }
+
+    if (!category) return null
 
     // ── Detail view ──
     if (neuralRun) {
@@ -1844,9 +2600,13 @@ export function StudioWorkspace({
                         referenceImage={referenceImage}
                         viewerSamples={viewerSamples}
                         draftInputs={neuralRun.draftInputs}
+                        generatedAssets={generatedAssets}
                         onLoadDemo={handleLoadDemoSample}
                         onDraftInputChange={handleDraftInputChange}
-                        onContinueToNextTool={handleContinueToPaint}
+                        onRequestMeshSelection={(inputKey, currentInputs) =>
+                            requestNeuralMeshSelection(neuralRun.tool.id, inputKey, currentInputs)
+                        }
+                        onContinueToSuggestedTool={handleContinueToSuggestedTool}
                         onCollapse={handleCollapseNeuralPanel}
                         onToggleFocus={handleToggleNeuralFocus}
                         onStop={handleStopNeuralRun}
@@ -1863,6 +2623,7 @@ export function StudioWorkspace({
                         viewerSource={neuralRun.viewerSource}
                         error={neuralRun.error}
                         generationTimeMs={neuralRun.generationTimeMs}
+                        assetStats={neuralRun.assetStats}
                     />
                 </div>
             </div>
@@ -1874,7 +2635,20 @@ export function StudioWorkspace({
             <ToolDetailView
                 key={selectedTool.id}
                 tool={selectedTool}
-                initialInputs={toolDrafts[selectedTool.id]}
+                inputs={toolDrafts[selectedTool.id] ?? {}}
+                onInputChange={(key, value) =>
+                    setToolDrafts((prev) => ({
+                        ...prev,
+                        [selectedTool.id]: {
+                            ...(prev[selectedTool.id] ?? {}),
+                            [key]: value,
+                        },
+                    }))
+                }
+                generatedAssets={generatedAssets}
+                onRequestMeshSelection={(inputKey, currentInputs) =>
+                    requestToolMeshSelection(selectedTool.id, inputKey, currentInputs)
+                }
                 onBack={() => setSelectedTool(null)}
                 onSubmit={(tool, inputs) => {
                     onToolSelect(tool, inputs)

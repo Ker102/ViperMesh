@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { stripe } from "@/lib/stripe"
+import { STRIPE_ENABLED, stripe } from "@/lib/stripe"
 
 export async function GET() {
   try {
@@ -41,6 +41,13 @@ export async function POST(req: Request) {
     
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    if (!STRIPE_ENABLED || !stripe) {
+      return NextResponse.json(
+        { error: "Billing is not configured in this environment" },
+        { status: 503 }
+      )
     }
 
     const { priceId, successUrl, cancelUrl } = await req.json()

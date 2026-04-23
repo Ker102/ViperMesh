@@ -1,6 +1,6 @@
 # ViperMesh — Future Plans & Roadmap
 
-> **Last Updated:** 2026-03-20
+> **Last Updated:** 2026-04-20
 > **Rule:** This file is the single source of truth for planned features. Do NOT merge these into gemini.md.
 > **Competitive Analysis:** See `tripo_competitive_analysis.md` artifact for detailed Tripo P1.0 breakdown.
 
@@ -9,9 +9,10 @@
 ## P0 — In Progress / Immediate Next
 
 1. ~~**Debug Test 13 failure**~~ — ✅ Resolved: Created `rigging-guide.md`, `animation-guide.md`, `weight-painting-guide.md` tool guides, fixed `auto_rigify.py`.
-2. **Verify AgentActivity streaming UI** — Component is wired (`agent-activity.tsx`) but unconfirmed in live runs.
-3. **Run Tests 14-16** — UniRig AI auto-rigging, keyframe animation, MoMask text-to-motion.
-4. **Follow-up question quality** — Post-execution follow-up questions are weak/irrelevant. Needs prompt engineering in `route.ts`.
+2. ~~**Verify AgentActivity streaming UI**~~ — ✅ Resolved: Streaming activity UI and Studio follow-through were verified through the live workflow/debug passes.
+3. ~~**Run Tests 14-16**~~ — ✅ Resolved: The immediate neural/Studio validation batch was completed and the roadmap priority has moved to viewer/workflow polish rather than these placeholder test items.
+4. ~~**Follow-up question quality**~~ — ✅ Resolved: The current Studio execution flow now prioritizes stage-aware workflow guidance and downstream actions instead of weak generic follow-up prompts.
+5. **Viewer inspection follow-up: secondary heavy viewer path** — After the current `<model-viewer>` inspection/workflow polish batch is complete, build the next viewer implementation as a heavier diagnostic/editor surface for true wireframe, flat-vs-smooth shading inspection, and deeper geometry debugging that the current MVP stack cannot represent cleanly.
 
 ---
 
@@ -27,6 +28,11 @@ Competitors (Tripo, Modiff, Meshy) all have in-browser 3D viewers.
 - Download in multiple formats
 - Side-by-side comparison of variants
 - **Alternative:** Three.js for more control, Babylon.js for full PBR pipeline
+
+**Current implementation reality (2026-04-20):**
+- ViperMesh is already using `<model-viewer>` as the active Studio viewer surface for result inspection, download, clay/geometry-style inspection, and metadata overlays
+- This remains the right MVP/review viewer
+- **Next viewer implementation after the current Studio polish batch:** add a secondary heavier viewer path for true wireframe, flat/smooth shading diagnostics, and deeper material/geometry debugging that should not be faked inside the MVP stack
 
 ### 🟠 Tripo P1.0 API Integration
 Tripo P1.0 generates production-ready assets in **2 seconds** (mesh) / **60 seconds** (PBR). ~$0.20/model.
@@ -95,6 +101,7 @@ Inspired by Tripo Studio and Modiff:
 3. **Fine-tuning pipeline** — Custom Qwen3 for Blender code (269+ training pairs exist)
 4. **Revenue/monetization** — Credits + tiers system (Free/Starter/Pro)
 5. **Production pipeline completeness** — Concept → Export in one session
+6. **Blender agent toolification layer** — Replace repeated full-length freeform Blender Python generation with a curated tool layer that maps agent intents onto prebuilt Python snippets/scripts, parameterized runners, and reusable API wrappers so the agent can act faster, hallucinate less, and produce more reliable deterministic edits.
 
 ### 🤖 Autopilot: Neural Model Agent Integration (Far Future)
 Connect the Blender agent to neural models so it can command the full 3D pipeline autonomously.

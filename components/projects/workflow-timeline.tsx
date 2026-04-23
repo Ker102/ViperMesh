@@ -49,12 +49,26 @@ export interface StepPlanData {
     errors?: string[]
 }
 
+export interface AssetInspectionStats {
+    triangleCount?: number
+    materialCount?: number
+    textureCount?: number
+    meshCount?: number
+    fileSizeBytes?: number
+    sourceToolId?: string
+    sourceToolLabel?: string
+    sourceProvider?: string
+    stageLabel?: string
+}
+
 export interface WorkflowTimelineNeuralState {
     draftInputs?: Record<string, string>
     viewerUrl?: string | null
     viewerLabel?: string
     viewerSource?: "generated" | "demo" | "input"
     generationTimeMs?: number
+    assetStats?: AssetInspectionStats | null
+    assetOrigin?: "generated" | "imported"
 }
 
 export interface WorkflowTimelineStep {
@@ -82,6 +96,8 @@ export interface WorkflowTimelineStep {
     agentEvents?: AgentStreamEvent[]
     /** Persisted neural-viewer state for Studio neural tools */
     neuralState?: WorkflowTimelineNeuralState | null
+    /** Hidden steps are persisted but excluded from the visible workflow timeline. */
+    hiddenFromTimeline?: boolean
 }
 
 // ============================================================================
@@ -109,7 +125,8 @@ export function WorkflowTimeline({
     onRunAll,
     onClearTimeline,
 }: WorkflowTimelineProps) {
-    if (steps.length === 0) return null
+    const visibleSteps = steps.filter((step) => !step.hiddenFromTimeline)
+    if (visibleSteps.length === 0) return null
 
     return (
         <div
@@ -127,7 +144,7 @@ export function WorkflowTimeline({
             </span>
 
             <div className="flex items-center gap-1.5 overflow-x-auto">
-                {steps.map((step, index) => {
+                {visibleSteps.map((step, index) => {
                     const isSelected = selectedStepId === step.id
                     return (
                         <div key={step.id} className="flex items-center gap-1.5 shrink-0">
@@ -196,7 +213,7 @@ export function WorkflowTimeline({
                             </button>
 
                             {/* Connector arrow */}
-                            {index < steps.length - 1 && (
+                            {index < visibleSteps.length - 1 && (
                                 <svg
                                     width="16"
                                     height="16"
