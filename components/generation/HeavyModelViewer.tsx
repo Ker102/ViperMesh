@@ -983,16 +983,15 @@ function SceneController({
     useEffect(() => {
         const fit = () => {
             bounds.refresh().clip().fit();
+            window.requestAnimationFrame(() => {
+                controlsRef.current?.saveState?.();
+            });
         };
         const reset = () => {
             controlsRef.current?.reset?.();
             fit();
         };
 
-        fit();
-        window.requestAnimationFrame(() => {
-            controlsRef.current?.saveState?.();
-        });
         onRegisterApi({ fit, reset });
     }, [bounds, controlsRef, onRegisterApi]);
 
@@ -1026,6 +1025,7 @@ function LoadedAsset({
 }) {
     const { gl } = useThree();
     const [scene, setScene] = useState<THREE.Object3D | null>(null);
+    const readyKeyRef = useRef<string | null>(null);
     const maxAnisotropy = useMemo(() => {
         const capability = gl.capabilities.getMaxAnisotropy?.() ?? 1;
         return Math.max(1, Math.min(8, capability));
@@ -1067,6 +1067,20 @@ function LoadedAsset({
             return;
         }
 
+        const readyKey = `${extension}:${url}`;
+        if (readyKeyRef.current === readyKey) {
+            return;
+        }
+
+        readyKeyRef.current = readyKey;
+        onReady();
+    }, [extension, onReady, scene, url]);
+
+    useEffect(() => {
+        if (!scene) {
+            return;
+        }
+
         applyInspectionMaterials(
             scene,
             inspectionMode,
@@ -1078,12 +1092,11 @@ function LoadedAsset({
             previewRoughness,
             maxAnisotropy,
         );
-        onReady();
 
         return () => {
             disposeGeneratedMaterials(scene);
         };
-    }, [inspectionMode, inspectionTint, maxAnisotropy, onReady, pbrEnabled, previewMetalness, previewRoughness, scene, shadingMode, unlitEnabled]);
+    }, [inspectionMode, inspectionTint, maxAnisotropy, pbrEnabled, previewMetalness, previewRoughness, scene, shadingMode, unlitEnabled]);
 
     if (!scene) {
         return null;
@@ -1119,6 +1132,20 @@ function HeavyModelViewerInner({
         typeof window.vipermesh?.revealItemInFolder === "function";
     const localRelativePath = useMemo(() => getNeuralOutputRelativePath(safeUrl), [safeUrl]);
     const modelExtension = useMemo(() => inferModelExtension(safeUrl), [safeUrl]);
+    const handleAssetReady = React.useCallback(() => {
+        setStatus("ready");
+        setErrorMessage(null);
+        window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => {
+                viewerApiRef.current?.fit();
+            });
+        });
+    }, []);
+    const handleAssetError = React.useCallback((error: Error) => {
+        console.error("HeavyModelViewer: asset load failure", error);
+        setStatus("error");
+        setErrorMessage(`Failed to load 3D model (${error.message})`);
+    }, []);
     const useMaterialView = inspectionMode === "material";
     const useFlatLighting = useMaterialView && !unlitEnabled && shadingMode === "flat";
     const materialAmbientIntensity = !useMaterialView
@@ -1344,7 +1371,7 @@ function HeavyModelViewerInner({
                         dampingFactor={0.08}
                         enabled={interactive}
                     />
-                    <Bounds fit clip observe margin={1.18}>
+                    <Bounds clip margin={1.18}>
                         <SceneController
                             controlsRef={controlsRef}
                             onRegisterApi={(api) => {
@@ -1363,15 +1390,8 @@ function HeavyModelViewerInner({
                                 unlitEnabled={unlitEnabled}
                                 previewMetalness={previewMetalness}
                                 previewRoughness={previewRoughness}
-                                onReady={() => {
-                                    setStatus("ready");
-                                    setErrorMessage(null);
-                                }}
-                                onError={(error) => {
-                                    console.error("HeavyModelViewer: asset load failure", error);
-                                    setStatus("error");
-                                    setErrorMessage(`Failed to load 3D model (${error.message})`);
-                                }}
+                                onReady={handleAssetReady}
+                                onError={handleAssetError}
                             />
                         ) : null}
                     </Bounds>
