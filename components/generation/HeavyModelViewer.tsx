@@ -89,12 +89,13 @@ function getToonGradientTexture() {
     }
 
     const colors = new Uint8Array([
-        68, 76, 92, 255,
-        126, 140, 166, 255,
-        196, 210, 236, 255,
+        20, 24, 31, 255,
+        62, 72, 92, 255,
+        118, 132, 156, 255,
+        196, 208, 224, 255,
         250, 250, 255, 255,
     ]);
-    const texture = new THREE.DataTexture(colors, 4, 1, THREE.RGBAFormat);
+    const texture = new THREE.DataTexture(colors, 5, 1, THREE.RGBAFormat);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.magFilter = THREE.NearestFilter;
     texture.minFilter = THREE.NearestFilter;
@@ -286,6 +287,16 @@ function disposeLoadedAssetResources(root: THREE.Object3D) {
     const textureSet = new Set<THREE.Texture>();
 
     root.traverse((child) => {
+        const lineSegments = child as THREE.LineSegments;
+        if (lineSegments.isLineSegments && lineSegments.userData.__inspectionOverlay) {
+            if (lineSegments.geometry) {
+                geometrySet.add(lineSegments.geometry);
+            }
+            const lineMaterials = Array.isArray(lineSegments.material) ? lineSegments.material : [lineSegments.material];
+            lineMaterials.filter(Boolean).forEach((material) => materialSet.add(material));
+            return;
+        }
+
         const mesh = child as THREE.Mesh;
         if (!mesh.isMesh) return;
 
@@ -388,6 +399,16 @@ function disposeGeneratedMaterials(object: THREE.Object3D) {
     object.traverse((child) => {
         const mesh = child as THREE.Mesh;
         if (!mesh.isMesh) return;
+
+        const toonOverlay = mesh.userData.__toonEdgeOverlay as THREE.LineSegments | undefined;
+        if (toonOverlay) {
+            mesh.remove(toonOverlay);
+            toonOverlay.geometry.dispose();
+            const overlayMaterials = Array.isArray(toonOverlay.material) ? toonOverlay.material : [toonOverlay.material];
+            overlayMaterials.forEach((material) => material.dispose());
+            delete mesh.userData.__toonEdgeOverlay;
+            delete mesh.userData.__toonEdgeOverlayKey;
+        }
 
         const generatedMaterials = mesh.userData.__generatedMaterials as THREE.Material[] | undefined;
         generatedMaterials?.forEach((material) => material.dispose());
@@ -776,9 +797,9 @@ function buildReplacementMaterial(
 
     if (mode === "solid") {
         return new THREE.MeshStandardMaterial({
-            color: "#cfd4db",
-            metalness: 0.02,
-            roughness: 0.9,
+            color: "#c3c8d0",
+            metalness: 0,
+            roughness: 0.96,
             flatShading,
             side: THREE.DoubleSide,
         });
@@ -811,11 +832,9 @@ function buildReplacementMaterial(
             material.color.set("#ffffff");
         }
         material.emissive.copy(source.emissive ?? new THREE.Color("#000000"));
-        material.emissiveIntensity = 0;
+        material.emissiveIntensity = 0.02;
         material.emissiveMap = source.emissiveMap ?? null;
-        if (flatShading) {
-            stripFacetMutedMaps(material);
-        }
+        stripFacetMutedMaps(material);
         material.needsUpdate = true;
         return material;
     }
@@ -867,6 +886,54 @@ function prepareInspectionGeometry(root: THREE.Object3D, shadingMode: HeavyShadi
     });
 }
 
+function syncToonEdgeOverlay(root: THREE.Object3D, enabled: boolean, shadingMode: HeavyShadingMode) {
+    root.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+
+        const existingOverlay = mesh.userData.__toonEdgeOverlay as THREE.LineSegments | undefined;
+        if (!enabled) {
+            if (existingOverlay) {
+                mesh.remove(existingOverlay);
+                existingOverlay.geometry.dispose();
+                const overlayMaterials = Array.isArray(existingOverlay.material) ? existingOverlay.material : [existingOverlay.material];
+                overlayMaterials.forEach((material) => material.dispose());
+                delete mesh.userData.__toonEdgeOverlay;
+                delete mesh.userData.__toonEdgeOverlayKey;
+            }
+            return;
+        }
+
+        const overlayKey = `${shadingMode}:${mesh.geometry.uuid}`;
+        if (existingOverlay && mesh.userData.__toonEdgeOverlayKey === overlayKey) {
+            return;
+        }
+
+        if (existingOverlay) {
+            mesh.remove(existingOverlay);
+            existingOverlay.geometry.dispose();
+            const overlayMaterials = Array.isArray(existingOverlay.material) ? existingOverlay.material : [existingOverlay.material];
+            overlayMaterials.forEach((material) => material.dispose());
+        }
+
+        const edgeGeometry = new THREE.EdgesGeometry(mesh.geometry, shadingMode === "flat" ? 6 : 18);
+        const edgeMaterial = new THREE.LineBasicMaterial({
+            color: "#0b0f16",
+            transparent: true,
+            opacity: 0.95,
+            depthWrite: false,
+            toneMapped: false,
+        });
+        const overlay = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+        overlay.userData.__inspectionOverlay = true;
+        overlay.renderOrder = 8;
+        overlay.scale.setScalar(1.0015);
+        mesh.add(overlay);
+        mesh.userData.__toonEdgeOverlay = overlay;
+        mesh.userData.__toonEdgeOverlayKey = overlayKey;
+    });
+}
+
 function SceneEnvironmentController({
     inspectionMode,
     pbrEnabled,
@@ -906,10 +973,10 @@ function SceneEnvironmentController({
             scene.environmentIntensity = pbrEnabled ? 0.62 : 0.2;
         } else if (inspectionMode === "toon") {
             scene.environment = envTextureRef.current;
-            scene.environmentIntensity = 0.38;
+            scene.environmentIntensity = 0.18;
         } else if (inspectionMode === "solid") {
             scene.environment = envTextureRef.current;
-            scene.environmentIntensity = 0.32;
+            scene.environmentIntensity = 0.08;
         } else {
             scene.environment = null;
             scene.environmentIntensity = 1;
@@ -938,6 +1005,7 @@ function applyInspectionMaterials(
     maxAnisotropy: number,
 ) {
     prepareInspectionGeometry(root, shadingMode);
+    syncToonEdgeOverlay(root, mode === "toon", shadingMode);
 
     root.traverse((child) => {
         const mesh = child as THREE.Mesh;
@@ -1150,9 +1218,9 @@ function HeavyModelViewerInner({
     const useFlatLighting = useMaterialView && !unlitEnabled && shadingMode === "flat";
     const materialAmbientIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 0.92
+            ? 0.42
             : inspectionMode === "solid"
-                ? 0.84
+                ? 0.28
                 : 0.92
         : unlitEnabled
             ? 0.15
@@ -1163,9 +1231,9 @@ function HeavyModelViewerInner({
                     : 0.5;
     const materialHemisphereIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 1.45
+            ? 0.72
             : inspectionMode === "solid"
-                ? 1.2
+                ? 0.58
                 : 1.45
         : unlitEnabled
             ? 0.15
@@ -1176,9 +1244,9 @@ function HeavyModelViewerInner({
                     : 0.92;
     const keyDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 2.3
+            ? 2.75
             : inspectionMode === "solid"
-                ? 2.25
+                ? 1.95
                 : 2.15
         : unlitEnabled
             ? 0.1
@@ -1189,9 +1257,9 @@ function HeavyModelViewerInner({
                     : 1.68;
     const fillDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 1.1
+            ? 0.18
             : inspectionMode === "solid"
-                ? 1.0
+                ? 0.18
                 : 0.9
         : unlitEnabled
             ? 0.08
@@ -1202,9 +1270,9 @@ function HeavyModelViewerInner({
                     : 0.58;
     const coolDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 0.7
+            ? 0.08
             : inspectionMode === "solid"
-                ? 0.5
+                ? 0.08
                 : 0.45
         : unlitEnabled
             ? 0.06
@@ -1215,9 +1283,9 @@ function HeavyModelViewerInner({
                     : 0.34;
     const rimDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 0.45
+            ? 0.28
             : inspectionMode === "solid"
-                ? 0.36
+                ? 0.12
                 : 0.28
         : unlitEnabled
             ? 0.04
