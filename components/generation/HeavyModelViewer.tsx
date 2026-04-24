@@ -29,6 +29,7 @@ interface HeavyModelViewerProps {
     shadingMode?: HeavyShadingMode;
     pbrEnabled?: boolean;
     unlitEnabled?: boolean;
+    toonEdgesEnabled?: boolean;
     previewMetalness?: number;
     previewRoughness?: number;
 }
@@ -1002,10 +1003,11 @@ function applyInspectionMaterials(
     unlitEnabled: boolean,
     previewMetalness: number,
     previewRoughness: number,
+    toonEdgesEnabled: boolean,
     maxAnisotropy: number,
 ) {
     prepareInspectionGeometry(root, shadingMode);
-    syncToonEdgeOverlay(root, mode === "toon", shadingMode);
+    syncToonEdgeOverlay(root, mode === "toon" && toonEdgesEnabled, shadingMode);
 
     root.traverse((child) => {
         const mesh = child as THREE.Mesh;
@@ -1076,6 +1078,7 @@ function LoadedAsset({
     unlitEnabled,
     previewMetalness,
     previewRoughness,
+    toonEdgesEnabled,
     onReady,
     onError,
 }: {
@@ -1088,6 +1091,7 @@ function LoadedAsset({
     unlitEnabled: boolean;
     previewMetalness: number;
     previewRoughness: number;
+    toonEdgesEnabled: boolean;
     onReady: () => void;
     onError: (error: Error) => void;
 }) {
@@ -1158,13 +1162,14 @@ function LoadedAsset({
             unlitEnabled,
             previewMetalness,
             previewRoughness,
+            toonEdgesEnabled,
             maxAnisotropy,
         );
 
         return () => {
             disposeGeneratedMaterials(scene);
         };
-    }, [inspectionMode, inspectionTint, maxAnisotropy, pbrEnabled, previewMetalness, previewRoughness, scene, shadingMode, unlitEnabled]);
+    }, [inspectionMode, inspectionTint, maxAnisotropy, pbrEnabled, previewMetalness, previewRoughness, scene, shadingMode, toonEdgesEnabled, unlitEnabled]);
 
     if (!scene) {
         return null;
@@ -1184,6 +1189,7 @@ function HeavyModelViewerInner({
     shadingMode = "smooth",
     pbrEnabled = true,
     unlitEnabled = false,
+    toonEdgesEnabled = true,
     previewMetalness = 1,
     previewRoughness = 1,
 }: Omit<HeavyModelViewerProps, "url"> & { safeUrl: string }) {
@@ -1203,11 +1209,15 @@ function HeavyModelViewerInner({
     const handleAssetReady = React.useCallback(() => {
         setStatus("ready");
         setErrorMessage(null);
-        window.requestAnimationFrame(() => {
+        const fitWhenReady = (attempt = 0) => {
             window.requestAnimationFrame(() => {
                 viewerApiRef.current?.fit();
+                if (attempt < 2) {
+                    fitWhenReady(attempt + 1);
+                }
             });
-        });
+        };
+        fitWhenReady();
     }, []);
     const handleAssetError = React.useCallback((error: Error) => {
         console.error("HeavyModelViewer: asset load failure", error);
@@ -1456,6 +1466,7 @@ function HeavyModelViewerInner({
                                 shadingMode={shadingMode}
                                 pbrEnabled={pbrEnabled}
                                 unlitEnabled={unlitEnabled}
+                                toonEdgesEnabled={toonEdgesEnabled}
                                 previewMetalness={previewMetalness}
                                 previewRoughness={previewRoughness}
                                 onReady={handleAssetReady}
