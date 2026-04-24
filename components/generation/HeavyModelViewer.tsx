@@ -41,6 +41,13 @@ type ViewerApi = {
     reset: () => void;
 };
 
+type OrbitControlsApi = {
+    reset?: () => void;
+    saveState?: () => void;
+    addEventListener?: (type: "end", listener: () => void) => void;
+    removeEventListener?: (type: "end", listener: () => void) => void;
+};
+
 type ErrorBoundaryProps = {
     onError: (error: Error) => void;
     children: React.ReactNode;
@@ -923,12 +930,14 @@ function syncToonEdgeOverlay(root: THREE.Object3D, enabled: boolean, shadingMode
             transparent: true,
             opacity: 0.95,
             depthWrite: false,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -1,
             toneMapped: false,
         });
         const overlay = new THREE.LineSegments(edgeGeometry, edgeMaterial);
         overlay.userData.__inspectionOverlay = true;
         overlay.renderOrder = 8;
-        overlay.scale.setScalar(1.0015);
         mesh.add(overlay);
         mesh.userData.__toonEdgeOverlay = overlay;
         mesh.userData.__toonEdgeOverlayKey = overlayKey;
@@ -1045,17 +1054,59 @@ function SceneController({
     controlsRef,
     onRegisterApi,
 }: {
-    controlsRef: React.MutableRefObject<{ reset?: () => void; saveState?: () => void } | null>;
+    controlsRef: React.MutableRefObject<OrbitControlsApi | null>;
     onRegisterApi: (api: ViewerApi) => void;
 }) {
     const bounds = useBounds();
+    const fitStateCleanupRef = useRef<(() => void) | null>(null);
 
     useEffect(() => {
+        const clearPendingFitStateSave = () => {
+            fitStateCleanupRef.current?.();
+            fitStateCleanupRef.current = null;
+        };
+        const scheduleFitStateSave = () => {
+            clearPendingFitStateSave();
+
+            const controls = controlsRef.current;
+            if (!controls?.saveState) {
+                return;
+            }
+
+            let timeoutId: number | null = null;
+            const saveState = () => {
+                clearPendingFitStateSave();
+                controls.saveState?.();
+            };
+            const handleEnd = () => {
+                saveState();
+            };
+
+            if (controls.addEventListener && controls.removeEventListener) {
+                controls.addEventListener("end", handleEnd);
+                timeoutId = window.setTimeout(saveState, 420);
+                fitStateCleanupRef.current = () => {
+                    if (timeoutId !== null) {
+                        window.clearTimeout(timeoutId);
+                    }
+                    controls.removeEventListener?.("end", handleEnd);
+                };
+                return;
+            }
+
+            timeoutId = window.setTimeout(() => {
+                fitStateCleanupRef.current = null;
+                controls.saveState?.();
+            }, 420);
+            fitStateCleanupRef.current = () => {
+                if (timeoutId !== null) {
+                    window.clearTimeout(timeoutId);
+                }
+            };
+        };
         const fit = () => {
             bounds.refresh().clip().fit();
-            window.requestAnimationFrame(() => {
-                controlsRef.current?.saveState?.();
-            });
+            scheduleFitStateSave();
         };
         const reset = () => {
             controlsRef.current?.reset?.();
@@ -1063,6 +1114,10 @@ function SceneController({
         };
 
         onRegisterApi({ fit, reset });
+
+        return () => {
+            clearPendingFitStateSave();
+        };
     }, [bounds, controlsRef, onRegisterApi]);
 
     return null;
@@ -1195,7 +1250,7 @@ function HeavyModelViewerInner({
 }: Omit<HeavyModelViewerProps, "url"> & { safeUrl: string }) {
     const frameRef = useRef<HTMLDivElement | null>(null);
     const viewerApiRef = useRef<ViewerApi | null>(null);
-    const controlsRef = useRef<{ reset?: () => void; saveState?: () => void } | null>(null);
+    const controlsRef = useRef<OrbitControlsApi | null>(null);
     const descriptionId = useId();
     const [status, setStatus] = useState<ViewerStatus>("loading");
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -1209,15 +1264,14 @@ function HeavyModelViewerInner({
     const handleAssetReady = React.useCallback(() => {
         setStatus("ready");
         setErrorMessage(null);
-        const fitWhenReady = (attempt = 0) => {
+        const fitAfterSceneMount = () => {
             window.requestAnimationFrame(() => {
-                viewerApiRef.current?.fit();
-                if (attempt < 2) {
-                    fitWhenReady(attempt + 1);
-                }
+                window.requestAnimationFrame(() => {
+                    viewerApiRef.current?.fit();
+                });
             });
         };
-        fitWhenReady();
+        fitAfterSceneMount();
     }, []);
     const handleAssetError = React.useCallback((error: Error) => {
         console.error("HeavyModelViewer: asset load failure", error);

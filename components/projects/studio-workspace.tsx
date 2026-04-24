@@ -1029,7 +1029,6 @@ function NeuralViewerStage({
     const supportsTintControls = inspectionMode === "geometry" || inspectionMode === "wireframe"
     const supportsMaterialControls = inspectionMode === "material"
     const shadingControlsEnabled = !(inspectionMode === "material" && unlitEnabled)
-    const pbrControlsEnabled = supportsMaterialControls
 
     const viewSettingsOpen = showViewSettings && Boolean(viewerUrl) && inspectionMode !== "stats"
 
@@ -1257,18 +1256,15 @@ function NeuralViewerStage({
                                                     <button
                                                         type="button"
                                                         onClick={() => setPbrEnabled((current) => !current)}
-                                                        disabled={!pbrControlsEnabled}
                                                         className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
                                                         style={pbrEnabled
                                                             ? {
                                                                 backgroundColor: "rgba(45,212,191,0.2)",
                                                                 color: "white",
-                                                                opacity: pbrControlsEnabled ? 1 : 0.45,
                                                             }
                                                             : {
                                                                 backgroundColor: "rgba(255,255,255,0.05)",
                                                                 color: "rgba(226,232,240,0.84)",
-                                                                opacity: pbrControlsEnabled ? 1 : 0.45,
                                                             }}
                                                         title="Toggle PBR shading"
                                                     >
@@ -1293,7 +1289,7 @@ function NeuralViewerStage({
                                                     </button>
                                                 </div>
                                             </div>
-                                            {pbrEnabled && (
+                                            {pbrEnabled && !unlitEnabled && (
                                                 <div className="space-y-3 rounded-2xl border px-3 py-3" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
                                                     <label className="flex items-center gap-3">
                                                         <span className="w-16 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
@@ -1326,6 +1322,11 @@ function NeuralViewerStage({
                                                         <span className="w-8 text-right tabular-nums">{previewRoughness.toFixed(2)}</span>
                                                     </label>
                                                 </div>
+                                            )}
+                                            {pbrEnabled && unlitEnabled && (
+                                                <p className="rounded-2xl border px-3 py-2 text-xs leading-relaxed" style={{ borderColor: "rgba(255,255,255,0.08)", color: "rgba(203,213,225,0.82)" }}>
+                                                    Metallic and roughness controls apply when Lighting is on.
+                                                </p>
                                             )}
                                         </div>
                                     )}
