@@ -1004,6 +1004,7 @@ function NeuralViewerStage({
     const [shadingMode, setShadingMode] = useState<"smooth" | "flat">("smooth")
     const [pbrEnabled, setPbrEnabled] = useState(true)
     const [unlitEnabled, setUnlitEnabled] = useState(false)
+    const [toonEdgesEnabled, setToonEdgesEnabled] = useState(true)
     const [previewMetalness, setPreviewMetalness] = useState(0.5)
     const [previewRoughness, setPreviewRoughness] = useState(0.55)
     const [showViewSettings, setShowViewSettings] = useState(false)
@@ -1028,7 +1029,6 @@ function NeuralViewerStage({
     const supportsTintControls = inspectionMode === "geometry" || inspectionMode === "wireframe"
     const supportsMaterialControls = inspectionMode === "material"
     const shadingControlsEnabled = !(inspectionMode === "material" && unlitEnabled)
-    const pbrControlsEnabled = !(inspectionMode === "material" && unlitEnabled)
 
     const viewSettingsOpen = showViewSettings && Boolean(viewerUrl) && inspectionMode !== "stats"
 
@@ -1048,6 +1048,7 @@ function NeuralViewerStage({
                     shadingMode={shadingMode}
                     pbrEnabled={pbrEnabled}
                     unlitEnabled={unlitEnabled}
+                    toonEdgesEnabled={toonEdgesEnabled}
                     previewMetalness={previewMetalness}
                     previewRoughness={previewRoughness}
                 />
@@ -1255,20 +1256,17 @@ function NeuralViewerStage({
                                                     <button
                                                         type="button"
                                                         onClick={() => setPbrEnabled((current) => !current)}
-                                                        disabled={!pbrControlsEnabled}
                                                         className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
                                                         style={pbrEnabled
                                                             ? {
                                                                 backgroundColor: "rgba(45,212,191,0.2)",
                                                                 color: "white",
-                                                                opacity: pbrControlsEnabled ? 1 : 0.45,
                                                             }
                                                             : {
                                                                 backgroundColor: "rgba(255,255,255,0.05)",
                                                                 color: "rgba(226,232,240,0.84)",
-                                                                opacity: pbrControlsEnabled ? 1 : 0.45,
                                                             }}
-                                                        title={pbrControlsEnabled ? "Toggle PBR shading" : "Disabled while unlit is on"}
+                                                        title="Toggle PBR shading"
                                                     >
                                                         <span>Physical</span>
                                                         <span>{pbrEnabled ? "On" : "Off"}</span>
@@ -1325,6 +1323,30 @@ function NeuralViewerStage({
                                                     </label>
                                                 </div>
                                             )}
+                                            {pbrEnabled && unlitEnabled && (
+                                                <p className="rounded-2xl border px-3 py-2 text-xs leading-relaxed" style={{ borderColor: "rgba(255,255,255,0.08)", color: "rgba(203,213,225,0.82)" }}>
+                                                    Metallic and roughness controls apply when Lighting is on.
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+                                    {inspectionMode === "toon" && (
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                Style
+                                            </p>
+                                            <button
+                                                type="button"
+                                                onClick={() => setToonEdgesEnabled((current) => !current)}
+                                                className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                                style={toonEdgesEnabled
+                                                    ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
+                                                    : { backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(226,232,240,0.84)" }}
+                                                title="Toggle toon mesh ink lines"
+                                            >
+                                                <span>Ink lines</span>
+                                                <span>{toonEdgesEnabled ? "On" : "Off"}</span>
+                                            </button>
                                         </div>
                                     )}
                                     {supportsTintControls && (

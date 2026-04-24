@@ -29,6 +29,7 @@ interface HeavyModelViewerProps {
     shadingMode?: HeavyShadingMode;
     pbrEnabled?: boolean;
     unlitEnabled?: boolean;
+    toonEdgesEnabled?: boolean;
     previewMetalness?: number;
     previewRoughness?: number;
 }
@@ -38,6 +39,13 @@ type ViewerStatus = "loading" | "ready" | "error";
 type ViewerApi = {
     fit: () => void;
     reset: () => void;
+};
+
+type OrbitControlsApi = {
+    reset?: () => void;
+    saveState?: () => void;
+    addEventListener?: (type: "end", listener: () => void) => void;
+    removeEventListener?: (type: "end", listener: () => void) => void;
 };
 
 type ErrorBoundaryProps = {
@@ -89,12 +97,13 @@ function getToonGradientTexture() {
     }
 
     const colors = new Uint8Array([
-        68, 76, 92, 255,
-        126, 140, 166, 255,
-        196, 210, 236, 255,
+        20, 24, 31, 255,
+        62, 72, 92, 255,
+        118, 132, 156, 255,
+        196, 208, 224, 255,
         250, 250, 255, 255,
     ]);
-    const texture = new THREE.DataTexture(colors, 4, 1, THREE.RGBAFormat);
+    const texture = new THREE.DataTexture(colors, 5, 1, THREE.RGBAFormat);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.magFilter = THREE.NearestFilter;
     texture.minFilter = THREE.NearestFilter;
@@ -286,6 +295,16 @@ function disposeLoadedAssetResources(root: THREE.Object3D) {
     const textureSet = new Set<THREE.Texture>();
 
     root.traverse((child) => {
+        const lineSegments = child as THREE.LineSegments;
+        if (lineSegments.isLineSegments && lineSegments.userData.__inspectionOverlay) {
+            if (lineSegments.geometry) {
+                geometrySet.add(lineSegments.geometry);
+            }
+            const lineMaterials = Array.isArray(lineSegments.material) ? lineSegments.material : [lineSegments.material];
+            lineMaterials.filter(Boolean).forEach((material) => materialSet.add(material));
+            return;
+        }
+
         const mesh = child as THREE.Mesh;
         if (!mesh.isMesh) return;
 
@@ -388,6 +407,16 @@ function disposeGeneratedMaterials(object: THREE.Object3D) {
     object.traverse((child) => {
         const mesh = child as THREE.Mesh;
         if (!mesh.isMesh) return;
+
+        const toonOverlay = mesh.userData.__toonEdgeOverlay as THREE.LineSegments | undefined;
+        if (toonOverlay) {
+            mesh.remove(toonOverlay);
+            toonOverlay.geometry.dispose();
+            const overlayMaterials = Array.isArray(toonOverlay.material) ? toonOverlay.material : [toonOverlay.material];
+            overlayMaterials.forEach((material) => material.dispose());
+            delete mesh.userData.__toonEdgeOverlay;
+            delete mesh.userData.__toonEdgeOverlayKey;
+        }
 
         const generatedMaterials = mesh.userData.__generatedMaterials as THREE.Material[] | undefined;
         generatedMaterials?.forEach((material) => material.dispose());
@@ -684,16 +713,16 @@ function derivePbrFactors(original: THREE.Material) {
 
     const specularStrength = source.specular
         ? (source.specular.r + source.specular.g + source.specular.b) / 3
-        : 0.18;
-    const reflectivity = typeof source.reflectivity === "number" ? source.reflectivity : 0.2;
-    const shininess = typeof source.shininess === "number" ? source.shininess : 28;
+        : 0.08;
+    const reflectivity = typeof source.reflectivity === "number" ? source.reflectivity : 0.08;
+    const shininess = typeof source.shininess === "number" ? source.shininess : 18;
 
     const derivedMetalness = typeof source.metalness === "number"
         ? source.metalness
-        : THREE.MathUtils.clamp(specularStrength * 1.15 + reflectivity * 0.85, 0.16, 0.94);
+        : THREE.MathUtils.clamp(specularStrength * 0.55 + reflectivity * 0.35, 0.02, 0.52);
     const derivedRoughness = typeof source.roughness === "number"
         ? source.roughness
-        : THREE.MathUtils.clamp(1 - Math.min(shininess / 100, 1) * 0.9, 0.08, 0.64);
+        : THREE.MathUtils.clamp(1 - Math.min(shininess / 120, 1) * 0.72, 0.16, 0.82);
 
     return {
         metalness: derivedMetalness,
@@ -755,7 +784,7 @@ function buildReplacementMaterial(
         copyCommonMaterialProps(material, original, flatShading, maxAnisotropy);
         material.side = THREE.DoubleSide;
         material.flatShading = flatShading;
-        material.envMapIntensity = 1.9;
+        material.envMapIntensity = 0.82;
         material.aoMapIntensity = 0.2;
         material.metalness = resolvedMetalness;
         material.roughness = resolvedRoughness;
@@ -776,9 +805,9 @@ function buildReplacementMaterial(
 
     if (mode === "solid") {
         return new THREE.MeshStandardMaterial({
-            color: "#cfd4db",
-            metalness: 0.02,
-            roughness: 0.9,
+            color: "#c3c8d0",
+            metalness: 0,
+            roughness: 0.96,
             flatShading,
             side: THREE.DoubleSide,
         });
@@ -811,11 +840,9 @@ function buildReplacementMaterial(
             material.color.set("#ffffff");
         }
         material.emissive.copy(source.emissive ?? new THREE.Color("#000000"));
-        material.emissiveIntensity = 0;
+        material.emissiveIntensity = 0.02;
         material.emissiveMap = source.emissiveMap ?? null;
-        if (flatShading) {
-            stripFacetMutedMaps(material);
-        }
+        stripFacetMutedMaps(material);
         material.needsUpdate = true;
         return material;
     }
@@ -867,6 +894,56 @@ function prepareInspectionGeometry(root: THREE.Object3D, shadingMode: HeavyShadi
     });
 }
 
+function syncToonEdgeOverlay(root: THREE.Object3D, enabled: boolean, shadingMode: HeavyShadingMode) {
+    root.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+
+        const existingOverlay = mesh.userData.__toonEdgeOverlay as THREE.LineSegments | undefined;
+        if (!enabled) {
+            if (existingOverlay) {
+                mesh.remove(existingOverlay);
+                existingOverlay.geometry.dispose();
+                const overlayMaterials = Array.isArray(existingOverlay.material) ? existingOverlay.material : [existingOverlay.material];
+                overlayMaterials.forEach((material) => material.dispose());
+                delete mesh.userData.__toonEdgeOverlay;
+                delete mesh.userData.__toonEdgeOverlayKey;
+            }
+            return;
+        }
+
+        const overlayKey = `${shadingMode}:${mesh.geometry.uuid}`;
+        if (existingOverlay && mesh.userData.__toonEdgeOverlayKey === overlayKey) {
+            return;
+        }
+
+        if (existingOverlay) {
+            mesh.remove(existingOverlay);
+            existingOverlay.geometry.dispose();
+            const overlayMaterials = Array.isArray(existingOverlay.material) ? existingOverlay.material : [existingOverlay.material];
+            overlayMaterials.forEach((material) => material.dispose());
+        }
+
+        const edgeGeometry = new THREE.EdgesGeometry(mesh.geometry, shadingMode === "flat" ? 6 : 18);
+        const edgeMaterial = new THREE.LineBasicMaterial({
+            color: "#0b0f16",
+            transparent: true,
+            opacity: 0.95,
+            depthWrite: false,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -1,
+            toneMapped: false,
+        });
+        const overlay = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+        overlay.userData.__inspectionOverlay = true;
+        overlay.renderOrder = 8;
+        mesh.add(overlay);
+        mesh.userData.__toonEdgeOverlay = overlay;
+        mesh.userData.__toonEdgeOverlayKey = overlayKey;
+    });
+}
+
 function SceneEnvironmentController({
     inspectionMode,
     pbrEnabled,
@@ -903,13 +980,13 @@ function SceneEnvironmentController({
         /* eslint-disable react-hooks/immutability */
         if (inspectionMode === "material" && !unlitEnabled) {
             scene.environment = envTextureRef.current;
-            scene.environmentIntensity = pbrEnabled ? 1.55 : 0.28;
+            scene.environmentIntensity = pbrEnabled ? 0.62 : 0.2;
         } else if (inspectionMode === "toon") {
             scene.environment = envTextureRef.current;
-            scene.environmentIntensity = 0.38;
+            scene.environmentIntensity = 0.18;
         } else if (inspectionMode === "solid") {
             scene.environment = envTextureRef.current;
-            scene.environmentIntensity = 0.32;
+            scene.environmentIntensity = 0.08;
         } else {
             scene.environment = null;
             scene.environmentIntensity = 1;
@@ -935,9 +1012,11 @@ function applyInspectionMaterials(
     unlitEnabled: boolean,
     previewMetalness: number,
     previewRoughness: number,
+    toonEdgesEnabled: boolean,
     maxAnisotropy: number,
 ) {
     prepareInspectionGeometry(root, shadingMode);
+    syncToonEdgeOverlay(root, mode === "toon" && toonEdgesEnabled, shadingMode);
 
     root.traverse((child) => {
         const mesh = child as THREE.Mesh;
@@ -975,25 +1054,70 @@ function SceneController({
     controlsRef,
     onRegisterApi,
 }: {
-    controlsRef: React.MutableRefObject<{ reset?: () => void; saveState?: () => void } | null>;
+    controlsRef: React.MutableRefObject<OrbitControlsApi | null>;
     onRegisterApi: (api: ViewerApi) => void;
 }) {
     const bounds = useBounds();
+    const fitStateCleanupRef = useRef<(() => void) | null>(null);
 
     useEffect(() => {
+        const clearPendingFitStateSave = () => {
+            fitStateCleanupRef.current?.();
+            fitStateCleanupRef.current = null;
+        };
+        const scheduleFitStateSave = () => {
+            clearPendingFitStateSave();
+
+            const controls = controlsRef.current;
+            if (!controls?.saveState) {
+                return;
+            }
+
+            let timeoutId: number | null = null;
+            const saveState = () => {
+                clearPendingFitStateSave();
+                controls.saveState?.();
+            };
+            const handleEnd = () => {
+                saveState();
+            };
+
+            if (controls.addEventListener && controls.removeEventListener) {
+                controls.addEventListener("end", handleEnd);
+                timeoutId = window.setTimeout(saveState, 420);
+                fitStateCleanupRef.current = () => {
+                    if (timeoutId !== null) {
+                        window.clearTimeout(timeoutId);
+                    }
+                    controls.removeEventListener?.("end", handleEnd);
+                };
+                return;
+            }
+
+            timeoutId = window.setTimeout(() => {
+                fitStateCleanupRef.current = null;
+                controls.saveState?.();
+            }, 420);
+            fitStateCleanupRef.current = () => {
+                if (timeoutId !== null) {
+                    window.clearTimeout(timeoutId);
+                }
+            };
+        };
         const fit = () => {
             bounds.refresh().clip().fit();
+            scheduleFitStateSave();
         };
         const reset = () => {
             controlsRef.current?.reset?.();
             fit();
         };
 
-        fit();
-        window.requestAnimationFrame(() => {
-            controlsRef.current?.saveState?.();
-        });
         onRegisterApi({ fit, reset });
+
+        return () => {
+            clearPendingFitStateSave();
+        };
     }, [bounds, controlsRef, onRegisterApi]);
 
     return null;
@@ -1009,6 +1133,7 @@ function LoadedAsset({
     unlitEnabled,
     previewMetalness,
     previewRoughness,
+    toonEdgesEnabled,
     onReady,
     onError,
 }: {
@@ -1021,11 +1146,13 @@ function LoadedAsset({
     unlitEnabled: boolean;
     previewMetalness: number;
     previewRoughness: number;
+    toonEdgesEnabled: boolean;
     onReady: () => void;
     onError: (error: Error) => void;
 }) {
     const { gl } = useThree();
     const [scene, setScene] = useState<THREE.Object3D | null>(null);
+    const readyKeyRef = useRef<string | null>(null);
     const maxAnisotropy = useMemo(() => {
         const capability = gl.capabilities.getMaxAnisotropy?.() ?? 1;
         return Math.max(1, Math.min(8, capability));
@@ -1067,6 +1194,20 @@ function LoadedAsset({
             return;
         }
 
+        const readyKey = `${extension}:${url}`;
+        if (readyKeyRef.current === readyKey) {
+            return;
+        }
+
+        readyKeyRef.current = readyKey;
+        onReady();
+    }, [extension, onReady, scene, url]);
+
+    useEffect(() => {
+        if (!scene) {
+            return;
+        }
+
         applyInspectionMaterials(
             scene,
             inspectionMode,
@@ -1076,14 +1217,14 @@ function LoadedAsset({
             unlitEnabled,
             previewMetalness,
             previewRoughness,
+            toonEdgesEnabled,
             maxAnisotropy,
         );
-        onReady();
 
         return () => {
             disposeGeneratedMaterials(scene);
         };
-    }, [inspectionMode, inspectionTint, maxAnisotropy, onReady, pbrEnabled, previewMetalness, previewRoughness, scene, shadingMode, unlitEnabled]);
+    }, [inspectionMode, inspectionTint, maxAnisotropy, pbrEnabled, previewMetalness, previewRoughness, scene, shadingMode, toonEdgesEnabled, unlitEnabled]);
 
     if (!scene) {
         return null;
@@ -1103,12 +1244,13 @@ function HeavyModelViewerInner({
     shadingMode = "smooth",
     pbrEnabled = true,
     unlitEnabled = false,
+    toonEdgesEnabled = true,
     previewMetalness = 1,
     previewRoughness = 1,
 }: Omit<HeavyModelViewerProps, "url"> & { safeUrl: string }) {
     const frameRef = useRef<HTMLDivElement | null>(null);
     const viewerApiRef = useRef<ViewerApi | null>(null);
-    const controlsRef = useRef<{ reset?: () => void; saveState?: () => void } | null>(null);
+    const controlsRef = useRef<OrbitControlsApi | null>(null);
     const descriptionId = useId();
     const [status, setStatus] = useState<ViewerStatus>("loading");
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -1119,86 +1261,103 @@ function HeavyModelViewerInner({
         typeof window.vipermesh?.revealItemInFolder === "function";
     const localRelativePath = useMemo(() => getNeuralOutputRelativePath(safeUrl), [safeUrl]);
     const modelExtension = useMemo(() => inferModelExtension(safeUrl), [safeUrl]);
+    const handleAssetReady = React.useCallback(() => {
+        setStatus("ready");
+        setErrorMessage(null);
+        const fitAfterSceneMount = () => {
+            window.requestAnimationFrame(() => {
+                window.requestAnimationFrame(() => {
+                    viewerApiRef.current?.fit();
+                });
+            });
+        };
+        fitAfterSceneMount();
+    }, []);
+    const handleAssetError = React.useCallback((error: Error) => {
+        console.error("HeavyModelViewer: asset load failure", error);
+        setStatus("error");
+        setErrorMessage(`Failed to load 3D model (${error.message})`);
+    }, []);
     const useMaterialView = inspectionMode === "material";
     const useFlatLighting = useMaterialView && !unlitEnabled && shadingMode === "flat";
     const materialAmbientIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 0.92
+            ? 0.42
             : inspectionMode === "solid"
-                ? 0.84
+                ? 0.28
                 : 0.92
         : unlitEnabled
             ? 0.15
             : useFlatLighting
-                ? (pbrEnabled ? 0.26 : 0.18)
+                ? (pbrEnabled ? 0.18 : 0.24)
                 : pbrEnabled
-                    ? 0.62
-                    : 0.42;
+                    ? 0.34
+                    : 0.5;
     const materialHemisphereIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 1.45
+            ? 0.72
             : inspectionMode === "solid"
-                ? 1.2
+                ? 0.58
                 : 1.45
         : unlitEnabled
             ? 0.15
             : useFlatLighting
-                ? (pbrEnabled ? 0.36 : 0.22)
+                ? (pbrEnabled ? 0.24 : 0.34)
                 : pbrEnabled
-                    ? 1.15
-                    : 0.72;
+                    ? 0.62
+                    : 0.92;
     const keyDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 2.3
+            ? 2.75
             : inspectionMode === "solid"
-                ? 2.25
+                ? 1.95
                 : 2.15
         : unlitEnabled
             ? 0.1
             : useFlatLighting
-                ? (pbrEnabled ? 2.9 : 2.4)
+                ? (pbrEnabled ? 2.15 : 2.4)
                 : pbrEnabled
-                    ? 2.1
-                    : 1.15;
+                    ? 1.35
+                    : 1.68;
     const fillDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 1.1
+            ? 0.18
             : inspectionMode === "solid"
-                ? 1.0
+                ? 0.18
                 : 0.9
         : unlitEnabled
             ? 0.08
             : useFlatLighting
-                ? (pbrEnabled ? 0.22 : 0.16)
+                ? (pbrEnabled ? 0.16 : 0.22)
                 : pbrEnabled
-                    ? 0.95
-                    : 0.48;
+                    ? 0.42
+                    : 0.58;
     const coolDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 0.7
+            ? 0.08
             : inspectionMode === "solid"
-                ? 0.5
+                ? 0.08
                 : 0.45
         : unlitEnabled
             ? 0.06
             : useFlatLighting
-                ? (pbrEnabled ? 0.18 : 0.12)
+                ? (pbrEnabled ? 0.12 : 0.18)
                 : pbrEnabled
-                    ? 0.62
-                    : 0.28;
+                    ? 0.22
+                    : 0.34;
     const rimDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 0.45
+            ? 0.28
             : inspectionMode === "solid"
-                ? 0.36
+                ? 0.12
                 : 0.28
         : unlitEnabled
             ? 0.04
             : useFlatLighting
-                ? (pbrEnabled ? 0.12 : 0.08)
+                ? (pbrEnabled ? 0.08 : 0.12)
                 : pbrEnabled
-                    ? 0.32
-                    : 0.14;
+                    ? 0.12
+                    : 0.2;
 
     useEffect(() => {
         setStatus(modelExtension ? "loading" : "error");
@@ -1344,7 +1503,7 @@ function HeavyModelViewerInner({
                         dampingFactor={0.08}
                         enabled={interactive}
                     />
-                    <Bounds fit clip observe margin={1.18}>
+                    <Bounds clip margin={1.18}>
                         <SceneController
                             controlsRef={controlsRef}
                             onRegisterApi={(api) => {
@@ -1361,17 +1520,11 @@ function HeavyModelViewerInner({
                                 shadingMode={shadingMode}
                                 pbrEnabled={pbrEnabled}
                                 unlitEnabled={unlitEnabled}
+                                toonEdgesEnabled={toonEdgesEnabled}
                                 previewMetalness={previewMetalness}
                                 previewRoughness={previewRoughness}
-                                onReady={() => {
-                                    setStatus("ready");
-                                    setErrorMessage(null);
-                                }}
-                                onError={(error) => {
-                                    console.error("HeavyModelViewer: asset load failure", error);
-                                    setStatus("error");
-                                    setErrorMessage(`Failed to load 3D model (${error.message})`);
-                                }}
+                                onReady={handleAssetReady}
+                                onError={handleAssetError}
                             />
                         ) : null}
                     </Bounds>
