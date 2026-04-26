@@ -1281,7 +1281,15 @@ function NeuralViewerStage({
                                                     </p>
                                                     <button
                                                         type="button"
-                                                        onClick={() => setUnlitEnabled((current) => !current)}
+                                                        onClick={() => {
+                                                            setUnlitEnabled((current) => {
+                                                                const next = !current
+                                                                if (!next && (inspectionMode === "material" || inspectionMode === "solid")) {
+                                                                    setShadingMode("smooth")
+                                                                }
+                                                                return next
+                                                            })
+                                                        }}
                                                         className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
                                                         style={unlitEnabled
                                                             ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
@@ -1462,7 +1470,13 @@ function NeuralViewerStage({
                                 <button
                                     key={mode.id}
                                     type="button"
-                                    onClick={() => setInspectionMode(mode.id as "material" | "geometry" | "solid" | "toon" | "wireframe" | "stats")}
+                                    onClick={() => {
+                                        const nextMode = mode.id as "material" | "geometry" | "solid" | "toon" | "wireframe" | "stats"
+                                        setInspectionMode(nextMode)
+                                        if ((nextMode === "material" || nextMode === "solid") && !unlitEnabled) {
+                                            setShadingMode("smooth")
+                                        }
+                                    }}
                                     className="rounded-full p-2.5 transition"
                                     aria-label={mode.label}
                                     title={mode.label}
