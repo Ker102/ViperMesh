@@ -1005,6 +1005,7 @@ function NeuralViewerStage({
     const [pbrEnabled, setPbrEnabled] = useState(true)
     const [unlitEnabled, setUnlitEnabled] = useState(false)
     const [toonEdgesEnabled, setToonEdgesEnabled] = useState(true)
+    const [meshEdgesEnabled, setMeshEdgesEnabled] = useState(false)
     const [previewMetalness, setPreviewMetalness] = useState(0.5)
     const [previewRoughness, setPreviewRoughness] = useState(0.55)
     const [showViewSettings, setShowViewSettings] = useState(false)
@@ -1050,6 +1051,7 @@ function NeuralViewerStage({
                     pbrEnabled={pbrEnabled}
                     unlitEnabled={unlitEnabled}
                     toonEdgesEnabled={toonEdgesEnabled}
+                    meshEdgesEnabled={meshEdgesEnabled}
                     previewMetalness={previewMetalness}
                     previewRoughness={previewRoughness}
                 />
@@ -1357,6 +1359,25 @@ function NeuralViewerStage({
                                             >
                                                 <span>Ink lines</span>
                                                 <span>{toonEdgesEnabled ? "On" : "Off"}</span>
+                                            </button>
+                                        </div>
+                                    )}
+                                    {inspectionMode === "solid" && (
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                Topology
+                                            </p>
+                                            <button
+                                                type="button"
+                                                onClick={() => setMeshEdgesEnabled((current) => !current)}
+                                                className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                                style={meshEdgesEnabled
+                                                    ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
+                                                    : { backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(226,232,240,0.84)" }}
+                                                title="Show triangle edges over the solid preview"
+                                            >
+                                                <span>Show edges</span>
+                                                <span>{meshEdgesEnabled ? "On" : "Off"}</span>
                                             </button>
                                         </div>
                                     )}

@@ -29,6 +29,7 @@ interface HeavyModelViewerProps {
     pbrEnabled?: boolean;
     unlitEnabled?: boolean;
     toonEdgesEnabled?: boolean;
+    meshEdgesEnabled?: boolean;
     previewMetalness?: number;
     previewRoughness?: number;
 }
@@ -416,6 +417,16 @@ function disposeGeneratedMaterials(object: THREE.Object3D) {
             overlayMaterials.forEach((material) => material.dispose());
             delete mesh.userData.__toonEdgeOverlay;
             delete mesh.userData.__toonEdgeOverlayKey;
+        }
+
+        const meshOverlay = mesh.userData.__meshEdgeOverlay as THREE.LineSegments | undefined;
+        if (meshOverlay) {
+            mesh.remove(meshOverlay);
+            meshOverlay.geometry.dispose();
+            const overlayMaterials = Array.isArray(meshOverlay.material) ? meshOverlay.material : [meshOverlay.material];
+            overlayMaterials.forEach((material) => material.dispose());
+            delete mesh.userData.__meshEdgeOverlay;
+            delete mesh.userData.__meshEdgeOverlayKey;
         }
 
         const generatedMaterials = mesh.userData.__generatedMaterials as THREE.Material[] | undefined;
@@ -955,6 +966,54 @@ function syncToonEdgeOverlay(root: THREE.Object3D, enabled: boolean, shadingMode
     });
 }
 
+function syncMeshEdgeOverlay(root: THREE.Object3D, enabled: boolean, shadingMode: HeavyShadingMode) {
+    root.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+
+        const existingOverlay = mesh.userData.__meshEdgeOverlay as THREE.LineSegments | undefined;
+        if (!enabled) {
+            if (existingOverlay) {
+                mesh.remove(existingOverlay);
+                existingOverlay.geometry.dispose();
+                const overlayMaterials = Array.isArray(existingOverlay.material) ? existingOverlay.material : [existingOverlay.material];
+                overlayMaterials.forEach((material) => material.dispose());
+                delete mesh.userData.__meshEdgeOverlay;
+                delete mesh.userData.__meshEdgeOverlayKey;
+            }
+            return;
+        }
+
+        const overlayKey = `${shadingMode}:${mesh.geometry.uuid}`;
+        if (existingOverlay && mesh.userData.__meshEdgeOverlayKey === overlayKey) {
+            return;
+        }
+
+        if (existingOverlay) {
+            mesh.remove(existingOverlay);
+            existingOverlay.geometry.dispose();
+            const overlayMaterials = Array.isArray(existingOverlay.material) ? existingOverlay.material : [existingOverlay.material];
+            overlayMaterials.forEach((material) => material.dispose());
+        }
+
+        const edgeGeometry = new THREE.WireframeGeometry(mesh.geometry);
+        const edgeMaterial = new THREE.LineBasicMaterial({
+            color: "#05070a",
+            transparent: true,
+            opacity: 0.82,
+            depthWrite: false,
+            depthTest: true,
+            toneMapped: false,
+        });
+        const overlay = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+        overlay.userData.__inspectionOverlay = true;
+        overlay.renderOrder = 9;
+        mesh.add(overlay);
+        mesh.userData.__meshEdgeOverlay = overlay;
+        mesh.userData.__meshEdgeOverlayKey = overlayKey;
+    });
+}
+
 function SceneEnvironmentController({
     inspectionMode,
     pbrEnabled,
@@ -1024,10 +1083,12 @@ function applyInspectionMaterials(
     previewMetalness: number,
     previewRoughness: number,
     toonEdgesEnabled: boolean,
+    meshEdgesEnabled: boolean,
     maxAnisotropy: number,
 ) {
     prepareInspectionGeometry(root, shadingMode);
     syncToonEdgeOverlay(root, mode === "toon" && toonEdgesEnabled, shadingMode);
+    syncMeshEdgeOverlay(root, mode === "solid" && meshEdgesEnabled, shadingMode);
 
     root.traverse((child) => {
         const mesh = child as THREE.Mesh;
@@ -1145,6 +1206,7 @@ function LoadedAsset({
     previewMetalness,
     previewRoughness,
     toonEdgesEnabled,
+    meshEdgesEnabled,
     onReady,
     onError,
 }: {
@@ -1158,6 +1220,7 @@ function LoadedAsset({
     previewMetalness: number;
     previewRoughness: number;
     toonEdgesEnabled: boolean;
+    meshEdgesEnabled: boolean;
     onReady: () => void;
     onError: (error: Error) => void;
 }) {
@@ -1229,13 +1292,14 @@ function LoadedAsset({
             previewMetalness,
             previewRoughness,
             toonEdgesEnabled,
+            meshEdgesEnabled,
             maxAnisotropy,
         );
 
         return () => {
             disposeGeneratedMaterials(scene);
         };
-    }, [inspectionMode, inspectionTint, maxAnisotropy, pbrEnabled, previewMetalness, previewRoughness, scene, shadingMode, toonEdgesEnabled, unlitEnabled]);
+    }, [inspectionMode, inspectionTint, maxAnisotropy, meshEdgesEnabled, pbrEnabled, previewMetalness, previewRoughness, scene, shadingMode, toonEdgesEnabled, unlitEnabled]);
 
     if (!scene) {
         return null;
@@ -1256,6 +1320,7 @@ function HeavyModelViewerInner({
     pbrEnabled = true,
     unlitEnabled = false,
     toonEdgesEnabled = true,
+    meshEdgesEnabled = false,
     previewMetalness = 1,
     previewRoughness = 1,
 }: Omit<HeavyModelViewerProps, "url"> & { safeUrl: string }) {
@@ -1532,6 +1597,7 @@ function HeavyModelViewerInner({
                                 pbrEnabled={pbrEnabled}
                                 unlitEnabled={unlitEnabled}
                                 toonEdgesEnabled={toonEdgesEnabled}
+                                meshEdgesEnabled={meshEdgesEnabled}
                                 previewMetalness={previewMetalness}
                                 previewRoughness={previewRoughness}
                                 onReady={handleAssetReady}
