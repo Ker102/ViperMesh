@@ -201,7 +201,7 @@ function ErrorState({ message }: { message: string }) {
 function getDownloadFilename(safeUrl: string) {
     try {
         const parsed = new URL(safeUrl, typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1");
-        const queryPath = parsed.searchParams.get("path");
+        const queryPath = parsed.searchParams.get("path") ?? parsed.searchParams.get("filename");
         const candidate = queryPath
             ? decodeURIComponent(queryPath).split(/[\\/]/).filter(Boolean).at(-1)
             : parsed.pathname.split("/").filter(Boolean).at(-1);
@@ -228,7 +228,8 @@ function getDownloadUrl(safeUrl: string) {
         );
         if (
             parsed.pathname === "/api/ai/neural-output" ||
-            parsed.pathname.startsWith("/api/ai/neural-output/files/")
+            parsed.pathname.startsWith("/api/ai/neural-output/files/") ||
+            parsed.pathname.startsWith("/api/projects/assets/")
         ) {
             parsed.searchParams.set("download", "1");
         }
@@ -270,7 +271,7 @@ function inferModelExtension(safeUrl: string): string | null {
             safeUrl,
             typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1",
         );
-        const queryPath = parsed.searchParams.get("path");
+        const queryPath = parsed.searchParams.get("path") ?? parsed.searchParams.get("filename");
         const candidate = queryPath
             ? decodeURIComponent(queryPath)
             : parsed.pathname.split("/").map((segment) => decodeURIComponent(segment)).join("/");

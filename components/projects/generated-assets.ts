@@ -24,7 +24,8 @@ export interface GeneratedAssetItem {
     assetStats?: AssetInspectionStats | null
     referenceImage?: string
     nextSuggestions: GeneratedAssetSuggestion[]
-    librarySource: "generated" | "imported"
+    librarySource: "generated" | "imported" | "saved"
+    isPinned?: boolean
 }
 
 type AssetKind = "character" | "environment" | "object" | "unknown"

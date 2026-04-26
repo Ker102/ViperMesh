@@ -131,7 +131,7 @@ export function ProjectChat({
   const [agentActive, setAgentActive] = useState(false)
   const [activeWorkflow, setActiveWorkflow] = useState<WorkflowProposal | null>(null)
   const [mcpConnected, setMcpConnected] = useState<boolean | null>(null)
-  const [workflowMode, setWorkflowMode] = useState<WorkflowMode>("autopilot")
+  const [workflowMode, setWorkflowMode] = useState<WorkflowMode>("studio")
   const abortControllerRef = useRef<AbortController | null>(null)
   const userStoppedRef = useRef(false)
   // Monitoring state

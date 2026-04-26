@@ -75,7 +75,7 @@ export async function extractZipAssetPackage(
     zipBuffer: Buffer,
     outputDirectory: string,
     uploadFilename: string,
-): Promise<{ rootModelPath: string }> {
+): Promise<{ rootModelPath: string; rootModelEntryPath: string; extractedFiles: Array<{ entryPath: string; absolutePath: string; content: Buffer }> }> {
     const archive = unzipSync(new Uint8Array(zipBuffer))
     const entryPaths = Object.keys(archive)
         .map((entryName) => normalizeArchiveEntryPath(entryName))
@@ -87,6 +87,8 @@ export async function extractZipAssetPackage(
     }
 
     await mkdir(outputDirectory, { recursive: true })
+
+    const extractedFiles: Array<{ entryPath: string; absolutePath: string; content: Buffer }> = []
 
     await Promise.all(entryPaths.map(async (entryPath) => {
         const fileExtension = path.posix.extname(entryPath).toLowerCase()
@@ -100,11 +102,15 @@ export async function extractZipAssetPackage(
         }
 
         const absolutePath = path.join(outputDirectory, ...entryPath.split("/"))
+        const content = Buffer.from(entryBuffer)
         await mkdir(path.dirname(absolutePath), { recursive: true })
-        await writeFile(absolutePath, Buffer.from(entryBuffer))
+        await writeFile(absolutePath, content)
+        extractedFiles.push({ entryPath, absolutePath, content })
     }))
 
     return {
         rootModelPath: path.join(outputDirectory, ...rootModelPath.split("/")),
+        rootModelEntryPath: rootModelPath,
+        extractedFiles,
     }
 }

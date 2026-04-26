@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { ArrowUpRight, Import, Info, Star } from "lucide-react"
 import { getToolById } from "@/lib/orchestration/tool-catalog"
 import { AssetPreviewTile, AssetStatsPills } from "./asset-inspection"
@@ -13,13 +13,14 @@ import {
 import type { GeneratedAssetItem } from "./generated-assets"
 
 interface GeneratedAssetsShelfProps {
-    projectId: string
     open: boolean
     assets: GeneratedAssetItem[]
     onOpenAsset: (asset: GeneratedAssetItem, options?: { attachToActiveTool?: boolean }) => void
     onContinueToTool: (asset: GeneratedAssetItem, toolId: string) => void
     onUseAsset: (asset: GeneratedAssetItem) => void
     onImportAsset: (file: File) => Promise<void> | void
+    onSaveAsset: (asset: GeneratedAssetItem) => Promise<void> | void
+    onTogglePinned: (asset: GeneratedAssetItem) => Promise<void> | void
     selectionMode?: {
         label: string
     } | null
@@ -27,13 +28,14 @@ interface GeneratedAssetsShelfProps {
 }
 
 export function GeneratedAssetsShelf({
-    projectId,
     open,
     assets,
     onOpenAsset,
     onContinueToTool,
     onUseAsset,
     onImportAsset,
+    onSaveAsset,
+    onTogglePinned,
     selectionMode,
     importInFlight = false,
 }: GeneratedAssetsShelfProps) {
@@ -41,25 +43,6 @@ export function GeneratedAssetsShelf({
     const [activeCategoryId, setActiveCategoryId] = useState<AssetLibraryCategoryId>("all")
     const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null)
     const importInputRef = useRef<HTMLInputElement | null>(null)
-    const favoritesStorageKey = `studio-asset-library-favorites:${projectId}`
-    const [favoriteAssetIds, setFavoriteAssetIds] = useState<string[]>(() => {
-        if (typeof window === "undefined") return []
-        try {
-            const saved = window.sessionStorage.getItem(favoritesStorageKey)
-            if (!saved) return []
-            const parsed = JSON.parse(saved)
-            return Array.isArray(parsed)
-                ? parsed.filter((value): value is string => typeof value === "string")
-                : []
-        } catch {
-            return []
-        }
-    })
-
-    useEffect(() => {
-        if (typeof window === "undefined") return
-        window.sessionStorage.setItem(favoritesStorageKey, JSON.stringify(favoriteAssetIds))
-    }, [favoriteAssetIds, favoritesStorageKey])
 
     if (!open) {
         return null
@@ -71,8 +54,8 @@ export function GeneratedAssetsShelf({
 
     const visibleItems = filterProjectAssetLibraryItems(assetLibrary, effectiveCategoryId)
     const sortedItems = [...visibleItems].sort((left, right) => {
-        const leftFavorite = favoriteAssetIds.includes(left.id) ? 1 : 0
-        const rightFavorite = favoriteAssetIds.includes(right.id) ? 1 : 0
+        const leftFavorite = left.isPinned ? 1 : 0
+        const rightFavorite = right.isPinned ? 1 : 0
         return rightFavorite - leftFavorite
     })
 
@@ -81,12 +64,8 @@ export function GeneratedAssetsShelf({
         sortedItems[0] ??
         null
 
-    const toggleFavorite = (assetId: string) => {
-        setFavoriteAssetIds((current) =>
-            current.includes(assetId)
-                ? current.filter((id) => id !== assetId)
-                : [...current, assetId]
-        )
+    const toggleFavorite = (asset: GeneratedAssetItem) => {
+        void onTogglePinned(asset)
     }
 
     return (
@@ -176,7 +155,7 @@ export function GeneratedAssetsShelf({
                             <AssetLibraryGridCard
                                 key={asset.id}
                                 asset={asset}
-                                isFavorite={favoriteAssetIds.includes(asset.id)}
+                                isFavorite={Boolean(asset.isPinned)}
                                 isSelected={selectedAsset?.id === asset.id}
                                 onOpenAsset={onOpenAsset}
                                 attachToSelectionMode={Boolean(selectionMode)}
@@ -264,6 +243,19 @@ export function GeneratedAssetsShelf({
                         <AssetStatsPills stats={selectedAsset.assetStats} className="mt-3 flex flex-wrap gap-2" />
 
                         <div className="mt-4 flex flex-wrap gap-2">
+                            {!selectedAsset.id.startsWith("saved:") && (
+                                <button
+                                    type="button"
+                                    onClick={() => onSaveAsset(selectedAsset)}
+                                    className="rounded-xl px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+                                    style={{
+                                        backgroundColor: "hsl(var(--forge-accent))",
+                                        color: "white",
+                                    }}
+                                >
+                                    Save to library
+                                </button>
+                            )}
                             {selectionMode && selectedAsset.assetKind === "model" && (
                                 <button
                                     type="button"
@@ -334,7 +326,7 @@ function AssetLibraryGridCard({
     onOpenAsset: (asset: AssetLibraryItem, options?: { attachToActiveTool?: boolean }) => void
     attachToSelectionMode: boolean
     onSelectInfo: (assetId: string) => void
-    onToggleFavorite: (assetId: string) => void
+    onToggleFavorite: (asset: AssetLibraryItem) => void
 }) {
     const tool = getToolById(asset.toolName)
 
@@ -398,15 +390,15 @@ function AssetLibraryGridCard({
 
             <button
                 type="button"
-                onClick={() => onToggleFavorite(asset.id)}
+                onClick={() => onToggleFavorite(asset)}
                 className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full border transition hover:opacity-90"
                 style={{
                     borderColor: "rgba(255,255,255,0.22)",
                     backgroundColor: "rgba(15,23,42,0.72)",
                     color: isFavorite ? "#facc15" : "rgba(255,255,255,0.9)",
                 }}
-                aria-label={isFavorite ? "Remove favorite" : "Favorite asset"}
-                title={isFavorite ? "Favorited" : "Add to favorites"}
+                aria-label={isFavorite ? "Unpin asset" : "Pin asset"}
+                title={isFavorite ? "Pinned" : "Pin to library"}
             >
                 <Star className={`h-4 w-4 ${isFavorite ? "fill-current" : ""}`} />
             </button>

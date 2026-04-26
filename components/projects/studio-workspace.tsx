@@ -2603,18 +2603,16 @@ export function StudioWorkspace({
                     <button
                         type="button"
                         onClick={handleRestoreNeuralPanel}
-                        className="absolute left-4 top-24 z-30 inline-flex items-center gap-2 rounded-2xl border px-3 py-2 shadow-lg transition hover:opacity-90"
+                        className="absolute left-4 top-1/2 z-30 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-2xl border shadow-lg transition hover:opacity-90"
                         style={{
                             borderColor: "hsl(var(--forge-border))",
                             backgroundColor: "rgba(255,255,255,0.96)",
                             color: "hsl(var(--forge-text-muted))",
                         }}
                         aria-label="Restore neural panel"
+                        title="Restore tool panel"
                     >
                         <PanelLeftOpen className="h-4 w-4" />
-                        <span className="text-xs font-semibold uppercase tracking-[0.14em]">
-                            Tool panel
-                        </span>
                     </button>
                 ) : (
                     <NeuralRunOverlay

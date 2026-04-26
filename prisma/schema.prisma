@@ -36,6 +36,7 @@ model User {
   sessions  Session[]
   projects  Project[]
   usageLogs UsageLog[]
+  savedAssets SavedAsset[]
 
   @@map("users")
 }
@@ -100,8 +101,34 @@ model Project {
   snapshots     ProjectSnapshot[]
   usageLogs     UsageLog[]
   studioSession StudioSession?
+  savedAssets   SavedAsset[]
 
   @@map("projects")
+}
+
+// Saved model assets backed by Cloudflare R2 object storage.
+model SavedAsset {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String   @db.Uuid
+  projectId     String?  @db.Uuid
+  sourceStepId  String?  @db.VarChar(255)
+  label         String   @db.VarChar(255)
+  objectKey     String   @unique @db.Text
+  viewerUrl     String?  @db.Text
+  fileSizeBytes Int?
+  assetStats    Json?    @db.JsonB
+  librarySource String   @default("saved") @db.VarChar(50)
+  isPinned      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([userId, isPinned])
+  @@map("saved_assets")
 }
 
 // Studio workflow session persistence (replaces localStorage)

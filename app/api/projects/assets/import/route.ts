@@ -2,11 +2,19 @@ import path from "node:path"
 import { mkdir, writeFile } from "node:fs/promises"
 import { randomUUID } from "node:crypto"
 import { NextResponse } from "next/server"
+import type { Prisma } from "@prisma/client"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { buildNeuralOutputFileUrl, buildNeuralOutputUrl, getNeuralOutputRoot } from "@/lib/neural/output-files"
+import { getNeuralOutputRoot } from "@/lib/neural/output-files"
 import { readModelStats } from "@/lib/neural/model-stats"
 import { extractZipAssetPackage } from "@/lib/projects/asset-imports"
+import { getModelContentType, uploadAssetObject } from "@/lib/projects/asset-storage"
+import {
+    buildSavedAssetObjectKey,
+    buildSavedAssetPackageViewerUrl,
+    buildSavedAssetViewerUrl,
+    mapSavedAssetRecordToGeneratedAsset,
+} from "@/lib/projects/saved-assets"
 
 const MAX_IMPORT_SIZE_BYTES = 150 * 1024 * 1024
 
@@ -17,6 +25,11 @@ function sanitizeBasename(filename: string): string {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "")
         .slice(0, 48) || "asset"
+}
+
+function buildViewerUrlWithFilename(viewerUrl: string, filename: string): string {
+    const params = new URLSearchParams({ filename })
+    return `${viewerUrl}?${params.toString()}`
 }
 
 export async function POST(request: Request) {
@@ -65,7 +78,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Project not found" }, { status: 404 })
     }
 
-    const importId = `asset-${randomUUID()}`
+    const importId = randomUUID()
     const outputDirectory = path.join(getNeuralOutputRoot(), "imports", projectId)
     const outputFilename = `${Date.now()}-${sanitizeBasename(file.name)}${extension}`
     const absoluteOutputPath = path.join(outputDirectory, outputFilename)
@@ -74,46 +87,80 @@ export async function POST(request: Request) {
         await mkdir(outputDirectory, { recursive: true })
         const buffer = Buffer.from(await file.arrayBuffer())
         let absoluteViewerPath = absoluteOutputPath
+        let rootEntryPath: string | null = null
         let viewerUrl: string
+        let objectKey: string
 
         if (extension === ".zip") {
             const packageDirectory = path.join(outputDirectory, `${Date.now()}-${sanitizeBasename(file.name)}`)
             const extracted = await extractZipAssetPackage(buffer, packageDirectory, file.name)
             absoluteViewerPath = extracted.rootModelPath
-            viewerUrl = buildNeuralOutputFileUrl(absoluteViewerPath)
+            rootEntryPath = extracted.rootModelEntryPath
+            objectKey = buildSavedAssetObjectKey({
+                userId: session.user.id,
+                projectId,
+                assetId: importId,
+                extension: path.extname(rootEntryPath),
+                packagePath: rootEntryPath,
+            })
+            await Promise.all(extracted.extractedFiles.map((entry) =>
+                uploadAssetObject({
+                    key: buildSavedAssetObjectKey({
+                        userId: session.user.id,
+                        projectId,
+                        assetId: importId,
+                        extension: path.extname(entry.entryPath),
+                        packagePath: entry.entryPath,
+                    }),
+                    body: entry.content,
+                    contentType: getModelContentType(entry.entryPath),
+                }),
+            ))
+            viewerUrl = buildSavedAssetPackageViewerUrl(importId, rootEntryPath)
         } else {
             await writeFile(absoluteOutputPath, buffer)
-            viewerUrl = extension === ".glb"
-                ? buildNeuralOutputUrl(absoluteOutputPath)
-                : buildNeuralOutputFileUrl(absoluteOutputPath)
+            objectKey = buildSavedAssetObjectKey({
+                userId: session.user.id,
+                projectId,
+                assetId: importId,
+                extension,
+            })
+            await uploadAssetObject({
+                key: objectKey,
+                body: buffer,
+                contentType: getModelContentType(file.name),
+            })
+            viewerUrl = buildViewerUrlWithFilename(buildSavedAssetViewerUrl(importId), file.name)
         }
 
         const stats = await readModelStats(absoluteViewerPath)
-        const title = path.basename(absoluteViewerPath)
+        const title = extension === ".zip" && rootEntryPath
+            ? path.basename(rootEntryPath)
+            : file.name
+        const assetStats = {
+            ...stats,
+            sourceToolId: "asset-library-import",
+            sourceToolLabel: "Imported asset",
+            sourceProvider: "Cloudflare R2",
+            stageLabel: "Imported",
+        }
+        const savedAsset = await prisma.savedAsset.create({
+            data: {
+                id: importId,
+                userId: session.user.id,
+                projectId,
+                label: title,
+                objectKey,
+                viewerUrl,
+                fileSizeBytes: stats.fileSizeBytes,
+                assetStats: assetStats as Prisma.InputJsonValue,
+                librarySource: "imported",
+                isPinned: false,
+            },
+        })
 
         return NextResponse.json({
-            asset: {
-                id: importId,
-                stepId: importId,
-                title,
-                toolName: "asset-library-import",
-                toolLabel: "Imported asset",
-                viewerUrl,
-                viewerLabel: title,
-                providerLabel: extension === ".zip" ? "Package import" : "Local upload",
-                stageLabel: "Imported",
-                previewImageUrl: undefined,
-                assetStats: {
-                    ...stats,
-                    sourceToolId: "asset-library-import",
-                    sourceToolLabel: "Imported asset",
-                    sourceProvider: "Local upload",
-                    stageLabel: "Imported",
-                },
-                referenceImage: undefined,
-                nextSuggestions: [],
-                librarySource: "imported",
-            },
+            asset: mapSavedAssetRecordToGeneratedAsset(savedAsset, { viewerUrl }),
         })
     } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to import model"

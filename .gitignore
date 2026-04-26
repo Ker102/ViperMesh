@@ -44,6 +44,8 @@ next-env.d.ts
 # prisma
 /prisma/migrations/*
 !/prisma/migrations/.gitkeep
+!/prisma/migrations/20260425133000_add_saved_assets/
+!/prisma/migrations/20260425133000_add_saved_assets/migration.sql
 
 # secrets and keys
 *.key
