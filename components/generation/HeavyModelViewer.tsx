@@ -11,7 +11,6 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
-import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import { cn } from "@/lib/utils";
 
@@ -805,6 +804,13 @@ function buildReplacementMaterial(
     }
 
     if (mode === "solid") {
+        if (unlitEnabled) {
+            return new THREE.MeshBasicMaterial({
+                color: "#c3c8d0",
+                side: THREE.DoubleSide,
+            });
+        }
+
         return new THREE.MeshStandardMaterial({
             color: "#c3c8d0",
             metalness: 0,
@@ -871,15 +877,19 @@ function getInspectionGeometryVariant(mesh: THREE.Mesh, shadingMode: HeavyShadin
                 return sourceGeometry.index ? sourceGeometry.toNonIndexed() : sourceGeometry.clone();
             }
 
-            return mergeVertices(sourceGeometry.clone(), 1e-4);
+            return sourceGeometry.clone();
         })();
 
-        geometry.deleteAttribute("normal");
-        geometry.computeVertexNormals();
-        geometry.normalizeNormals();
+        if (shadingMode === "flat" || !geometry.attributes.normal) {
+            geometry.deleteAttribute("normal");
+            geometry.computeVertexNormals();
+        }
+        if (geometry.attributes.normal) {
+            geometry.normalizeNormals();
+            geometry.attributes.normal.needsUpdate = true;
+        }
         geometry.computeBoundingBox();
         geometry.computeBoundingSphere();
-        geometry.attributes.normal.needsUpdate = true;
         mesh.userData[variantKey] = geometry;
     }
 

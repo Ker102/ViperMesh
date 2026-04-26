@@ -1028,7 +1028,8 @@ function NeuralViewerStage({
         inspectionMode === "solid"
     const supportsTintControls = inspectionMode === "geometry" || inspectionMode === "wireframe"
     const supportsMaterialControls = inspectionMode === "material"
-    const shadingControlsEnabled = !(inspectionMode === "material" && unlitEnabled)
+    const supportsLightingControls = inspectionMode === "material" || inspectionMode === "solid"
+    const shadingControlsEnabled = !((inspectionMode === "material" || inspectionMode === "solid") && unlitEnabled)
 
     const viewSettingsOpen = showViewSettings && Boolean(viewerUrl) && inspectionMode !== "stats"
 
@@ -1246,32 +1247,34 @@ function NeuralViewerStage({
                                             </div>
                                         </div>
                                     )}
-                                    {supportsMaterialControls && (
+                                    {supportsLightingControls && (
                                         <div className="space-y-3">
                                             <div className="grid grid-cols-2 gap-3">
-                                                <div className="space-y-2">
-                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
-                                                        PBR
-                                                    </p>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setPbrEnabled((current) => !current)}
-                                                        className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
-                                                        style={pbrEnabled
-                                                            ? {
-                                                                backgroundColor: "rgba(45,212,191,0.2)",
-                                                                color: "white",
-                                                            }
-                                                            : {
-                                                                backgroundColor: "rgba(255,255,255,0.05)",
-                                                                color: "rgba(226,232,240,0.84)",
-                                                            }}
-                                                        title="Toggle PBR shading"
-                                                    >
-                                                        <span>Physical</span>
-                                                        <span>{pbrEnabled ? "On" : "Off"}</span>
-                                                    </button>
-                                                </div>
+                                                {supportsMaterialControls && (
+                                                    <div className="space-y-2">
+                                                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                            PBR
+                                                        </p>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setPbrEnabled((current) => !current)}
+                                                            className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                                            style={pbrEnabled
+                                                                ? {
+                                                                    backgroundColor: "rgba(45,212,191,0.2)",
+                                                                    color: "white",
+                                                                }
+                                                                : {
+                                                                    backgroundColor: "rgba(255,255,255,0.05)",
+                                                                    color: "rgba(226,232,240,0.84)",
+                                                                }}
+                                                            title="Toggle PBR shading"
+                                                        >
+                                                            <span>Physical</span>
+                                                            <span>{pbrEnabled ? "On" : "Off"}</span>
+                                                        </button>
+                                                    </div>
+                                                )}
                                                 <div className="space-y-2">
                                                     <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
                                                         Unlit
@@ -1289,7 +1292,7 @@ function NeuralViewerStage({
                                                     </button>
                                                 </div>
                                             </div>
-                                            {pbrEnabled && !unlitEnabled && (
+                                            {supportsMaterialControls && pbrEnabled && !unlitEnabled && (
                                                 <div className="space-y-3 rounded-2xl border px-3 py-3" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
                                                     <label className="flex items-center gap-3">
                                                         <span className="w-16 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
@@ -1323,7 +1326,7 @@ function NeuralViewerStage({
                                                     </label>
                                                 </div>
                                             )}
-                                            {pbrEnabled && unlitEnabled && (
+                                            {supportsMaterialControls && pbrEnabled && unlitEnabled && (
                                                 <p className="rounded-2xl border px-3 py-2 text-xs leading-relaxed" style={{ borderColor: "rgba(255,255,255,0.08)", color: "rgba(203,213,225,0.82)" }}>
                                                     Metallic and roughness controls apply when Lighting is on.
                                                 </p>
