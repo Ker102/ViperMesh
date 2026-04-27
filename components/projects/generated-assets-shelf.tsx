@@ -59,10 +59,9 @@ export function GeneratedAssetsShelf({
         return rightFavorite - leftFavorite
     })
 
-    const selectedAsset =
-        sortedItems.find((asset) => asset.id === selectedAssetId) ??
-        sortedItems[0] ??
-        null
+    const selectedAsset = selectedAssetId
+        ? assetLibrary.items.find((asset) => asset.id === selectedAssetId) ?? null
+        : null
 
     const toggleFavorite = (asset: GeneratedAssetItem) => {
         void onTogglePinned(asset)
@@ -145,6 +144,18 @@ export function GeneratedAssetsShelf({
                     })}
                 </div>
 
+                {selectedAsset && (
+                    <AssetDetailsPanel
+                        asset={selectedAsset}
+                        selectionMode={selectionMode}
+                        onClose={() => setSelectedAssetId(null)}
+                        onOpenAsset={onOpenAsset}
+                        onContinueToTool={onContinueToTool}
+                        onUseAsset={onUseAsset}
+                        onSaveAsset={onSaveAsset}
+                    />
+                )}
+
                 <div className="mt-4">
                     <div className="grid grid-cols-2 gap-3">
                         <ImportAssetTile
@@ -194,120 +205,152 @@ export function GeneratedAssetsShelf({
                         await onImportAsset(file)
                     }}
                 />
-
-                {selectedAsset && (
-                    <div
-                        className="mt-4 rounded-2xl border p-4"
-                        style={{
-                            borderColor: "hsl(var(--forge-border))",
-                            backgroundColor: "hsl(var(--forge-surface-dim))",
-                        }}
-                    >
-                        <div className="flex items-start gap-3">
-                            <div
-                                className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border"
-                                style={{ borderColor: "hsl(var(--forge-border))" }}
-                            >
-                                <AssetPreviewTile
-                                    imageUrl={selectedAsset.previewImageUrl}
-                                    alt={selectedAsset.viewerLabel ?? selectedAsset.title}
-                                    stageLabel={selectedAsset.stageLabel}
-                                    providerLabel={selectedAsset.providerLabel}
-                                    className="h-full w-full object-cover"
-                                />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
-                                    {selectedAsset.viewerLabel ?? selectedAsset.title}
-                                </p>
-                                <p className="mt-1 text-xs" style={{ color: "hsl(var(--forge-text-muted))" }}>
-                                    From {selectedAsset.toolLabel}
-                                    {selectedAsset.stageLabel ? ` • ${selectedAsset.stageLabel}` : ""}
-                                    {selectedAsset.providerLabel ? ` • ${selectedAsset.providerLabel}` : ""}
-                                </p>
-                                <p
-                                    className="mt-2 text-[11px] font-medium uppercase tracking-[0.14em]"
-                                    style={{ color: "hsl(var(--forge-text-subtle))" }}
-                                >
-                                    {selectedAsset.assetKind === "image"
-                                        ? "Image asset"
-                                        : selectedAsset.densityBucket === "high-poly"
-                                            ? "High poly model"
-                                            : selectedAsset.densityBucket === "low-poly"
-                                                ? "Low poly model"
-                                                : "Model asset"}
-                                </p>
-                            </div>
-                        </div>
-
-                        <AssetStatsPills stats={selectedAsset.assetStats} className="mt-3 flex flex-wrap gap-2" />
-
-                        <div className="mt-4 flex flex-wrap gap-2">
-                            {!selectedAsset.id.startsWith("saved:") && (
-                                <button
-                                    type="button"
-                                    onClick={() => onSaveAsset(selectedAsset)}
-                                    className="rounded-xl px-3 py-2 text-xs font-semibold transition hover:opacity-90"
-                                    style={{
-                                        backgroundColor: "hsl(var(--forge-accent))",
-                                        color: "white",
-                                    }}
-                                >
-                                    Save to library
-                                </button>
-                            )}
-                            {selectionMode && selectedAsset.assetKind === "model" && (
-                                <button
-                                    type="button"
-                                    onClick={() => onUseAsset(selectedAsset)}
-                                    className="rounded-xl px-3 py-2 text-xs font-semibold transition hover:opacity-90"
-                                    style={{
-                                        backgroundColor: "hsl(var(--forge-accent))",
-                                        color: "white",
-                                    }}
-                                >
-                                    Use in {selectionMode.label}
-                                </button>
-                            )}
-                            <button
-                                type="button"
-                                onClick={() => onOpenAsset(selectedAsset, {
-                                    attachToActiveTool: Boolean(selectionMode && selectedAsset.assetKind === "model"),
-                                })}
-                                className="rounded-xl border px-3 py-2 text-xs font-semibold transition hover:opacity-90"
-                                style={{
-                                    borderColor: "hsl(var(--forge-border))",
-                                    color: "hsl(var(--forge-text-muted))",
-                                }}
-                            >
-                                Open in viewer
-                            </button>
-                            {selectedAsset.nextSuggestions.map((suggestion) => (
-                                <button
-                                    key={suggestion.toolId}
-                                    type="button"
-                                    onClick={() => onContinueToTool(selectedAsset, suggestion.toolId)}
-                                    className="rounded-xl px-3 py-2 text-xs font-semibold transition hover:opacity-90"
-                                    style={suggestion.variant === "primary"
-                                        ? {
-                                            backgroundColor: "hsl(var(--forge-accent))",
-                                            color: "white",
-                                        }
-                                        : {
-                                            borderColor: "hsl(var(--forge-border))",
-                                            borderWidth: "1px",
-                                            color: "hsl(var(--forge-text-muted))",
-                                        }}
-                                    title={suggestion.description}
-                                >
-                                    {suggestion.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
             </div>
         </aside>
+    )
+}
+
+function AssetDetailsPanel({
+    asset,
+    selectionMode,
+    onClose,
+    onOpenAsset,
+    onContinueToTool,
+    onUseAsset,
+    onSaveAsset,
+}: {
+    asset: AssetLibraryItem
+    selectionMode?: { label: string } | null
+    onClose: () => void
+    onOpenAsset: (asset: AssetLibraryItem, options?: { attachToActiveTool?: boolean }) => void
+    onContinueToTool: (asset: AssetLibraryItem, toolId: string) => void
+    onUseAsset: (asset: AssetLibraryItem) => void
+    onSaveAsset: (asset: AssetLibraryItem) => Promise<void> | void
+}) {
+    return (
+        <div
+            className="mt-4 rounded-2xl border p-4"
+            style={{
+                borderColor: "hsl(var(--forge-border))",
+                backgroundColor: "hsl(var(--forge-surface-dim))",
+            }}
+        >
+            <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-start gap-3">
+                    <div
+                        className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl border"
+                        style={{ borderColor: "hsl(var(--forge-border))" }}
+                    >
+                        <AssetPreviewTile
+                            imageUrl={asset.previewImageUrl}
+                            modelUrl={asset.assetKind === "model" ? asset.viewerUrl : undefined}
+                            alt={asset.viewerLabel ?? asset.title}
+                            stageLabel={asset.stageLabel}
+                            providerLabel={asset.providerLabel}
+                            className="h-full w-full object-cover"
+                        />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
+                            {asset.viewerLabel ?? asset.title}
+                        </p>
+                        <p className="mt-1 text-xs" style={{ color: "hsl(var(--forge-text-muted))" }}>
+                            From {asset.toolLabel}
+                            {asset.stageLabel ? ` • ${asset.stageLabel}` : ""}
+                            {asset.providerLabel ? ` • ${asset.providerLabel}` : ""}
+                        </p>
+                        <p
+                            className="mt-2 text-[11px] font-medium uppercase tracking-[0.14em]"
+                            style={{ color: "hsl(var(--forge-text-subtle))" }}
+                        >
+                            {asset.assetKind === "image"
+                                ? "Image asset"
+                                : asset.densityBucket === "high-poly"
+                                    ? "High poly model"
+                                    : asset.densityBucket === "low-poly"
+                                        ? "Low poly model"
+                                        : "Model asset"}
+                        </p>
+                    </div>
+                </div>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="rounded-full border px-2 py-1 text-[11px] font-semibold transition hover:opacity-90"
+                    style={{
+                        borderColor: "hsl(var(--forge-border))",
+                        color: "hsl(var(--forge-text-muted))",
+                    }}
+                >
+                    Hide
+                </button>
+            </div>
+
+            <AssetStatsPills stats={asset.assetStats} className="mt-3 flex flex-wrap gap-2" />
+
+            <div className="mt-4 flex flex-wrap gap-2">
+                {!asset.id.startsWith("saved:") && (
+                    <button
+                        type="button"
+                        onClick={() => onSaveAsset(asset)}
+                        className="rounded-xl px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+                        style={{
+                            backgroundColor: "hsl(var(--forge-accent))",
+                            color: "white",
+                        }}
+                    >
+                        Save to library
+                    </button>
+                )}
+                {selectionMode && asset.assetKind === "model" && (
+                    <button
+                        type="button"
+                        onClick={() => onUseAsset(asset)}
+                        className="rounded-xl px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+                        style={{
+                            backgroundColor: "hsl(var(--forge-accent))",
+                            color: "white",
+                        }}
+                    >
+                        Use in {selectionMode.label}
+                    </button>
+                )}
+                <button
+                    type="button"
+                    onClick={() => onOpenAsset(asset, {
+                        attachToActiveTool: Boolean(selectionMode && asset.assetKind === "model"),
+                    })}
+                    className="rounded-xl border px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+                    style={{
+                        borderColor: "hsl(var(--forge-border))",
+                        color: "hsl(var(--forge-text-muted))",
+                    }}
+                >
+                    Open in viewer
+                </button>
+                {asset.nextSuggestions.map((suggestion) => (
+                    <button
+                        key={suggestion.toolId}
+                        type="button"
+                        onClick={() => onContinueToTool(asset, suggestion.toolId)}
+                        className="rounded-xl px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+                        style={suggestion.variant === "primary"
+                            ? {
+                                backgroundColor: "hsl(var(--forge-accent))",
+                                color: "white",
+                            }
+                            : {
+                                borderColor: "hsl(var(--forge-border))",
+                                borderWidth: "1px",
+                                color: "hsl(var(--forge-text-muted))",
+                            }}
+                        title={suggestion.description}
+                    >
+                        {suggestion.label}
+                    </button>
+                ))}
+            </div>
+        </div>
     )
 }
 
@@ -348,6 +391,7 @@ function AssetLibraryGridCard({
                 <div className="relative aspect-square w-full overflow-hidden">
                     <AssetPreviewTile
                         imageUrl={asset.previewImageUrl}
+                        modelUrl={asset.assetKind === "model" ? asset.viewerUrl : undefined}
                         alt={asset.viewerLabel ?? asset.title}
                         stageLabel={asset.stageLabel}
                         providerLabel={asset.providerLabel}
@@ -390,7 +434,10 @@ function AssetLibraryGridCard({
 
             <button
                 type="button"
-                onClick={() => onToggleFavorite(asset)}
+                onClick={(event) => {
+                    event.stopPropagation()
+                    onToggleFavorite(asset)
+                }}
                 className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full border transition hover:opacity-90"
                 style={{
                     borderColor: "rgba(255,255,255,0.22)",
@@ -405,7 +452,10 @@ function AssetLibraryGridCard({
 
             <button
                 type="button"
-                onClick={() => onSelectInfo(asset.id)}
+                onClick={(event) => {
+                    event.stopPropagation()
+                    onSelectInfo(asset.id)
+                }}
                 className="absolute bottom-16 left-2 inline-flex h-8 w-8 items-center justify-center rounded-full border transition hover:opacity-90"
                 style={{
                     borderColor: "rgba(255,255,255,0.22)",

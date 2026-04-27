@@ -328,6 +328,7 @@ function MeshAttachmentCard({
                 >
                     <AssetPreviewTile
                         imageUrl={previewImageUrl}
+                        modelUrl={value}
                         alt="Attached model preview"
                         stageLabel={stageLabel}
                         providerLabel={providerLabel}

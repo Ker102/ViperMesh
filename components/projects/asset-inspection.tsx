@@ -1,5 +1,13 @@
 "use client"
 
+import React, { Suspense, useMemo } from "react"
+import { Canvas, useLoader } from "@react-three/fiber"
+import * as THREE from "three"
+import { FBXLoader } from "three/addons/loaders/FBXLoader.js"
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js"
+import { OBJLoader } from "three/addons/loaders/OBJLoader.js"
+import { STLLoader } from "three/addons/loaders/STLLoader.js"
+import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js"
 import type { AssetInspectionStats } from "./workflow-timeline"
 import { isRenderablePreviewImage } from "./generated-assets"
 
@@ -84,25 +92,166 @@ function getPreviewInitials(stageLabel?: string, providerLabel?: string) {
     return "3D"
 }
 
-export function AssetPreviewTile({
-    imageUrl,
+function getModelPreviewSource(modelUrl?: string | null): { url: string; extension: string } | null {
+    if (!modelUrl) return null
+
+    try {
+        const baseUrl = typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1"
+        const url = new URL(modelUrl, baseUrl)
+        const filename = url.searchParams.get("filename")
+        const target = filename ?? url.pathname
+        const extension = target.match(/\.(glb|gltf|fbx|obj|stl)$/i)?.[0]?.toLowerCase()
+        return extension ? { url: url.toString(), extension } : null
+    } catch {
+        const extension = modelUrl.match(/\.(glb|gltf|fbx|obj|stl)(?:$|[?#])/i)?.[1]
+        return extension ? { url: modelUrl, extension: `.${extension.toLowerCase()}` } : null
+    }
+}
+
+function normalizePreviewObject(object: THREE.Object3D) {
+    const source = SkeletonUtils.clone(object)
+    source.traverse((child) => {
+        const mesh = child as THREE.Mesh
+        if (!mesh.isMesh) return
+        mesh.castShadow = false
+        mesh.receiveShadow = false
+    })
+
+    const box = new THREE.Box3().setFromObject(source)
+    const center = new THREE.Vector3()
+    const size = new THREE.Vector3()
+    box.getCenter(center)
+    box.getSize(size)
+
+    source.position.sub(center)
+
+    const group = new THREE.Group()
+    group.add(source)
+    const maxDimension = Math.max(size.x, size.y, size.z, 0.001)
+    group.scale.setScalar(1.75 / maxDimension)
+    group.rotation.set(-0.12, 0.62, 0)
+    return group
+}
+
+function NormalizedPreviewObject({ object }: { object: THREE.Object3D }) {
+    const normalizedObject = useMemo(() => normalizePreviewObject(object), [object])
+    return <primitive object={normalizedObject} />
+}
+
+function GltfPreviewObject({ url }: { url: string }) {
+    const gltf = useLoader(GLTFLoader, url)
+    return <NormalizedPreviewObject object={gltf.scene} />
+}
+
+function FbxPreviewObject({ url }: { url: string }) {
+    const object = useLoader(FBXLoader, url)
+    return <NormalizedPreviewObject object={object} />
+}
+
+function ObjPreviewObject({ url }: { url: string }) {
+    const object = useLoader(OBJLoader, url)
+    return <NormalizedPreviewObject object={object} />
+}
+
+function StlPreviewObject({ url }: { url: string }) {
+    const geometry = useLoader(STLLoader, url)
+    const object = useMemo(() => {
+        const mesh = new THREE.Mesh(
+            geometry,
+            new THREE.MeshStandardMaterial({
+                color: "#cbd5e1",
+                roughness: 0.72,
+                metalness: 0.02,
+                side: THREE.DoubleSide,
+            }),
+        )
+        return mesh
+    }, [geometry])
+    return <NormalizedPreviewObject object={object} />
+}
+
+function ModelPreviewObject({ source }: { source: { url: string; extension: string } }) {
+    switch (source.extension) {
+        case ".glb":
+        case ".gltf":
+            return <GltfPreviewObject url={source.url} />
+        case ".fbx":
+            return <FbxPreviewObject url={source.url} />
+        case ".obj":
+            return <ObjPreviewObject url={source.url} />
+        case ".stl":
+            return <StlPreviewObject url={source.url} />
+        default:
+            return null
+    }
+}
+
+class ModelPreviewErrorBoundary extends React.Component<
+    { children: React.ReactNode; fallback: React.ReactNode },
+    { hasError: boolean }
+> {
+    override state = { hasError: false }
+
+    static getDerivedStateFromError() {
+        return { hasError: true }
+    }
+
+    override componentDidUpdate(previousProps: { children: React.ReactNode }) {
+        if (previousProps.children !== this.props.children && this.state.hasError) {
+            this.setState({ hasError: false })
+        }
+    }
+
+    override render() {
+        return this.state.hasError ? this.props.fallback : this.props.children
+    }
+}
+
+function StaticModelPreviewTile({
+    source,
     alt,
+    className,
+}: {
+    source: { url: string; extension: string }
+    alt: string
+    className?: string
+}) {
+    return (
+        <div className={className ?? "h-full w-full"}>
+            <Canvas
+                frameloop="demand"
+                dpr={[1, 1.5]}
+                camera={{ position: [2.2, 1.45, 2.65], fov: 28 }}
+                gl={{ antialias: true, alpha: true, powerPreference: "low-power" }}
+                onCreated={({ gl }) => {
+                    gl.setClearColor(0x000000, 0)
+                    gl.outputColorSpace = THREE.SRGBColorSpace
+                    gl.toneMapping = THREE.ACESFilmicToneMapping
+                    gl.toneMappingExposure = 1.05
+                }}
+            >
+                <ambientLight intensity={0.72} />
+                <hemisphereLight args={["#f8fafc", "#1f2937", 1.2]} />
+                <directionalLight position={[3.5, 4, 4]} intensity={1.3} />
+                <directionalLight position={[-3, 2.5, -4]} intensity={0.36} />
+                <Suspense fallback={null}>
+                    <ModelPreviewObject source={source} />
+                </Suspense>
+            </Canvas>
+            <span className="sr-only">{alt}</span>
+        </div>
+    )
+}
+
+function FallbackAssetPreviewTile({
     stageLabel,
     providerLabel,
     className,
 }: {
-    imageUrl?: string | null
-    alt: string
     stageLabel?: string
     providerLabel?: string
     className?: string
 }) {
-    if (isRenderablePreviewImage(imageUrl)) {
-        // Uploaded or remote previews are already browser-safe at this point.
-        // eslint-disable-next-line @next/next/no-img-element
-        return <img src={imageUrl} alt={alt} className={className ?? "h-full w-full object-cover"} />
-    }
-
     return (
         <div
             className={className ?? "flex h-full w-full flex-col justify-between p-3"}
@@ -126,6 +275,56 @@ export function AssetPreviewTile({
                 {providerLabel ?? "Project asset"}
             </span>
         </div>
+    )
+}
+
+export function AssetPreviewTile({
+    imageUrl,
+    modelUrl,
+    alt,
+    stageLabel,
+    providerLabel,
+    className,
+}: {
+    imageUrl?: string | null
+    modelUrl?: string | null
+    alt: string
+    stageLabel?: string
+    providerLabel?: string
+    className?: string
+}) {
+    if (isRenderablePreviewImage(imageUrl)) {
+        // Uploaded or remote previews are already browser-safe at this point.
+        // eslint-disable-next-line @next/next/no-img-element
+        return <img src={imageUrl} alt={alt} className={className ?? "h-full w-full object-cover"} />
+    }
+
+    const modelPreviewSource = getModelPreviewSource(modelUrl)
+    if (modelPreviewSource) {
+        const fallback = (
+            <FallbackAssetPreviewTile
+                stageLabel={stageLabel}
+                providerLabel={providerLabel}
+                className={className}
+            />
+        )
+        return (
+            <ModelPreviewErrorBoundary fallback={fallback}>
+                <StaticModelPreviewTile
+                    source={modelPreviewSource}
+                    alt={alt}
+                    className={className}
+                />
+            </ModelPreviewErrorBoundary>
+        )
+    }
+
+    return (
+        <FallbackAssetPreviewTile
+            stageLabel={stageLabel}
+            providerLabel={providerLabel}
+            className={className}
+        />
     )
 }
 
