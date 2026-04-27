@@ -738,6 +738,109 @@ function copyCommonMaterialProps(
     dest.needsUpdate = true;
 }
 
+function copySolidReliefMaterialProps(
+    target: THREE.Material,
+    original: THREE.Material,
+    flatShading: boolean,
+    maxAnisotropy: number,
+) {
+    const source = original as THREE.Material & {
+        normalMap?: THREE.Texture | null;
+        normalScale?: THREE.Vector2;
+        bumpMap?: THREE.Texture | null;
+        bumpScale?: number;
+        aoMap?: THREE.Texture | null;
+        aoMapIntensity?: number;
+        alphaMap?: THREE.Texture | null;
+        transparent?: boolean;
+        opacity?: number;
+        alphaTest?: number;
+        side?: THREE.Side;
+    };
+    const dest = target as THREE.Material & {
+        normalMap?: THREE.Texture | null;
+        normalScale?: THREE.Vector2;
+        bumpMap?: THREE.Texture | null;
+        bumpScale?: number;
+        aoMap?: THREE.Texture | null;
+        aoMapIntensity?: number;
+        alphaMap?: THREE.Texture | null;
+        transparent?: boolean;
+        opacity?: number;
+        alphaTest?: number;
+        side?: THREE.Side;
+        flatShading?: boolean;
+    };
+
+    if ("normalMap" in dest) {
+        dest.normalMap = source.normalMap ?? null;
+        if (dest.normalMap) {
+            dest.normalMap.colorSpace = THREE.NoColorSpace;
+            dest.normalMap.generateMipmaps = true;
+            dest.normalMap.magFilter = THREE.LinearFilter;
+            dest.normalMap.minFilter = THREE.LinearMipmapLinearFilter;
+            dest.normalMap.anisotropy = maxAnisotropy;
+            dest.normalMap.needsUpdate = true;
+        }
+    }
+    if (dest.normalScale && source.normalScale) {
+        dest.normalScale.copy(source.normalScale);
+    }
+    if ("bumpMap" in dest) {
+        dest.bumpMap = source.bumpMap ?? null;
+        if (dest.bumpMap) {
+            dest.bumpMap.colorSpace = THREE.NoColorSpace;
+            dest.bumpMap.generateMipmaps = true;
+            dest.bumpMap.magFilter = THREE.LinearFilter;
+            dest.bumpMap.minFilter = THREE.LinearMipmapLinearFilter;
+            dest.bumpMap.anisotropy = maxAnisotropy;
+            dest.bumpMap.needsUpdate = true;
+        }
+    }
+    if ("bumpScale" in dest && typeof source.bumpScale === "number") {
+        dest.bumpScale = source.bumpScale;
+    }
+    if ("aoMap" in dest) {
+        dest.aoMap = source.aoMap ?? null;
+        if (dest.aoMap) {
+            dest.aoMap.colorSpace = THREE.NoColorSpace;
+            dest.aoMap.generateMipmaps = true;
+            dest.aoMap.magFilter = THREE.LinearFilter;
+            dest.aoMap.minFilter = THREE.LinearMipmapLinearFilter;
+            dest.aoMap.anisotropy = maxAnisotropy;
+            dest.aoMap.needsUpdate = true;
+        }
+    }
+    if ("aoMapIntensity" in dest) {
+        dest.aoMapIntensity = Math.max(source.aoMapIntensity ?? 0.45, 0.6);
+    }
+    if ("alphaMap" in dest) {
+        dest.alphaMap = source.alphaMap ?? null;
+        if (dest.alphaMap) {
+            dest.alphaMap.colorSpace = THREE.NoColorSpace;
+            dest.alphaMap.generateMipmaps = true;
+            dest.alphaMap.magFilter = THREE.LinearFilter;
+            dest.alphaMap.minFilter = THREE.LinearMipmapLinearFilter;
+            dest.alphaMap.anisotropy = maxAnisotropy;
+            dest.alphaMap.needsUpdate = true;
+        }
+    }
+    if (typeof source.transparent === "boolean") {
+        dest.transparent = source.transparent;
+    }
+    if (typeof source.opacity === "number") {
+        dest.opacity = source.opacity;
+    }
+    if (typeof source.alphaTest === "number") {
+        dest.alphaTest = source.alphaTest;
+    }
+    dest.side = source.side ?? THREE.DoubleSide;
+    if ("flatShading" in dest) {
+        dest.flatShading = flatShading;
+    }
+    dest.needsUpdate = true;
+}
+
 function stripFacetMutedMaps(material: THREE.Material) {
     const candidate = material as THREE.Material & {
         normalMap?: THREE.Texture | null;
@@ -912,19 +1015,28 @@ function buildReplacementMaterial(
 
     if (mode === "solid") {
         if (unlitEnabled) {
-            return new THREE.MeshBasicMaterial({
+            const material = new THREE.MeshBasicMaterial({
                 color: "#c3c8d0",
                 side: THREE.DoubleSide,
             });
+            copySolidReliefMaterialProps(material, original, flatShading, maxAnisotropy);
+            return material;
         }
 
-        return new THREE.MeshStandardMaterial({
+        const material = new THREE.MeshStandardMaterial({
             color: "#c3c8d0",
             metalness: 0,
-            roughness: 0.96,
+            roughness: 0.88,
             flatShading,
             side: THREE.DoubleSide,
         });
+        copySolidReliefMaterialProps(material, original, flatShading, maxAnisotropy);
+        material.color.set("#c3c8d0");
+        material.metalness = 0;
+        material.roughness = 0.88;
+        material.envMapIntensity = 0.34;
+        material.needsUpdate = true;
+        return material;
     }
 
     if (mode === "toon") {
@@ -1335,9 +1447,9 @@ function applyInspectionMaterials(
     meshEdgesEnabled: boolean,
     maxAnisotropy: number,
 ) {
-    const geometryShadingMode = mode === "geometry" ? shadingMode : "smooth";
+    const geometryShadingMode = mode === "geometry" || mode === "solid" ? shadingMode : "smooth";
     const materialShadingMode =
-        mode === "wireframe" || mode === "geometry"
+        mode === "wireframe" || mode === "geometry" || mode === "solid"
             ? geometryShadingMode
             : "smooth";
 
