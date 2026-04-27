@@ -1086,9 +1086,14 @@ function applyInspectionMaterials(
     meshEdgesEnabled: boolean,
     maxAnisotropy: number,
 ) {
-    prepareInspectionGeometry(root, shadingMode);
+    const geometryShadingMode =
+        mode === "geometry" || mode === "toon"
+            ? shadingMode
+            : "smooth";
+
+    prepareInspectionGeometry(root, geometryShadingMode);
     syncToonEdgeOverlay(root, mode === "toon" && toonEdgesEnabled, shadingMode);
-    syncMeshEdgeOverlay(root, mode === "solid" && meshEdgesEnabled, shadingMode);
+    syncMeshEdgeOverlay(root, mode === "solid" && meshEdgesEnabled, geometryShadingMode);
 
     root.traverse((child) => {
         const mesh = child as THREE.Mesh;
@@ -1107,7 +1112,7 @@ function applyInspectionMaterials(
                 material,
                 mode,
                 tint,
-                shadingMode,
+                geometryShadingMode,
                 pbrEnabled,
                 unlitEnabled,
                 previewMetalness,
