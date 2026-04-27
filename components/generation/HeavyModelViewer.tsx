@@ -99,10 +99,10 @@ function getToonGradientTexture() {
     }
 
     const colors = new Uint8Array([
-        28, 33, 42, 255,
-        92, 105, 124, 255,
-        176, 190, 210, 255,
-        252, 252, 255, 255,
+        112, 118, 130, 255,
+        178, 188, 204, 255,
+        224, 232, 242, 255,
+        255, 255, 255, 255,
     ]);
     const texture = new THREE.DataTexture(colors, 4, 1, THREE.RGBAFormat);
     texture.colorSpace = THREE.SRGBColorSpace;
@@ -420,6 +420,15 @@ function disposeGeneratedMaterials(object: THREE.Object3D) {
             delete mesh.userData.__toonEdgeOverlayKey;
         }
 
+        const toonSilhouette = mesh.userData.__toonSilhouetteOverlay as THREE.Mesh | undefined;
+        if (toonSilhouette) {
+            mesh.remove(toonSilhouette);
+            const silhouetteMaterials = Array.isArray(toonSilhouette.material) ? toonSilhouette.material : [toonSilhouette.material];
+            silhouetteMaterials.forEach((material) => material.dispose());
+            delete mesh.userData.__toonSilhouetteOverlay;
+            delete mesh.userData.__toonSilhouetteOverlayKey;
+        }
+
         const meshOverlay = mesh.userData.__meshEdgeOverlay as THREE.LineSegments | undefined;
         if (meshOverlay) {
             mesh.remove(meshOverlay);
@@ -675,23 +684,6 @@ function stripFacetMutedMaps(material: THREE.Material) {
     material.needsUpdate = true;
 }
 
-function applyToonPosterization(material: THREE.MeshToonMaterial) {
-    material.onBeforeCompile = (shader) => {
-        shader.fragmentShader = shader.fragmentShader.replace(
-            "#include <map_fragment>",
-            `
-#include <map_fragment>
-diffuseColor.rgb = pow(max(diffuseColor.rgb, vec3(0.0)), vec3(0.9));
-diffuseColor.rgb = floor(diffuseColor.rgb * 4.0 + 0.5) / 4.0;
-float toonLuma = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
-diffuseColor.rgb = mix(vec3(toonLuma), diffuseColor.rgb, 1.2);
-diffuseColor.rgb = clamp(diffuseColor.rgb, vec3(0.0), vec3(1.0));
-            `.trim(),
-        );
-    };
-    material.customProgramCacheKey = () => "modelforge-toon-posterized-v1";
-}
-
 function buildClassicPreviewMaterial(
     original: THREE.Material,
     flatShading: boolean,
@@ -881,7 +873,6 @@ function buildReplacementMaterial(
         material.emissiveIntensity = 0.02;
         material.emissiveMap = source.emissiveMap ?? null;
         stripFacetMutedMaps(material);
-        applyToonPosterization(material);
         material.needsUpdate = true;
         return material;
     }
@@ -1035,6 +1026,7 @@ function syncToonEdgeOverlay(root: THREE.Object3D, enabled: boolean, shadingMode
         if (!mesh.isMesh) return;
 
         const existingOverlay = mesh.userData.__toonEdgeOverlay as THREE.LineSegments | undefined;
+        const existingSilhouette = mesh.userData.__toonSilhouetteOverlay as THREE.Mesh | undefined;
         if (!enabled) {
             if (existingOverlay) {
                 mesh.remove(existingOverlay);
@@ -1044,11 +1036,23 @@ function syncToonEdgeOverlay(root: THREE.Object3D, enabled: boolean, shadingMode
                 delete mesh.userData.__toonEdgeOverlay;
                 delete mesh.userData.__toonEdgeOverlayKey;
             }
+            if (existingSilhouette) {
+                mesh.remove(existingSilhouette);
+                const silhouetteMaterials = Array.isArray(existingSilhouette.material) ? existingSilhouette.material : [existingSilhouette.material];
+                silhouetteMaterials.forEach((material) => material.dispose());
+                delete mesh.userData.__toonSilhouetteOverlay;
+                delete mesh.userData.__toonSilhouetteOverlayKey;
+            }
             return;
         }
 
         const overlayKey = `${shadingMode}:${mesh.geometry.uuid}`;
-        if (existingOverlay && mesh.userData.__toonEdgeOverlayKey === overlayKey) {
+        if (
+            existingOverlay &&
+            mesh.userData.__toonEdgeOverlayKey === overlayKey &&
+            existingSilhouette &&
+            mesh.userData.__toonSilhouetteOverlayKey === overlayKey
+        ) {
             return;
         }
 
@@ -1058,12 +1062,32 @@ function syncToonEdgeOverlay(root: THREE.Object3D, enabled: boolean, shadingMode
             const overlayMaterials = Array.isArray(existingOverlay.material) ? existingOverlay.material : [existingOverlay.material];
             overlayMaterials.forEach((material) => material.dispose());
         }
+        if (existingSilhouette) {
+            mesh.remove(existingSilhouette);
+            const silhouetteMaterials = Array.isArray(existingSilhouette.material) ? existingSilhouette.material : [existingSilhouette.material];
+            silhouetteMaterials.forEach((material) => material.dispose());
+        }
 
-        const edgeGeometry = new THREE.EdgesGeometry(mesh.geometry, shadingMode === "flat" ? 72 : 96);
+        const silhouetteMaterial = new THREE.MeshBasicMaterial({
+            color: "#05070a",
+            side: THREE.BackSide,
+            transparent: true,
+            opacity: 0.82,
+            depthWrite: false,
+            depthTest: true,
+            toneMapped: false,
+        });
+        const silhouette = new THREE.Mesh(mesh.geometry, silhouetteMaterial);
+        silhouette.userData.__inspectionOverlay = true;
+        silhouette.renderOrder = 6;
+        silhouette.scale.setScalar(shadingMode === "flat" ? 1.012 : 1.008);
+        mesh.add(silhouette);
+
+        const edgeGeometry = new THREE.EdgesGeometry(mesh.geometry, shadingMode === "flat" ? 76 : 98);
         const edgeMaterial = new THREE.LineBasicMaterial({
             color: "#0b0f16",
             transparent: true,
-            opacity: shadingMode === "flat" ? 0.62 : 0.5,
+            opacity: shadingMode === "flat" ? 0.34 : 0.26,
             depthWrite: false,
             polygonOffset: true,
             polygonOffsetFactor: -1,
@@ -1076,6 +1100,8 @@ function syncToonEdgeOverlay(root: THREE.Object3D, enabled: boolean, shadingMode
         mesh.add(overlay);
         mesh.userData.__toonEdgeOverlay = overlay;
         mesh.userData.__toonEdgeOverlayKey = overlayKey;
+        mesh.userData.__toonSilhouetteOverlay = silhouette;
+        mesh.userData.__toonSilhouetteOverlayKey = overlayKey;
     });
 }
 
