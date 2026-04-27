@@ -99,13 +99,12 @@ function getToonGradientTexture() {
     }
 
     const colors = new Uint8Array([
-        20, 24, 31, 255,
-        62, 72, 92, 255,
-        118, 132, 156, 255,
-        196, 208, 224, 255,
-        250, 250, 255, 255,
+        28, 33, 42, 255,
+        92, 105, 124, 255,
+        176, 190, 210, 255,
+        252, 252, 255, 255,
     ]);
-    const texture = new THREE.DataTexture(colors, 5, 1, THREE.RGBAFormat);
+    const texture = new THREE.DataTexture(colors, 4, 1, THREE.RGBAFormat);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.magFilter = THREE.NearestFilter;
     texture.minFilter = THREE.NearestFilter;
@@ -676,6 +675,23 @@ function stripFacetMutedMaps(material: THREE.Material) {
     material.needsUpdate = true;
 }
 
+function applyToonPosterization(material: THREE.MeshToonMaterial) {
+    material.onBeforeCompile = (shader) => {
+        shader.fragmentShader = shader.fragmentShader.replace(
+            "#include <map_fragment>",
+            `
+#include <map_fragment>
+diffuseColor.rgb = pow(max(diffuseColor.rgb, vec3(0.0)), vec3(0.9));
+diffuseColor.rgb = floor(diffuseColor.rgb * 4.0 + 0.5) / 4.0;
+float toonLuma = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+diffuseColor.rgb = mix(vec3(toonLuma), diffuseColor.rgb, 1.2);
+diffuseColor.rgb = clamp(diffuseColor.rgb, vec3(0.0), vec3(1.0));
+            `.trim(),
+        );
+    };
+    material.customProgramCacheKey = () => "modelforge-toon-posterized-v1";
+}
+
 function buildClassicPreviewMaterial(
     original: THREE.Material,
     flatShading: boolean,
@@ -865,6 +881,7 @@ function buildReplacementMaterial(
         material.emissiveIntensity = 0.02;
         material.emissiveMap = source.emissiveMap ?? null;
         stripFacetMutedMaps(material);
+        applyToonPosterization(material);
         material.needsUpdate = true;
         return material;
     }
@@ -1042,11 +1059,11 @@ function syncToonEdgeOverlay(root: THREE.Object3D, enabled: boolean, shadingMode
             overlayMaterials.forEach((material) => material.dispose());
         }
 
-        const edgeGeometry = new THREE.EdgesGeometry(mesh.geometry, shadingMode === "flat" ? 96 : 128);
+        const edgeGeometry = new THREE.EdgesGeometry(mesh.geometry, shadingMode === "flat" ? 72 : 96);
         const edgeMaterial = new THREE.LineBasicMaterial({
             color: "#0b0f16",
             transparent: true,
-            opacity: shadingMode === "flat" ? 0.38 : 0.28,
+            opacity: shadingMode === "flat" ? 0.62 : 0.5,
             depthWrite: false,
             polygonOffset: true,
             polygonOffsetFactor: -1,
