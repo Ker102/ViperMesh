@@ -1,7 +1,7 @@
 "use client";
 
 import { Bounds, ContactShadows, OrbitControls, useBounds } from "@react-three/drei";
-import { Canvas, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Download, FolderOpen, Loader2, Maximize2, RotateCcw } from "lucide-react";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 
 export type HeavyInspectionMode = "material" | "geometry" | "solid" | "toon" | "wireframe";
 export type HeavyShadingMode = "smooth" | "flat";
+export type HeavyEnvironmentPreset = "indoor" | "studio" | "outdoor" | "neutral";
 
 interface HeavyModelViewerProps {
     url: string;
@@ -32,6 +33,10 @@ interface HeavyModelViewerProps {
     meshEdgesEnabled?: boolean;
     previewMetalness?: number;
     previewRoughness?: number;
+    environmentPreset?: HeavyEnvironmentPreset;
+    environmentStrength?: number;
+    environmentRotation?: number;
+    environmentAutoRotate?: boolean;
 }
 
 type ViewerStatus = "loading" | "ready" | "error";
@@ -86,6 +91,79 @@ const toneMappingExposureByMode: Record<HeavyInspectionMode, number> = {
     toon: 1.1,
     wireframe: 1,
 };
+
+export const HEAVY_ENVIRONMENT_PRESETS: Array<{ id: HeavyEnvironmentPreset; label: string }> = [
+    { id: "indoor", label: "Indoor Lighting" },
+    { id: "studio", label: "Studio Softbox" },
+    { id: "outdoor", label: "Outdoor Shade" },
+    { id: "neutral", label: "Neutral Review" },
+];
+
+const environmentPresetDefinitions: Record<HeavyEnvironmentPreset, {
+    environmentIntensity: number;
+    exposure: number;
+    ambient: number;
+    hemisphere: number;
+    key: number;
+    fill: number;
+    cool: number;
+    rim: number;
+    skyColor: string;
+    groundColor: string;
+}> = {
+    indoor: {
+        environmentIntensity: 0.92,
+        exposure: 1,
+        ambient: 1,
+        hemisphere: 1,
+        key: 0.92,
+        fill: 1.05,
+        cool: 0.95,
+        rim: 1,
+        skyColor: "#f8fafc",
+        groundColor: "#1e293b",
+    },
+    studio: {
+        environmentIntensity: 0.78,
+        exposure: 1.02,
+        ambient: 1.08,
+        hemisphere: 1.12,
+        key: 0.72,
+        fill: 1.28,
+        cool: 0.72,
+        rim: 1.35,
+        skyColor: "#ffffff",
+        groundColor: "#334155",
+    },
+    outdoor: {
+        environmentIntensity: 1.08,
+        exposure: 1.04,
+        ambient: 0.94,
+        hemisphere: 1.3,
+        key: 1.18,
+        fill: 0.76,
+        cool: 1.26,
+        rim: 0.84,
+        skyColor: "#dbeafe",
+        groundColor: "#334155",
+    },
+    neutral: {
+        environmentIntensity: 0.62,
+        exposure: 0.96,
+        ambient: 0.9,
+        hemisphere: 0.86,
+        key: 0.78,
+        fill: 0.86,
+        cool: 0.62,
+        rim: 0.72,
+        skyColor: "#e2e8f0",
+        groundColor: "#374151",
+    },
+};
+
+function getEnvironmentPresetDefinition(preset: HeavyEnvironmentPreset) {
+    return environmentPresetDefinitions[preset] ?? environmentPresetDefinitions.indoor;
+}
 
 const SUPPORTED_VIEWER_EXTENSIONS = new Set([".glb", ".gltf", ".fbx", ".obj", ".stl"]);
 const NORMAL_MERGE_TOLERANCE_RATIO = 0.005;
@@ -1169,13 +1247,22 @@ function SceneEnvironmentController({
     inspectionMode,
     pbrEnabled,
     unlitEnabled,
+    environmentPreset,
+    environmentStrength,
+    environmentRotation,
+    environmentAutoRotate,
 }: {
     inspectionMode: HeavyInspectionMode;
     pbrEnabled: boolean;
     unlitEnabled: boolean;
+    environmentPreset: HeavyEnvironmentPreset;
+    environmentStrength: number;
+    environmentRotation: number;
+    environmentAutoRotate: boolean;
 }) {
     const { gl, scene } = useThree();
     const envTextureRef = useRef<THREE.Texture | null>(null);
+    const presetDefinition = getEnvironmentPresetDefinition(environmentPreset);
 
     useEffect(() => {
         const environment = new RoomEnvironment();
@@ -1194,32 +1281,43 @@ function SceneEnvironmentController({
     useEffect(() => {
         // Three renderer exposure is runtime state, not React props.
         // eslint-disable-next-line react-hooks/immutability
-        gl.toneMappingExposure = toneMappingExposureByMode[inspectionMode];
+        gl.toneMappingExposure = toneMappingExposureByMode[inspectionMode] * presetDefinition.exposure;
         gl.setClearColor(clearColorByMode[inspectionMode], 1);
 
         // Three scene environment is renderer-owned runtime state.
         /* eslint-disable react-hooks/immutability */
         if (inspectionMode === "material" && !unlitEnabled) {
             scene.environment = envTextureRef.current;
-            scene.environmentIntensity = pbrEnabled ? 0.95 : 0.45;
+            scene.environmentIntensity = (pbrEnabled ? 0.95 : 0.45) * presetDefinition.environmentIntensity * environmentStrength;
         } else if (inspectionMode === "toon") {
             scene.environment = envTextureRef.current;
-            scene.environmentIntensity = 0.28;
+            scene.environmentIntensity = 0.3 * presetDefinition.environmentIntensity * environmentStrength;
         } else if (inspectionMode === "solid") {
             scene.environment = envTextureRef.current;
-            scene.environmentIntensity = 0.2;
+            scene.environmentIntensity = unlitEnabled
+                ? 0
+                : 0.24 * presetDefinition.environmentIntensity * environmentStrength;
         } else {
             scene.environment = null;
             scene.environmentIntensity = 1;
         }
+        scene.environmentRotation.set(0, THREE.MathUtils.degToRad(environmentRotation), 0);
 
         return () => {
             scene.environment = null;
             scene.environmentIntensity = 1;
+            scene.environmentRotation.set(0, 0, 0);
             gl.toneMappingExposure = 1;
         };
         /* eslint-enable react-hooks/immutability */
-    }, [gl, inspectionMode, pbrEnabled, scene, unlitEnabled]);
+    }, [environmentAutoRotate, environmentRotation, environmentStrength, gl, inspectionMode, pbrEnabled, presetDefinition, scene, unlitEnabled]);
+
+    useFrame((_, delta) => {
+        if (!environmentAutoRotate || !scene.environment) return;
+        // Three scene environment rotation is runtime renderer state.
+        // eslint-disable-next-line react-hooks/immutability
+        scene.environmentRotation.y = (scene.environmentRotation.y + delta * 0.16) % (Math.PI * 2);
+    });
 
     return null;
 }
@@ -1482,6 +1580,10 @@ function HeavyModelViewerInner({
     meshEdgesEnabled = false,
     previewMetalness = 1,
     previewRoughness = 1,
+    environmentPreset = "indoor",
+    environmentStrength = 1,
+    environmentRotation = 0,
+    environmentAutoRotate = false,
 }: Omit<HeavyModelViewerProps, "url"> & { safeUrl: string }) {
     const frameRef = useRef<HTMLDivElement | null>(null);
     const viewerApiRef = useRef<ViewerApi | null>(null);
@@ -1519,6 +1621,7 @@ function HeavyModelViewerInner({
     const lightingDisabledForMode =
         unlitEnabled && (inspectionMode === "material" || inspectionMode === "solid");
     const useFlatLighting = usePresentationLighting && !lightingDisabledForMode && shadingMode === "flat";
+    const environmentLighting = getEnvironmentPresetDefinition(environmentPreset);
     const materialAmbientIntensity = !useMaterialView
         ? inspectionMode === "toon"
             ? (useFlatLighting ? 0.58 : 0.86)
@@ -1597,6 +1700,12 @@ function HeavyModelViewerInner({
                 : pbrEnabled
                     ? 0.08
                     : 0.1;
+    const resolvedAmbientIntensity = materialAmbientIntensity * environmentLighting.ambient;
+    const resolvedHemisphereIntensity = materialHemisphereIntensity * environmentLighting.hemisphere;
+    const resolvedKeyDirectionalIntensity = keyDirectionalIntensity * environmentLighting.key;
+    const resolvedFillDirectionalIntensity = fillDirectionalIntensity * environmentLighting.fill;
+    const resolvedCoolDirectionalIntensity = coolDirectionalIntensity * environmentLighting.cool;
+    const resolvedRimDirectionalIntensity = rimDirectionalIntensity * environmentLighting.rim;
 
     useEffect(() => {
         setStatus(modelExtension ? "loading" : "error");
@@ -1718,15 +1827,23 @@ function HeavyModelViewerInner({
                 className="h-full w-full"
             >
                 <color attach="background" args={[clearColorByMode[inspectionMode]]} />
-                <SceneEnvironmentController inspectionMode={inspectionMode} pbrEnabled={pbrEnabled} unlitEnabled={unlitEnabled} />
-                <ambientLight intensity={materialAmbientIntensity} />
-                <hemisphereLight
-                    args={["#f8fafc", "#1e293b", materialHemisphereIntensity]}
+                <SceneEnvironmentController
+                    inspectionMode={inspectionMode}
+                    pbrEnabled={pbrEnabled}
+                    unlitEnabled={unlitEnabled}
+                    environmentPreset={environmentPreset}
+                    environmentStrength={environmentStrength}
+                    environmentRotation={environmentRotation}
+                    environmentAutoRotate={environmentAutoRotate}
                 />
-                <directionalLight position={[5.5, 7, 4.5]} intensity={keyDirectionalIntensity} />
-                <directionalLight position={[-4, 3, -5]} intensity={fillDirectionalIntensity} />
-                <directionalLight position={[0, 4, -7]} intensity={coolDirectionalIntensity} color="#dbeafe" />
-                <directionalLight position={[0, -1.5, 5]} intensity={rimDirectionalIntensity} color="#f8fafc" />
+                <ambientLight intensity={resolvedAmbientIntensity} />
+                <hemisphereLight
+                    args={[environmentLighting.skyColor, environmentLighting.groundColor, resolvedHemisphereIntensity]}
+                />
+                <directionalLight position={[5.5, 7, 4.5]} intensity={resolvedKeyDirectionalIntensity} />
+                <directionalLight position={[-4, 3, -5]} intensity={resolvedFillDirectionalIntensity} />
+                <directionalLight position={[0, 4, -7]} intensity={resolvedCoolDirectionalIntensity} color="#dbeafe" />
+                <directionalLight position={[0, -1.5, 5]} intensity={resolvedRimDirectionalIntensity} color="#f8fafc" />
                 <ViewerErrorBoundary
                     onError={(error) => {
                         console.error("HeavyModelViewer: model load failure", error);

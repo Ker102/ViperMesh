@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Loader2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, RefreshCw, SlidersHorizontal, Square } from "lucide-react"
-import { HeavyModelViewer } from "@/components/generation/HeavyModelViewer"
+import {
+    HEAVY_ENVIRONMENT_PRESETS,
+    HeavyModelViewer,
+    type HeavyEnvironmentPreset,
+} from "@/components/generation/HeavyModelViewer"
 import { cn } from "@/lib/utils"
 import {
     CATEGORIES,
@@ -1009,6 +1013,10 @@ function NeuralViewerStage({
     const [meshEdgesEnabled, setMeshEdgesEnabled] = useState(false)
     const [previewMetalness, setPreviewMetalness] = useState(0.5)
     const [previewRoughness, setPreviewRoughness] = useState(0.55)
+    const [environmentPreset, setEnvironmentPreset] = useState<HeavyEnvironmentPreset>("indoor")
+    const [environmentStrength, setEnvironmentStrength] = useState(1)
+    const [environmentRotation, setEnvironmentRotation] = useState(0)
+    const [environmentAutoRotate, setEnvironmentAutoRotate] = useState(false)
     const [showViewSettings, setShowViewSettings] = useState(false)
     const displayViewerLabel =
         viewerSource === "input" && viewerUrl
@@ -1031,6 +1039,8 @@ function NeuralViewerStage({
     const supportsTintControls = inspectionMode === "geometry" || inspectionMode === "wireframe"
     const supportsMaterialControls = inspectionMode === "material"
     const supportsLightingControls = inspectionMode === "material" || inspectionMode === "solid"
+    const supportsEnvironmentControls =
+        inspectionMode === "material" || inspectionMode === "solid" || inspectionMode === "toon"
     const shadingControlsEnabled = !(inspectionMode === "material" && unlitEnabled)
 
     const viewSettingsOpen = showViewSettings && Boolean(viewerUrl) && inspectionMode !== "stats"
@@ -1055,6 +1065,10 @@ function NeuralViewerStage({
                     meshEdgesEnabled={meshEdgesEnabled}
                     previewMetalness={previewMetalness}
                     previewRoughness={previewRoughness}
+                    environmentPreset={environmentPreset}
+                    environmentStrength={environmentStrength}
+                    environmentRotation={environmentRotation}
+                    environmentAutoRotate={environmentAutoRotate}
                 />
             ) : (
                 <div
@@ -1185,7 +1199,7 @@ function NeuralViewerStage({
                     <div className="pointer-events-auto flex flex-col items-center gap-2">
                         {viewSettingsOpen && (
                             <div
-                                className="w-[min(360px,calc(100vw-3rem))] rounded-3xl border px-4 py-4 text-[11px] font-medium shadow-2xl backdrop-blur"
+                                className="max-h-[min(76vh,680px)] w-[min(380px,calc(100vw-3rem))] overflow-y-auto rounded-3xl border px-4 py-4 text-[11px] font-medium shadow-2xl backdrop-blur"
                                 style={{
                                     borderColor: "rgba(255,255,255,0.14)",
                                     backgroundColor: "rgba(15, 23, 42, 0.84)",
@@ -1334,6 +1348,75 @@ function NeuralViewerStage({
                                                     Metallic and roughness controls apply when Lighting is on.
                                                 </p>
                                             )}
+                                        </div>
+                                    )}
+                                    {supportsEnvironmentControls && (
+                                        <div className="space-y-3 rounded-2xl border px-3 py-3" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+                                            <div className="flex items-center justify-between gap-3">
+                                                <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                    Environment
+                                                </p>
+                                                <select
+                                                    value={environmentPreset}
+                                                    onChange={(event) => setEnvironmentPreset(event.target.value as HeavyEnvironmentPreset)}
+                                                    className="h-8 max-w-40 rounded-xl border px-2 text-xs font-semibold outline-none"
+                                                    style={{
+                                                        borderColor: "rgba(255,255,255,0.12)",
+                                                        backgroundColor: "rgba(255,255,255,0.06)",
+                                                        color: "rgba(241,245,249,0.96)",
+                                                    }}
+                                                    aria-label="HDRI environment preset"
+                                                >
+                                                    {HEAVY_ENVIRONMENT_PRESETS.map((preset) => (
+                                                        <option key={preset.id} value={preset.id} className="bg-slate-950 text-slate-100">
+                                                            {preset.label}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <label className="flex items-center gap-3">
+                                                <span className="w-16 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                    Strength
+                                                </span>
+                                                <input
+                                                    type="range"
+                                                    min={0}
+                                                    max={2}
+                                                    step={0.05}
+                                                    value={environmentStrength}
+                                                    onChange={(event) => setEnvironmentStrength(Number(event.target.value))}
+                                                    className="flex-1"
+                                                />
+                                                <span className="w-8 text-right tabular-nums">{environmentStrength.toFixed(2)}</span>
+                                            </label>
+                                            <label className="flex items-center gap-3">
+                                                <span className="w-16 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                    Rotation
+                                                </span>
+                                                <input
+                                                    type="range"
+                                                    min={0}
+                                                    max={360}
+                                                    step={1}
+                                                    value={environmentRotation}
+                                                    disabled={environmentAutoRotate}
+                                                    onChange={(event) => setEnvironmentRotation(Number(event.target.value))}
+                                                    className="flex-1 disabled:opacity-45"
+                                                />
+                                                <span className="w-8 text-right tabular-nums">{Math.round(environmentRotation)}deg</span>
+                                            </label>
+                                            <button
+                                                type="button"
+                                                onClick={() => setEnvironmentAutoRotate((current) => !current)}
+                                                className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                                style={environmentAutoRotate
+                                                    ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
+                                                    : { backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(226,232,240,0.84)" }}
+                                                title="Toggle environment auto-rotation"
+                                            >
+                                                <span>Auto-rotate</span>
+                                                <span>{environmentAutoRotate ? "On" : "Off"}</span>
+                                            </button>
                                         </div>
                                     )}
                                     {inspectionMode === "toon" && (
