@@ -291,6 +291,10 @@ function collectMaterialTextures(material: THREE.Material, textureSet: Set<THREE
     });
 }
 
+function isInspectionOverlayObject(object: THREE.Object3D) {
+    return Boolean(object.userData.__inspectionOverlay);
+}
+
 function disposeLoadedAssetResources(root: THREE.Object3D) {
     const geometrySet = new Set<THREE.BufferGeometry>();
     const materialSet = new Set<THREE.Material>();
@@ -407,6 +411,8 @@ async function loadAssetRoot(url: string, extension: string): Promise<THREE.Obje
 
 function disposeGeneratedMaterials(object: THREE.Object3D) {
     object.traverse((child) => {
+        if (isInspectionOverlayObject(child)) return;
+
         const mesh = child as THREE.Mesh;
         if (!mesh.isMesh) return;
 
@@ -1013,6 +1019,8 @@ function applyPositionSmoothedNormals(geometry: THREE.BufferGeometry) {
 
 function prepareInspectionGeometry(root: THREE.Object3D, shadingMode: HeavyShadingMode) {
     root.traverse((child) => {
+        if (isInspectionOverlayObject(child)) return;
+
         const mesh = child as THREE.Mesh;
         if (!mesh.isMesh || !mesh.geometry) return;
 
@@ -1021,10 +1029,14 @@ function prepareInspectionGeometry(root: THREE.Object3D, shadingMode: HeavyShadi
 }
 
 function syncToonEdgeOverlay(root: THREE.Object3D, enabled: boolean, shadingMode: HeavyShadingMode) {
+    const meshes: THREE.Mesh[] = [];
     root.traverse((child) => {
         const mesh = child as THREE.Mesh;
-        if (!mesh.isMesh) return;
+        if (!mesh.isMesh || isInspectionOverlayObject(mesh)) return;
+        meshes.push(mesh);
+    });
 
+    meshes.forEach((mesh) => {
         const existingOverlay = mesh.userData.__toonEdgeOverlay as THREE.LineSegments | undefined;
         const existingSilhouette = mesh.userData.__toonSilhouetteOverlay as THREE.Mesh | undefined;
         if (!enabled) {
@@ -1236,6 +1248,8 @@ function applyInspectionMaterials(
     syncMeshEdgeOverlay(root, mode === "solid" && meshEdgesEnabled, geometryShadingMode);
 
     root.traverse((child) => {
+        if (isInspectionOverlayObject(child)) return;
+
         const mesh = child as THREE.Mesh;
         if (!mesh.isMesh) return;
 
