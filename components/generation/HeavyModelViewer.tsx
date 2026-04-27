@@ -1,6 +1,6 @@
 "use client";
 
-import { Bounds, ContactShadows, OrbitControls, useBounds } from "@react-three/drei";
+import { Bounds, Grid, OrbitControls, useBounds } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Download, FolderOpen, Loader2, Maximize2, RotateCcw } from "lucide-react";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
@@ -37,6 +37,7 @@ interface HeavyModelViewerProps {
     environmentStrength?: number;
     environmentRotation?: number;
     environmentAutoRotate?: boolean;
+    floorGridEnabled?: boolean;
 }
 
 type ViewerStatus = "loading" | "ready" | "error";
@@ -77,11 +78,16 @@ const clearColorByMode: Record<HeavyInspectionMode, string> = {
 };
 
 const frameBackgroundByMode: Record<HeavyInspectionMode, string> = {
-    material: "radial-gradient(circle at top, rgba(148, 163, 184, 0.18), rgba(31, 41, 55, 0.95) 64%)",
-    geometry: "radial-gradient(circle at top, rgba(186, 230, 253, 0.18), rgba(39, 46, 58, 0.98) 64%)",
-    solid: "radial-gradient(circle at top, rgba(226, 232, 240, 0.12), rgba(39, 46, 58, 0.96) 66%)",
-    toon: "radial-gradient(circle at top, rgba(196, 181, 253, 0.24), rgba(31, 41, 55, 0.95) 64%)",
-    wireframe: "radial-gradient(circle at top, rgba(125, 211, 252, 0.14), rgba(17, 24, 39, 0.98) 64%)",
+    material:
+        "radial-gradient(circle at 50% 45%, rgba(128, 139, 154, 0.58), rgba(60, 68, 80, 0.92) 38%, rgba(28, 33, 41, 0.98) 78%, #12161d 100%)",
+    geometry:
+        "radial-gradient(circle at 50% 45%, rgba(109, 123, 141, 0.5), rgba(48, 56, 68, 0.94) 42%, rgba(19, 24, 32, 0.98) 82%, #10141b 100%)",
+    solid:
+        "radial-gradient(circle at 50% 44%, rgba(138, 148, 160, 0.54), rgba(56, 64, 75, 0.94) 40%, rgba(22, 27, 35, 0.98) 80%, #10141b 100%)",
+    toon:
+        "radial-gradient(circle at 50% 45%, rgba(120, 126, 148, 0.52), rgba(50, 58, 72, 0.94) 40%, rgba(20, 25, 34, 0.98) 80%, #10141b 100%)",
+    wireframe:
+        "radial-gradient(circle at 50% 45%, rgba(74, 92, 111, 0.46), rgba(31, 41, 55, 0.96) 42%, rgba(10, 15, 23, 0.99) 82%, #080d14 100%)",
 };
 
 const toneMappingExposureByMode: Record<HeavyInspectionMode, number> = {
@@ -1394,7 +1400,7 @@ function SceneEnvironmentController({
         // Three renderer exposure is runtime state, not React props.
         // eslint-disable-next-line react-hooks/immutability
         gl.toneMappingExposure = toneMappingExposureByMode[inspectionMode] * presetDefinition.exposure;
-        gl.setClearColor(clearColorByMode[inspectionMode], 1);
+        gl.setClearColor(clearColorByMode[inspectionMode], 0);
 
         // Three scene environment is renderer-owned runtime state.
         /* eslint-disable react-hooks/immutability */
@@ -1696,6 +1702,7 @@ function HeavyModelViewerInner({
     environmentStrength = 1,
     environmentRotation = 0,
     environmentAutoRotate = false,
+    floorGridEnabled = false,
 }: Omit<HeavyModelViewerProps, "url"> & { safeUrl: string }) {
     const frameRef = useRef<HTMLDivElement | null>(null);
     const viewerApiRef = useRef<ViewerApi | null>(null);
@@ -1938,7 +1945,6 @@ function HeavyModelViewerInner({
                 }}
                 className="h-full w-full"
             >
-                <color attach="background" args={[clearColorByMode[inspectionMode]]} />
                 <SceneEnvironmentController
                     inspectionMode={inspectionMode}
                     pbrEnabled={pbrEnabled}
@@ -1996,16 +2002,22 @@ function HeavyModelViewerInner({
                             />
                         ) : null}
                     </Bounds>
-                    <ContactShadows
-                        position={[0, -1.6, 0]}
-                        opacity={inspectionMode === "material" ? 0.2 : inspectionMode === "toon" ? 0.12 : inspectionMode === "solid" ? 0.14 : 0.08}
-                        scale={18}
-                        blur={2.6}
-                        far={6}
-                        resolution={512}
-                        color="#000000"
-                        frames={1}
-                    />
+                    {floorGridEnabled && (
+                        <Grid
+                            position={[0, -1.6, 0]}
+                            args={[22, 22]}
+                            cellSize={0.5}
+                            cellThickness={0.45}
+                            cellColor="#64748b"
+                            sectionSize={2.5}
+                            sectionThickness={0.8}
+                            sectionColor="#cbd5e1"
+                            fadeDistance={16}
+                            fadeStrength={1.5}
+                            infiniteGrid
+                            side={THREE.DoubleSide}
+                        />
+                    )}
                 </ViewerErrorBoundary>
             </Canvas>
 

@@ -1017,6 +1017,7 @@ function NeuralViewerStage({
     const [environmentStrength, setEnvironmentStrength] = useState(1)
     const [environmentRotation, setEnvironmentRotation] = useState(0)
     const [environmentAutoRotate, setEnvironmentAutoRotate] = useState(false)
+    const [floorGridEnabled, setFloorGridEnabled] = useState(false)
     const [showViewSettings, setShowViewSettings] = useState(false)
     const displayViewerLabel =
         viewerSource === "input" && viewerUrl
@@ -1069,6 +1070,7 @@ function NeuralViewerStage({
                     environmentStrength={environmentStrength}
                     environmentRotation={environmentRotation}
                     environmentAutoRotate={environmentAutoRotate}
+                    floorGridEnabled={floorGridEnabled}
                 />
             ) : (
                 <div
@@ -1419,6 +1421,23 @@ function NeuralViewerStage({
                                             </button>
                                         </div>
                                     )}
+                                    <div className="space-y-2">
+                                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                            Display
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFloorGridEnabled((current) => !current)}
+                                            className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                            style={floorGridEnabled
+                                                ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
+                                                : { backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(226,232,240,0.84)" }}
+                                            title="Toggle the viewer floor grid"
+                                        >
+                                            <span>Grid</span>
+                                            <span>{floorGridEnabled ? "On" : "Off"}</span>
+                                        </button>
+                                    </div>
                                     {inspectionMode === "toon" && (
                                         <div className="space-y-2">
                                             <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
