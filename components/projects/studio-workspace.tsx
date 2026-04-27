@@ -1022,11 +1022,7 @@ function NeuralViewerStage({
         wireframe: "Wireframe",
         stats: "Stats",
     }[inspectionMode]
-    const supportsShadingControls =
-        inspectionMode === "material" ||
-        inspectionMode === "toon" ||
-        inspectionMode === "geometry" ||
-        inspectionMode === "solid"
+    const supportsShadingControls = inspectionMode === "geometry"
     const supportsTintControls = inspectionMode === "geometry" || inspectionMode === "wireframe"
     const supportsMaterialControls = inspectionMode === "material"
     const supportsLightingControls = inspectionMode === "material" || inspectionMode === "solid"

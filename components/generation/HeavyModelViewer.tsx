@@ -88,6 +88,7 @@ const toneMappingExposureByMode: Record<HeavyInspectionMode, number> = {
 };
 
 const SUPPORTED_VIEWER_EXTENSIONS = new Set([".glb", ".gltf", ".fbx", ".obj", ".stl"]);
+const NORMAL_SMOOTHING_PRECISION = 10000;
 
 let toonGradientTexture: THREE.DataTexture | null = null;
 
@@ -891,9 +892,11 @@ function getInspectionGeometryVariant(mesh: THREE.Mesh, shadingMode: HeavyShadin
             return sourceGeometry.clone();
         })();
 
-        if (shadingMode === "flat" || !geometry.attributes.normal) {
+        if (shadingMode === "flat") {
             geometry.deleteAttribute("normal");
             geometry.computeVertexNormals();
+        } else {
+            applyPositionSmoothedNormals(geometry);
         }
         if (geometry.attributes.normal) {
             geometry.normalizeNormals();
@@ -905,6 +908,72 @@ function getInspectionGeometryVariant(mesh: THREE.Mesh, shadingMode: HeavyShadin
     }
 
     return mesh.userData[variantKey] as THREE.BufferGeometry;
+}
+
+function getPositionNormalKey(position: THREE.BufferAttribute, index: number) {
+    return [
+        Math.round(position.getX(index) * NORMAL_SMOOTHING_PRECISION),
+        Math.round(position.getY(index) * NORMAL_SMOOTHING_PRECISION),
+        Math.round(position.getZ(index) * NORMAL_SMOOTHING_PRECISION),
+    ].join(",");
+}
+
+function applyPositionSmoothedNormals(geometry: THREE.BufferGeometry) {
+    const position = geometry.attributes.position as THREE.BufferAttribute | undefined;
+    if (!position) {
+        geometry.computeVertexNormals();
+        return;
+    }
+
+    const index = geometry.index;
+    const normalSums = new Map<string, THREE.Vector3>();
+    const triangle = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+    const edgeA = new THREE.Vector3();
+    const edgeB = new THREE.Vector3();
+    const faceNormal = new THREE.Vector3();
+
+    const addTriangle = (a: number, b: number, c: number) => {
+        triangle[0].fromBufferAttribute(position, a);
+        triangle[1].fromBufferAttribute(position, b);
+        triangle[2].fromBufferAttribute(position, c);
+
+        edgeA.subVectors(triangle[1], triangle[0]);
+        edgeB.subVectors(triangle[2], triangle[0]);
+        faceNormal.crossVectors(edgeA, edgeB);
+        if (faceNormal.lengthSq() <= Number.EPSILON) return;
+
+        for (const vertexIndex of [a, b, c]) {
+            const key = getPositionNormalKey(position, vertexIndex);
+            const sum = normalSums.get(key) ?? new THREE.Vector3();
+            sum.add(faceNormal);
+            normalSums.set(key, sum);
+        }
+    };
+
+    if (index) {
+        for (let i = 0; i + 2 < index.count; i += 3) {
+            addTriangle(index.getX(i), index.getX(i + 1), index.getX(i + 2));
+        }
+    } else {
+        for (let i = 0; i + 2 < position.count; i += 3) {
+            addTriangle(i, i + 1, i + 2);
+        }
+    }
+
+    const normals = new Float32Array(position.count * 3);
+    for (let i = 0; i < position.count; i += 1) {
+        const sum = normalSums.get(getPositionNormalKey(position, i));
+        if (!sum || sum.lengthSq() <= Number.EPSILON) {
+            normals[i * 3 + 1] = 1;
+            continue;
+        }
+        sum.normalize();
+        normals[i * 3] = sum.x;
+        normals[i * 3 + 1] = sum.y;
+        normals[i * 3 + 2] = sum.z;
+    }
+
+    geometry.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
 }
 
 function prepareInspectionGeometry(root: THREE.Object3D, shadingMode: HeavyShadingMode) {
@@ -946,7 +1015,7 @@ function syncToonEdgeOverlay(root: THREE.Object3D, enabled: boolean, shadingMode
             overlayMaterials.forEach((material) => material.dispose());
         }
 
-        const edgeGeometry = new THREE.EdgesGeometry(mesh.geometry, shadingMode === "flat" ? 6 : 18);
+        const edgeGeometry = new THREE.EdgesGeometry(mesh.geometry, shadingMode === "flat" ? 18 : 42);
         const edgeMaterial = new THREE.LineBasicMaterial({
             color: "#0b0f16",
             transparent: true,
@@ -1087,7 +1156,7 @@ function applyInspectionMaterials(
     maxAnisotropy: number,
 ) {
     const geometryShadingMode =
-        mode === "geometry" || mode === "toon"
+        mode === "geometry"
             ? shadingMode
             : "smooth";
 
