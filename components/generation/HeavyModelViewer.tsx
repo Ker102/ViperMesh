@@ -652,6 +652,8 @@ function stripFacetMutedMaps(material: THREE.Material) {
         bumpMap?: THREE.Texture | null;
         aoMap?: THREE.Texture | null;
         specularMap?: THREE.Texture | null;
+        metalnessMap?: THREE.Texture | null;
+        roughnessMap?: THREE.Texture | null;
     };
     if ("normalMap" in candidate) {
         candidate.normalMap = null;
@@ -664,6 +666,12 @@ function stripFacetMutedMaps(material: THREE.Material) {
     }
     if ("specularMap" in candidate) {
         candidate.specularMap = null;
+    }
+    if ("metalnessMap" in candidate) {
+        candidate.metalnessMap = null;
+    }
+    if ("roughnessMap" in candidate) {
+        candidate.roughnessMap = null;
     }
     material.needsUpdate = true;
 }
@@ -687,9 +695,7 @@ function buildClassicPreviewMaterial(
             material.combine = THREE.MultiplyOperation;
             material.envMap = null;
         }
-        if (flatShading) {
-            stripFacetMutedMaps(material);
-        }
+        stripFacetMutedMaps(material);
         material.needsUpdate = true;
         return material;
     }
@@ -708,9 +714,7 @@ function buildClassicPreviewMaterial(
     material.combine = THREE.MultiplyOperation;
     material.reflectivity = 0.03;
     material.shininess = 14;
-    if (flatShading) {
-        stripFacetMutedMaps(material);
-    }
+    stripFacetMutedMaps(material);
     material.needsUpdate = true;
     return material;
 }
@@ -801,9 +805,7 @@ function buildReplacementMaterial(
         material.aoMapIntensity = 0.2;
         material.metalness = resolvedMetalness;
         material.roughness = resolvedRoughness;
-        if (flatShading) {
-            stripFacetMutedMaps(material);
-        }
+        stripFacetMutedMaps(material);
         material.needsUpdate = true;
         return material;
     }
@@ -1040,11 +1042,11 @@ function syncToonEdgeOverlay(root: THREE.Object3D, enabled: boolean, shadingMode
             overlayMaterials.forEach((material) => material.dispose());
         }
 
-        const edgeGeometry = new THREE.EdgesGeometry(mesh.geometry, shadingMode === "flat" ? 54 : 82);
+        const edgeGeometry = new THREE.EdgesGeometry(mesh.geometry, shadingMode === "flat" ? 96 : 128);
         const edgeMaterial = new THREE.LineBasicMaterial({
             color: "#0b0f16",
             transparent: true,
-            opacity: shadingMode === "flat" ? 0.72 : 0.48,
+            opacity: shadingMode === "flat" ? 0.38 : 0.28,
             depthWrite: false,
             polygonOffset: true,
             polygonOffsetFactor: -1,
@@ -1184,7 +1186,7 @@ function applyInspectionMaterials(
     const materialShadingMode =
         mode === "wireframe" || mode === "geometry"
             ? geometryShadingMode
-            : shadingMode;
+            : "smooth";
 
     prepareInspectionGeometry(root, geometryShadingMode);
     syncToonEdgeOverlay(root, mode === "toon" && toonEdgesEnabled, shadingMode);
