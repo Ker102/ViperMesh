@@ -42,6 +42,12 @@ interface HeavyModelViewerProps {
 
 type ViewerStatus = "loading" | "ready" | "error";
 
+type ModelBounds = {
+    minY: number;
+    sizeX: number;
+    sizeZ: number;
+};
+
 type ViewerApi = {
     fit: () => void;
     reset: () => void;
@@ -79,15 +85,15 @@ const clearColorByMode: Record<HeavyInspectionMode, string> = {
 
 const frameBackgroundByMode: Record<HeavyInspectionMode, string> = {
     material:
-        "radial-gradient(circle at 50% 45%, rgba(128, 139, 154, 0.58), rgba(60, 68, 80, 0.92) 38%, rgba(28, 33, 41, 0.98) 78%, #12161d 100%)",
+        "radial-gradient(circle at 50% 45%, rgba(104, 116, 130, 0.44), rgba(51, 59, 70, 0.9) 42%, rgba(24, 29, 37, 0.98) 78%, #11151c 100%)",
     geometry:
-        "radial-gradient(circle at 50% 45%, rgba(109, 123, 141, 0.5), rgba(48, 56, 68, 0.94) 42%, rgba(19, 24, 32, 0.98) 82%, #10141b 100%)",
+        "radial-gradient(circle at 50% 45%, rgba(92, 106, 124, 0.4), rgba(43, 51, 63, 0.92) 44%, rgba(18, 23, 31, 0.98) 82%, #0f131a 100%)",
     solid:
-        "radial-gradient(circle at 50% 44%, rgba(138, 148, 160, 0.54), rgba(56, 64, 75, 0.94) 40%, rgba(22, 27, 35, 0.98) 80%, #10141b 100%)",
+        "radial-gradient(circle at 50% 44%, rgba(112, 122, 135, 0.42), rgba(49, 57, 68, 0.92) 42%, rgba(19, 24, 32, 0.98) 80%, #0f131a 100%)",
     toon:
-        "radial-gradient(circle at 50% 45%, rgba(120, 126, 148, 0.52), rgba(50, 58, 72, 0.94) 40%, rgba(20, 25, 34, 0.98) 80%, #10141b 100%)",
+        "radial-gradient(circle at 50% 45%, rgba(99, 108, 128, 0.42), rgba(45, 53, 66, 0.92) 42%, rgba(19, 24, 33, 0.98) 80%, #0f131a 100%)",
     wireframe:
-        "radial-gradient(circle at 50% 45%, rgba(74, 92, 111, 0.46), rgba(31, 41, 55, 0.96) 42%, rgba(10, 15, 23, 0.99) 82%, #080d14 100%)",
+        "radial-gradient(circle at 50% 45%, rgba(58, 74, 92, 0.38), rgba(27, 37, 50, 0.96) 44%, rgba(9, 14, 22, 0.99) 82%, #070c13 100%)",
 };
 
 const toneMappingExposureByMode: Record<HeavyInspectionMode, number> = {
@@ -1584,6 +1590,7 @@ function LoadedAsset({
     meshEdgesEnabled,
     onReady,
     onError,
+    onBoundsChange,
 }: {
     url: string;
     extension: string;
@@ -1598,6 +1605,7 @@ function LoadedAsset({
     meshEdgesEnabled: boolean;
     onReady: () => void;
     onError: (error: Error) => void;
+    onBoundsChange: (bounds: ModelBounds | null) => void;
 }) {
     const { gl } = useThree();
     const [scene, setScene] = useState<THREE.Object3D | null>(null);
@@ -1619,6 +1627,20 @@ function LoadedAsset({
                     return;
                 }
 
+                nextScene.updateMatrixWorld(true);
+                const boundingBox = new THREE.Box3().setFromObject(nextScene);
+                if (!boundingBox.isEmpty()) {
+                    const size = new THREE.Vector3();
+                    boundingBox.getSize(size);
+                    onBoundsChange({
+                        minY: boundingBox.min.y,
+                        sizeX: size.x,
+                        sizeZ: size.z,
+                    });
+                } else {
+                    onBoundsChange(null);
+                }
+
                 loadedScene = nextScene;
                 setScene(nextScene);
             } catch (error) {
@@ -1632,11 +1654,12 @@ function LoadedAsset({
 
         return () => {
             cancelled = true;
+            onBoundsChange(null);
             if (loadedScene) {
                 disposeLoadedAssetResources(loadedScene);
             }
         };
-    }, [extension, onError, url]);
+    }, [extension, onBoundsChange, onError, url]);
 
     useEffect(() => {
         if (!scene) {
@@ -1712,6 +1735,7 @@ function HeavyModelViewerInner({
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isRevealPending, setIsRevealPending] = useState(false);
+    const [modelBounds, setModelBounds] = useState<ModelBounds | null>(null);
     const desktopRevealAvailable =
         typeof window !== "undefined" &&
         typeof window.vipermesh?.revealItemInFolder === "function";
@@ -1825,10 +1849,25 @@ function HeavyModelViewerInner({
     const resolvedFillDirectionalIntensity = fillDirectionalIntensity * environmentLighting.fill;
     const resolvedCoolDirectionalIntensity = coolDirectionalIntensity * environmentLighting.cool;
     const resolvedRimDirectionalIntensity = rimDirectionalIntensity * environmentLighting.rim;
+    const floorGrid = useMemo(() => {
+        const horizontalSize = modelBounds ? Math.max(modelBounds.sizeX, modelBounds.sizeZ) : 4;
+        const gridSize = THREE.MathUtils.clamp(horizontalSize * 1.35, 3.5, 9);
+
+        return {
+            y: modelBounds ? modelBounds.minY - 0.004 : -1.6,
+            size: gridSize,
+            cellSize: THREE.MathUtils.clamp(gridSize / 8, 0.32, 0.75),
+            sectionSize: THREE.MathUtils.clamp(gridSize / 2, 1.5, 3),
+        };
+    }, [modelBounds]);
+    const handleModelBoundsChange = React.useCallback((bounds: ModelBounds | null) => {
+        setModelBounds(bounds);
+    }, []);
 
     useEffect(() => {
         setStatus(modelExtension ? "loading" : "error");
         setErrorMessage(modelExtension ? null : "Unsupported model format");
+        setModelBounds(null);
     }, [modelExtension, safeUrl]);
 
     useEffect(() => {
@@ -1999,22 +2038,23 @@ function HeavyModelViewerInner({
                                 previewRoughness={previewRoughness}
                                 onReady={handleAssetReady}
                                 onError={handleAssetError}
+                                onBoundsChange={handleModelBoundsChange}
                             />
                         ) : null}
                     </Bounds>
                     {floorGridEnabled && (
                         <Grid
-                            position={[0, -1.6, 0]}
-                            args={[22, 22]}
-                            cellSize={0.5}
-                            cellThickness={0.45}
-                            cellColor="#64748b"
-                            sectionSize={2.5}
-                            sectionThickness={0.8}
-                            sectionColor="#cbd5e1"
-                            fadeDistance={16}
-                            fadeStrength={1.5}
-                            infiniteGrid
+                            position={[0, floorGrid.y, 0]}
+                            args={[floorGrid.size, floorGrid.size]}
+                            cellSize={floorGrid.cellSize}
+                            cellThickness={0.35}
+                            cellColor="#364150"
+                            sectionSize={floorGrid.sectionSize}
+                            sectionThickness={0.65}
+                            sectionColor="#6b7280"
+                            fadeDistance={floorGrid.size * 0.72}
+                            fadeStrength={1.6}
+                            infiniteGrid={false}
                             side={THREE.DoubleSide}
                         />
                     )}

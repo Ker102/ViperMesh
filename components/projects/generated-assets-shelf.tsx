@@ -69,10 +69,11 @@ export function GeneratedAssetsShelf({
 
     return (
         <aside
-            className="flex h-full w-[320px] shrink-0 flex-col border-l transition-all duration-300"
+            className="absolute inset-y-0 right-0 z-20 flex h-full w-[320px] flex-col border-l shadow-2xl transition-all duration-300"
             style={{
                 borderColor: "hsl(var(--forge-border))",
                 backgroundColor: "hsl(var(--forge-surface))",
+                boxShadow: "-24px 0 48px rgba(15,23,42,0.12)",
             }}
         >
             <div
