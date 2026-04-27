@@ -1022,11 +1022,15 @@ function NeuralViewerStage({
         wireframe: "Wireframe",
         stats: "Stats",
     }[inspectionMode]
-    const supportsShadingControls = inspectionMode === "geometry"
+    const supportsShadingControls =
+        inspectionMode === "material" ||
+        inspectionMode === "geometry" ||
+        inspectionMode === "solid" ||
+        inspectionMode === "toon"
     const supportsTintControls = inspectionMode === "geometry" || inspectionMode === "wireframe"
     const supportsMaterialControls = inspectionMode === "material"
     const supportsLightingControls = inspectionMode === "material" || inspectionMode === "solid"
-    const shadingControlsEnabled = !((inspectionMode === "material" || inspectionMode === "solid") && unlitEnabled)
+    const shadingControlsEnabled = !(inspectionMode === "material" && unlitEnabled)
 
     const viewSettingsOpen = showViewSettings && Boolean(viewerUrl) && inspectionMode !== "stats"
 
@@ -1279,15 +1283,7 @@ function NeuralViewerStage({
                                                     </p>
                                                     <button
                                                         type="button"
-                                                        onClick={() => {
-                                                            setUnlitEnabled((current) => {
-                                                                const next = !current
-                                                                if (!next && (inspectionMode === "material" || inspectionMode === "solid")) {
-                                                                    setShadingMode("smooth")
-                                                                }
-                                                                return next
-                                                            })
-                                                        }}
+                                                        onClick={() => setUnlitEnabled((current) => !current)}
                                                         className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
                                                         style={unlitEnabled
                                                             ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
@@ -1487,13 +1483,7 @@ function NeuralViewerStage({
                                 <button
                                     key={mode.id}
                                     type="button"
-                                    onClick={() => {
-                                        const nextMode = mode.id as "material" | "geometry" | "solid" | "toon" | "wireframe" | "stats"
-                                        setInspectionMode(nextMode)
-                                        if ((nextMode === "material" || nextMode === "solid") && !unlitEnabled) {
-                                            setShadingMode("smooth")
-                                        }
-                                    }}
+                                    onClick={() => setInspectionMode(mode.id as "material" | "geometry" | "solid" | "toon" | "wireframe" | "stats")}
                                     className="rounded-full p-2.5 transition"
                                     aria-label={mode.label}
                                     title={mode.label}

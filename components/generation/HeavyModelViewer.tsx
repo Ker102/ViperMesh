@@ -88,7 +88,8 @@ const toneMappingExposureByMode: Record<HeavyInspectionMode, number> = {
 };
 
 const SUPPORTED_VIEWER_EXTENSIONS = new Set([".glb", ".gltf", ".fbx", ".obj", ".stl"]);
-const NORMAL_SMOOTHING_PRECISION = 10000;
+const NORMAL_MERGE_TOLERANCE_RATIO = 0.005;
+const MIN_NORMAL_MERGE_TOLERANCE = 0.0001;
 
 let toonGradientTexture: THREE.DataTexture | null = null;
 
@@ -910,11 +911,19 @@ function getInspectionGeometryVariant(mesh: THREE.Mesh, shadingMode: HeavyShadin
     return mesh.userData[variantKey] as THREE.BufferGeometry;
 }
 
-function getPositionNormalKey(position: THREE.BufferAttribute, index: number) {
+function getNormalMergeTolerance(geometry: THREE.BufferGeometry) {
+    geometry.computeBoundingBox();
+    const size = new THREE.Vector3();
+    geometry.boundingBox?.getSize(size);
+    const diagonal = size.length();
+    return Math.max(diagonal * NORMAL_MERGE_TOLERANCE_RATIO, MIN_NORMAL_MERGE_TOLERANCE);
+}
+
+function getPositionNormalKey(position: THREE.BufferAttribute, index: number, tolerance: number) {
     return [
-        Math.round(position.getX(index) * NORMAL_SMOOTHING_PRECISION),
-        Math.round(position.getY(index) * NORMAL_SMOOTHING_PRECISION),
-        Math.round(position.getZ(index) * NORMAL_SMOOTHING_PRECISION),
+        Math.round(position.getX(index) / tolerance),
+        Math.round(position.getY(index) / tolerance),
+        Math.round(position.getZ(index) / tolerance),
     ].join(",");
 }
 
@@ -926,11 +935,29 @@ function applyPositionSmoothedNormals(geometry: THREE.BufferGeometry) {
     }
 
     const index = geometry.index;
+    const normalMergeTolerance = getNormalMergeTolerance(geometry);
     const normalSums = new Map<string, THREE.Vector3>();
     const triangle = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
     const edgeA = new THREE.Vector3();
     const edgeB = new THREE.Vector3();
     const faceNormal = new THREE.Vector3();
+    const angleEdgeA = new THREE.Vector3();
+    const angleEdgeB = new THREE.Vector3();
+    const weightedNormal = new THREE.Vector3();
+
+    const getCornerAngle = (center: THREE.Vector3, left: THREE.Vector3, right: THREE.Vector3) => {
+        angleEdgeA.subVectors(left, center).normalize();
+        angleEdgeB.subVectors(right, center).normalize();
+        return Math.acos(THREE.MathUtils.clamp(angleEdgeA.dot(angleEdgeB), -1, 1));
+    };
+
+    const addWeightedNormal = (vertexIndex: number, weight: number) => {
+        const key = getPositionNormalKey(position, vertexIndex, normalMergeTolerance);
+        const sum = normalSums.get(key) ?? new THREE.Vector3();
+        weightedNormal.copy(faceNormal).multiplyScalar(Number.isFinite(weight) && weight > 0 ? weight : 1);
+        sum.add(weightedNormal);
+        normalSums.set(key, sum);
+    };
 
     const addTriangle = (a: number, b: number, c: number) => {
         triangle[0].fromBufferAttribute(position, a);
@@ -941,13 +968,11 @@ function applyPositionSmoothedNormals(geometry: THREE.BufferGeometry) {
         edgeB.subVectors(triangle[2], triangle[0]);
         faceNormal.crossVectors(edgeA, edgeB);
         if (faceNormal.lengthSq() <= Number.EPSILON) return;
+        faceNormal.normalize();
 
-        for (const vertexIndex of [a, b, c]) {
-            const key = getPositionNormalKey(position, vertexIndex);
-            const sum = normalSums.get(key) ?? new THREE.Vector3();
-            sum.add(faceNormal);
-            normalSums.set(key, sum);
-        }
+        addWeightedNormal(a, getCornerAngle(triangle[0], triangle[1], triangle[2]));
+        addWeightedNormal(b, getCornerAngle(triangle[1], triangle[2], triangle[0]));
+        addWeightedNormal(c, getCornerAngle(triangle[2], triangle[0], triangle[1]));
     };
 
     if (index) {
@@ -962,7 +987,7 @@ function applyPositionSmoothedNormals(geometry: THREE.BufferGeometry) {
 
     const normals = new Float32Array(position.count * 3);
     for (let i = 0; i < position.count; i += 1) {
-        const sum = normalSums.get(getPositionNormalKey(position, i));
+        const sum = normalSums.get(getPositionNormalKey(position, i, normalMergeTolerance));
         if (!sum || sum.lengthSq() <= Number.EPSILON) {
             normals[i * 3 + 1] = 1;
             continue;
@@ -1015,11 +1040,11 @@ function syncToonEdgeOverlay(root: THREE.Object3D, enabled: boolean, shadingMode
             overlayMaterials.forEach((material) => material.dispose());
         }
 
-        const edgeGeometry = new THREE.EdgesGeometry(mesh.geometry, shadingMode === "flat" ? 18 : 42);
+        const edgeGeometry = new THREE.EdgesGeometry(mesh.geometry, shadingMode === "flat" ? 54 : 82);
         const edgeMaterial = new THREE.LineBasicMaterial({
             color: "#0b0f16",
             transparent: true,
-            opacity: 0.95,
+            opacity: shadingMode === "flat" ? 0.72 : 0.48,
             depthWrite: false,
             polygonOffset: true,
             polygonOffsetFactor: -1,
@@ -1155,10 +1180,11 @@ function applyInspectionMaterials(
     meshEdgesEnabled: boolean,
     maxAnisotropy: number,
 ) {
-    const geometryShadingMode =
-        mode === "geometry"
-            ? shadingMode
-            : "smooth";
+    const geometryShadingMode = mode === "geometry" ? shadingMode : "smooth";
+    const materialShadingMode =
+        mode === "wireframe" || mode === "geometry"
+            ? geometryShadingMode
+            : shadingMode;
 
     prepareInspectionGeometry(root, geometryShadingMode);
     syncToonEdgeOverlay(root, mode === "toon" && toonEdgesEnabled, shadingMode);
@@ -1181,7 +1207,7 @@ function applyInspectionMaterials(
                 material,
                 mode,
                 tint,
-                geometryShadingMode,
+                materialShadingMode,
                 pbrEnabled,
                 unlitEnabled,
                 previewMetalness,
@@ -1429,12 +1455,16 @@ function HeavyModelViewerInner({
         setErrorMessage(`Failed to load 3D model (${error.message})`);
     }, []);
     const useMaterialView = inspectionMode === "material";
-    const useFlatLighting = useMaterialView && !unlitEnabled && shadingMode === "flat";
+    const usePresentationLighting =
+        inspectionMode === "material" || inspectionMode === "solid" || inspectionMode === "toon";
+    const lightingDisabledForMode =
+        unlitEnabled && (inspectionMode === "material" || inspectionMode === "solid");
+    const useFlatLighting = usePresentationLighting && !lightingDisabledForMode && shadingMode === "flat";
     const materialAmbientIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 0.42
+            ? (useFlatLighting ? 0.58 : 0.86)
             : inspectionMode === "solid"
-                ? 0.28
+                ? (useFlatLighting ? 0.42 : 0.72)
                 : 0.92
         : unlitEnabled
             ? 0.15
@@ -1445,9 +1475,9 @@ function HeavyModelViewerInner({
                     : 0.5;
     const materialHemisphereIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 0.72
+            ? (useFlatLighting ? 0.82 : 1.08)
             : inspectionMode === "solid"
-                ? 0.58
+                ? (useFlatLighting ? 0.72 : 0.98)
                 : 1.45
         : unlitEnabled
             ? 0.15
@@ -1458,9 +1488,9 @@ function HeavyModelViewerInner({
                     : 0.92;
     const keyDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 2.75
+            ? (useFlatLighting ? 1.7 : 0.95)
             : inspectionMode === "solid"
-                ? 1.95
+                ? (useFlatLighting ? 1.35 : 0.72)
                 : 2.15
         : unlitEnabled
             ? 0.1
@@ -1471,9 +1501,9 @@ function HeavyModelViewerInner({
                     : 1.68;
     const fillDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 0.18
+            ? (useFlatLighting ? 0.16 : 0.1)
             : inspectionMode === "solid"
-                ? 0.18
+                ? (useFlatLighting ? 0.16 : 0.1)
                 : 0.9
         : unlitEnabled
             ? 0.08
@@ -1484,9 +1514,9 @@ function HeavyModelViewerInner({
                     : 0.58;
     const coolDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 0.08
+            ? (useFlatLighting ? 0.08 : 0.04)
             : inspectionMode === "solid"
-                ? 0.08
+                ? (useFlatLighting ? 0.08 : 0.04)
                 : 0.45
         : unlitEnabled
             ? 0.06
@@ -1497,9 +1527,9 @@ function HeavyModelViewerInner({
                     : 0.34;
     const rimDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 0.28
+            ? (useFlatLighting ? 0.22 : 0.12)
             : inspectionMode === "solid"
-                ? 0.12
+                ? (useFlatLighting ? 0.12 : 0.08)
                 : 0.28
         : unlitEnabled
             ? 0.04
