@@ -396,8 +396,8 @@ async function loadAssetRoot(url: string, extension: string): Promise<THREE.Obje
                 side: THREE.DoubleSide,
             }),
         );
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
         const group = new THREE.Group();
         group.add(mesh);
         return group;
@@ -1146,13 +1146,13 @@ function SceneEnvironmentController({
         /* eslint-disable react-hooks/immutability */
         if (inspectionMode === "material" && !unlitEnabled) {
             scene.environment = envTextureRef.current;
-            scene.environmentIntensity = pbrEnabled ? 0.62 : 0.2;
+            scene.environmentIntensity = pbrEnabled ? 0.95 : 0.45;
         } else if (inspectionMode === "toon") {
             scene.environment = envTextureRef.current;
-            scene.environmentIntensity = 0.18;
+            scene.environmentIntensity = 0.28;
         } else if (inspectionMode === "solid") {
             scene.environment = envTextureRef.current;
-            scene.environmentIntensity = 0.08;
+            scene.environmentIntensity = 0.2;
         } else {
             scene.environment = null;
             scene.environmentIntensity = 1;
@@ -1219,8 +1219,8 @@ function applyInspectionMaterials(
         );
         mesh.userData.__generatedMaterials = replacements;
         mesh.material = Array.isArray(mesh.material) || replacements.length > 1 ? replacements : replacements[0];
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
     });
 }
 
@@ -1471,10 +1471,10 @@ function HeavyModelViewerInner({
         : unlitEnabled
             ? 0.15
             : useFlatLighting
-                ? (pbrEnabled ? 0.18 : 0.24)
+                ? (pbrEnabled ? 0.68 : 0.74)
                 : pbrEnabled
-                    ? 0.34
-                    : 0.5;
+                    ? 0.56
+                    : 0.66;
     const materialHemisphereIntensity = !useMaterialView
         ? inspectionMode === "toon"
             ? (useFlatLighting ? 0.82 : 1.08)
@@ -1484,36 +1484,36 @@ function HeavyModelViewerInner({
         : unlitEnabled
             ? 0.15
             : useFlatLighting
-                ? (pbrEnabled ? 0.24 : 0.34)
+                ? (pbrEnabled ? 1.18 : 1.24)
                 : pbrEnabled
-                    ? 0.62
-                    : 0.92;
+                    ? 1.02
+                    : 1.12;
     const keyDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? (useFlatLighting ? 1.7 : 0.95)
+            ? (useFlatLighting ? 0.46 : 0.36)
             : inspectionMode === "solid"
-                ? (useFlatLighting ? 1.35 : 0.72)
+                ? (useFlatLighting ? 0.38 : 0.32)
                 : 2.15
         : unlitEnabled
             ? 0.1
             : useFlatLighting
-                ? (pbrEnabled ? 2.15 : 2.4)
+                ? (pbrEnabled ? 0.42 : 0.48)
                 : pbrEnabled
-                    ? 1.35
-                    : 1.68;
+                    ? 0.62
+                    : 0.72;
     const fillDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? (useFlatLighting ? 0.16 : 0.1)
+            ? (useFlatLighting ? 0.08 : 0.06)
             : inspectionMode === "solid"
-                ? (useFlatLighting ? 0.16 : 0.1)
+                ? (useFlatLighting ? 0.08 : 0.06)
                 : 0.9
         : unlitEnabled
             ? 0.08
             : useFlatLighting
-                ? (pbrEnabled ? 0.16 : 0.22)
+                ? (pbrEnabled ? 0.08 : 0.1)
                 : pbrEnabled
-                    ? 0.42
-                    : 0.58;
+                    ? 0.18
+                    : 0.24;
     const coolDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
             ? (useFlatLighting ? 0.08 : 0.04)
@@ -1523,23 +1523,23 @@ function HeavyModelViewerInner({
         : unlitEnabled
             ? 0.06
             : useFlatLighting
-                ? (pbrEnabled ? 0.12 : 0.18)
+                ? (pbrEnabled ? 0.06 : 0.08)
                 : pbrEnabled
-                    ? 0.22
-                    : 0.34;
+                    ? 0.12
+                    : 0.16;
     const rimDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? (useFlatLighting ? 0.22 : 0.12)
+            ? (useFlatLighting ? 0.08 : 0.06)
             : inspectionMode === "solid"
-                ? (useFlatLighting ? 0.12 : 0.08)
+                ? (useFlatLighting ? 0.06 : 0.04)
                 : 0.28
         : unlitEnabled
             ? 0.04
             : useFlatLighting
-                ? (pbrEnabled ? 0.08 : 0.12)
+                ? (pbrEnabled ? 0.04 : 0.06)
                 : pbrEnabled
-                    ? 0.12
-                    : 0.2;
+                    ? 0.08
+                    : 0.1;
 
     useEffect(() => {
         setStatus(modelExtension ? "loading" : "error");
@@ -1653,7 +1653,6 @@ function HeavyModelViewerInner({
             </div>
 
             <Canvas
-                shadows
                 camera={{ position: [0, 1.4, 4.8], fov: 32 }}
                 gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
                 onCreated={({ gl }) => {
@@ -1667,7 +1666,7 @@ function HeavyModelViewerInner({
                 <hemisphereLight
                     args={["#f8fafc", "#1e293b", materialHemisphereIntensity]}
                 />
-                <directionalLight position={[5.5, 7, 4.5]} intensity={keyDirectionalIntensity} castShadow />
+                <directionalLight position={[5.5, 7, 4.5]} intensity={keyDirectionalIntensity} />
                 <directionalLight position={[-4, 3, -5]} intensity={fillDirectionalIntensity} />
                 <directionalLight position={[0, 4, -7]} intensity={coolDirectionalIntensity} color="#dbeafe" />
                 <directionalLight position={[0, -1.5, 5]} intensity={rimDirectionalIntensity} color="#f8fafc" />
