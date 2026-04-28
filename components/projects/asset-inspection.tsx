@@ -128,7 +128,7 @@ function normalizePreviewMaterial(material: THREE.Material) {
         normalized.metalness = Math.min(normalized.metalness, 0.42)
     }
     if ("envMapIntensity" in normalized && typeof normalized.envMapIntensity === "number") {
-        normalized.envMapIntensity = 0.42
+        normalized.envMapIntensity = 0.62
     }
     normalized.needsUpdate = true
     return normalized
@@ -280,7 +280,7 @@ function StaticModelPreviewTile({
             className={className ?? "h-full w-full"}
             style={{
                 background:
-                    "radial-gradient(circle at 50% 38%, rgba(102,112,125,0.45), rgba(28,33,41,0.96) 58%, #11141a 100%)",
+                    "radial-gradient(circle at 52% 42%, rgba(138,148,162,0.7), rgba(53,61,72,0.9) 42%, rgba(24,29,37,0.98) 74%, #10141a 100%)",
             }}
         >
             <Canvas
@@ -294,23 +294,24 @@ function StaticModelPreviewTile({
                     gl.setClearColor(0x000000, 0)
                     gl.outputColorSpace = THREE.SRGBColorSpace
                     gl.toneMapping = THREE.ACESFilmicToneMapping
-                    gl.toneMappingExposure = 1.08
+                    gl.toneMappingExposure = 1.24
                 }}
             >
                 <PreviewCameraController />
-                <ambientLight intensity={0.62} />
-                <hemisphereLight args={["#f8fafc", "#202734", 1.18]} />
+                <ambientLight intensity={0.95} />
+                <hemisphereLight args={["#ffffff", "#374151", 1.55]} />
                 <directionalLight
-                    position={[-3.6, 5.5, 4.8]}
-                    intensity={1.32}
+                    position={[-4.4, 5.8, 4.8]}
+                    intensity={1.95}
                     castShadow
                     shadow-mapSize-width={512}
                     shadow-mapSize-height={512}
                 />
-                <directionalLight position={[3.2, 2.4, -4]} intensity={0.34} color="#dbeafe" />
+                <directionalLight position={[3.4, 2.8, -4.2]} intensity={0.7} color="#dbeafe" />
+                <directionalLight position={[0, 3.8, 4.5]} intensity={0.52} color="#ffffff" />
                 <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.012, 0]}>
                     <circleGeometry args={[1.18, 64]} />
-                    <shadowMaterial opacity={0.34} transparent />
+                    <shadowMaterial opacity={0.26} transparent />
                 </mesh>
                 <Suspense fallback={null}>
                     <ModelPreviewObject source={source} />
