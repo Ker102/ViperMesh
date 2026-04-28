@@ -174,8 +174,8 @@ function normalizePreviewObject(object: THREE.Object3D) {
     const group = new THREE.Group()
     group.add(source)
     const horizontalSize = Math.max(size.x, size.z, 0.001)
-    const heightFit = 1.42 / Math.max(size.y, 0.001)
-    const widthFit = 1.28 / horizontalSize
+    const heightFit = 1.18 / Math.max(size.y, 0.001)
+    const widthFit = 1.16 / horizontalSize
     group.scale.setScalar(Math.min(heightFit, widthFit))
     group.rotation.set(0, 0.62, 0)
     return group
@@ -259,7 +259,7 @@ function PreviewCameraController() {
     const { camera } = useThree()
 
     React.useEffect(() => {
-        camera.lookAt(0, 0.68, 0)
+        camera.lookAt(0, 0.56, 0)
         camera.updateProjectionMatrix()
     }, [camera])
 
@@ -287,7 +287,7 @@ function StaticModelPreviewTile({
                 frameloop="demand"
                 dpr={[1, 1.5]}
                 orthographic
-                camera={{ position: [2.35, 1.55, 2.75], zoom: 78, near: 0.1, far: 100 }}
+                camera={{ position: [2.35, 1.42, 2.75], zoom: 72, near: 0.1, far: 100 }}
                 shadows
                 gl={{ antialias: true, alpha: true, powerPreference: "low-power" }}
                 onCreated={({ gl }) => {
