@@ -1006,7 +1006,7 @@ function NeuralViewerStage({
     const [meshEdgesEnabled, setMeshEdgesEnabled] = useState(false)
     const [previewMetalness, setPreviewMetalness] = useState(0.5)
     const [previewRoughness, setPreviewRoughness] = useState(0.55)
-    const [environmentPreset, setEnvironmentPreset] = useState<HeavyEnvironmentPreset>("indoor")
+    const [environmentPreset, setEnvironmentPreset] = useState<HeavyEnvironmentPreset>("studio")
     const [environmentStrength, setEnvironmentStrength] = useState(1)
     const [environmentRotation, setEnvironmentRotation] = useState(0)
     const [environmentAutoRotate, setEnvironmentAutoRotate] = useState(false)
@@ -1349,7 +1349,7 @@ function NeuralViewerStage({
                                         <div className="space-y-3 rounded-2xl border px-3 py-3" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
                                             <div className="flex items-center justify-between gap-3">
                                                 <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
-                                                    Environment
+                                                    HDRI
                                                 </p>
                                                 <select
                                                     value={environmentPreset}

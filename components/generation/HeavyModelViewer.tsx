@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 
 export type HeavyInspectionMode = "material" | "geometry" | "solid" | "toon" | "wireframe";
 export type HeavyShadingMode = "smooth" | "flat";
-export type HeavyEnvironmentPreset = "indoor" | "studio" | "outdoor" | "neutral";
+export type HeavyEnvironmentPreset = "beach" | "desert" | "forest" | "interior" | "night" | "studio";
 
 interface HeavyModelViewerProps {
     url: string;
@@ -105,10 +105,12 @@ const toneMappingExposureByMode: Record<HeavyInspectionMode, number> = {
 };
 
 export const HEAVY_ENVIRONMENT_PRESETS: Array<{ id: HeavyEnvironmentPreset; label: string }> = [
-    { id: "indoor", label: "Indoor Lighting" },
-    { id: "studio", label: "Studio Softbox" },
-    { id: "outdoor", label: "Outdoor Shade" },
-    { id: "neutral", label: "Neutral Review" },
+    { id: "beach", label: "Beach" },
+    { id: "desert", label: "Desert" },
+    { id: "forest", label: "Forest" },
+    { id: "interior", label: "Interior" },
+    { id: "night", label: "Night" },
+    { id: "studio", label: "Studio" },
 ];
 
 const environmentPresetDefinitions: Record<HeavyEnvironmentPreset, {
@@ -122,59 +124,111 @@ const environmentPresetDefinitions: Record<HeavyEnvironmentPreset, {
     rim: number;
     skyColor: string;
     groundColor: string;
+    keyColor: string;
+    fillColor: string;
+    coolColor: string;
+    rimColor: string;
 }> = {
-    indoor: {
-        environmentIntensity: 0.92,
-        exposure: 1,
-        ambient: 1,
-        hemisphere: 1,
-        key: 0.92,
-        fill: 1.05,
-        cool: 0.95,
-        rim: 1,
+    beach: {
+        environmentIntensity: 1.18,
+        exposure: 1.08,
+        ambient: 1.02,
+        hemisphere: 1.34,
+        key: 1.24,
+        fill: 0.82,
+        cool: 1.18,
+        rim: 0.82,
+        skyColor: "#dbeafe",
+        groundColor: "#475569",
+        keyColor: "#fff7cc",
+        fillColor: "#dbeafe",
+        coolColor: "#bae6fd",
+        rimColor: "#ffffff",
+    },
+    desert: {
+        environmentIntensity: 1.08,
+        exposure: 1.06,
+        ambient: 0.96,
+        hemisphere: 1.18,
+        key: 1.34,
+        fill: 0.58,
+        cool: 0.62,
+        rim: 0.76,
+        skyColor: "#fff7ed",
+        groundColor: "#6b3f24",
+        keyColor: "#ffd18a",
+        fillColor: "#fef3c7",
+        coolColor: "#dbeafe",
+        rimColor: "#fff7ed",
+    },
+    forest: {
+        environmentIntensity: 0.82,
+        exposure: 0.96,
+        ambient: 0.82,
+        hemisphere: 1.08,
+        key: 0.82,
+        fill: 0.72,
+        cool: 0.96,
+        rim: 0.68,
+        skyColor: "#d1fae5",
+        groundColor: "#173526",
+        keyColor: "#e8f8d3",
+        fillColor: "#bbf7d0",
+        coolColor: "#bfdbfe",
+        rimColor: "#ecfccb",
+    },
+    interior: {
+        environmentIntensity: 0.74,
+        exposure: 0.98,
+        ambient: 0.96,
+        hemisphere: 0.92,
+        key: 0.82,
+        fill: 1.08,
+        cool: 0.44,
+        rim: 0.62,
         skyColor: "#f8fafc",
-        groundColor: "#1e293b",
+        groundColor: "#2f3744",
+        keyColor: "#fff1c2",
+        fillColor: "#f8fafc",
+        coolColor: "#c7d2fe",
+        rimColor: "#fef9c3",
+    },
+    night: {
+        environmentIntensity: 0.44,
+        exposure: 0.84,
+        ambient: 0.58,
+        hemisphere: 0.72,
+        key: 0.44,
+        fill: 0.38,
+        cool: 1.18,
+        rim: 1.08,
+        skyColor: "#93c5fd",
+        groundColor: "#090f1c",
+        keyColor: "#c7d2fe",
+        fillColor: "#64748b",
+        coolColor: "#60a5fa",
+        rimColor: "#e0f2fe",
     },
     studio: {
-        environmentIntensity: 0.78,
+        environmentIntensity: 0.88,
         exposure: 1.02,
         ambient: 1.08,
         hemisphere: 1.12,
-        key: 0.72,
-        fill: 1.28,
+        key: 0.78,
+        fill: 1.32,
         cool: 0.72,
-        rim: 1.35,
+        rim: 1.36,
         skyColor: "#ffffff",
         groundColor: "#334155",
-    },
-    outdoor: {
-        environmentIntensity: 1.08,
-        exposure: 1.04,
-        ambient: 0.94,
-        hemisphere: 1.3,
-        key: 1.18,
-        fill: 0.76,
-        cool: 1.26,
-        rim: 0.84,
-        skyColor: "#dbeafe",
-        groundColor: "#334155",
-    },
-    neutral: {
-        environmentIntensity: 0.62,
-        exposure: 0.96,
-        ambient: 0.9,
-        hemisphere: 0.86,
-        key: 0.78,
-        fill: 0.86,
-        cool: 0.62,
-        rim: 0.72,
-        skyColor: "#e2e8f0",
-        groundColor: "#374151",
+        keyColor: "#ffffff",
+        fillColor: "#e2e8f0",
+        coolColor: "#dbeafe",
+        rimColor: "#ffffff",
     },
 };
 
 function getEnvironmentPresetDefinition(preset: HeavyEnvironmentPreset) {
-    return environmentPresetDefinitions[preset] ?? environmentPresetDefinitions.indoor;
+    return environmentPresetDefinitions[preset] ?? environmentPresetDefinitions.studio;
 }
 
 const SUPPORTED_VIEWER_EXTENSIONS = new Set([".glb", ".gltf", ".fbx", ".obj", ".stl"]);
@@ -1772,7 +1826,7 @@ function HeavyModelViewerInner({
     meshEdgesEnabled = false,
     previewMetalness = 1,
     previewRoughness = 1,
-    environmentPreset = "indoor",
+    environmentPreset = "studio",
     environmentStrength = 1,
     environmentRotation = 0,
     environmentAutoRotate = false,
@@ -2047,10 +2101,26 @@ function HeavyModelViewerInner({
                 <hemisphereLight
                     args={[environmentLighting.skyColor, environmentLighting.groundColor, resolvedHemisphereIntensity]}
                 />
-                <directionalLight position={[5.5, 7, 4.5]} intensity={resolvedKeyDirectionalIntensity} />
-                <directionalLight position={[-4, 3, -5]} intensity={resolvedFillDirectionalIntensity} />
-                <directionalLight position={[0, 4, -7]} intensity={resolvedCoolDirectionalIntensity} color="#dbeafe" />
-                <directionalLight position={[0, -1.5, 5]} intensity={resolvedRimDirectionalIntensity} color="#f8fafc" />
+                <directionalLight
+                    position={[5.5, 7, 4.5]}
+                    intensity={resolvedKeyDirectionalIntensity}
+                    color={environmentLighting.keyColor}
+                />
+                <directionalLight
+                    position={[-4, 3, -5]}
+                    intensity={resolvedFillDirectionalIntensity}
+                    color={environmentLighting.fillColor}
+                />
+                <directionalLight
+                    position={[0, 4, -7]}
+                    intensity={resolvedCoolDirectionalIntensity}
+                    color={environmentLighting.coolColor}
+                />
+                <directionalLight
+                    position={[0, -1.5, 5]}
+                    intensity={resolvedRimDirectionalIntensity}
+                    color={environmentLighting.rimColor}
+                />
                 <ViewerErrorBoundary
                     onError={(error) => {
                         console.error("HeavyModelViewer: model load failure", error);

@@ -1,7 +1,7 @@
 "use client"
 
 import React, { Suspense, useMemo } from "react"
-import { Canvas, useLoader } from "@react-three/fiber"
+import { Canvas, useLoader, useThree } from "@react-three/fiber"
 import * as THREE from "three"
 import { FBXLoader } from "three/addons/loaders/FBXLoader.js"
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js"
@@ -113,8 +113,8 @@ function normalizePreviewObject(object: THREE.Object3D) {
     source.traverse((child) => {
         const mesh = child as THREE.Mesh
         if (!mesh.isMesh) return
-        mesh.castShadow = false
-        mesh.receiveShadow = false
+        mesh.castShadow = true
+        mesh.receiveShadow = true
     })
 
     const box = new THREE.Box3().setFromObject(source)
@@ -123,13 +123,13 @@ function normalizePreviewObject(object: THREE.Object3D) {
     box.getCenter(center)
     box.getSize(size)
 
-    source.position.sub(center)
+    source.position.set(-center.x, -box.min.y, -center.z)
 
     const group = new THREE.Group()
     group.add(source)
     const maxDimension = Math.max(size.x, size.y, size.z, 0.001)
-    group.scale.setScalar(1.75 / maxDimension)
-    group.rotation.set(-0.12, 0.62, 0)
+    group.scale.setScalar(1.62 / maxDimension)
+    group.rotation.set(0, 0.62, 0)
     return group
 }
 
@@ -207,6 +207,17 @@ class ModelPreviewErrorBoundary extends React.Component<
     }
 }
 
+function PreviewCameraController() {
+    const { camera } = useThree()
+
+    React.useEffect(() => {
+        camera.lookAt(0, 0.68, 0)
+        camera.updateProjectionMatrix()
+    }, [camera])
+
+    return null
+}
+
 function StaticModelPreviewTile({
     source,
     alt,
@@ -217,23 +228,41 @@ function StaticModelPreviewTile({
     className?: string
 }) {
     return (
-        <div className={className ?? "h-full w-full"}>
+        <div
+            className={className ?? "h-full w-full"}
+            style={{
+                background:
+                    "radial-gradient(circle at 50% 38%, rgba(102,112,125,0.45), rgba(28,33,41,0.96) 58%, #11141a 100%)",
+            }}
+        >
             <Canvas
                 frameloop="demand"
                 dpr={[1, 1.5]}
-                camera={{ position: [2.2, 1.45, 2.65], fov: 28 }}
+                camera={{ position: [2.25, 1.45, 2.7], fov: 27 }}
+                shadows
                 gl={{ antialias: true, alpha: true, powerPreference: "low-power" }}
                 onCreated={({ gl }) => {
                     gl.setClearColor(0x000000, 0)
                     gl.outputColorSpace = THREE.SRGBColorSpace
                     gl.toneMapping = THREE.ACESFilmicToneMapping
-                    gl.toneMappingExposure = 1.05
+                    gl.toneMappingExposure = 1.08
                 }}
             >
-                <ambientLight intensity={0.72} />
-                <hemisphereLight args={["#f8fafc", "#1f2937", 1.2]} />
-                <directionalLight position={[3.5, 4, 4]} intensity={1.3} />
-                <directionalLight position={[-3, 2.5, -4]} intensity={0.36} />
+                <PreviewCameraController />
+                <ambientLight intensity={0.5} />
+                <hemisphereLight args={["#f8fafc", "#202734", 1.05]} />
+                <directionalLight
+                    position={[3.5, 5.5, 4.5]}
+                    intensity={1.55}
+                    castShadow
+                    shadow-mapSize-width={512}
+                    shadow-mapSize-height={512}
+                />
+                <directionalLight position={[-3, 2.6, -4]} intensity={0.42} color="#dbeafe" />
+                <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.012, 0]}>
+                    <circleGeometry args={[1.18, 64]} />
+                    <shadowMaterial opacity={0.34} transparent />
+                </mesh>
                 <Suspense fallback={null}>
                     <ModelPreviewObject source={source} />
                 </Suspense>
