@@ -75,13 +75,6 @@ interface NeuralRunResponse {
     error?: string
 }
 
-interface ViewerSample {
-    id: string
-    name: string
-    source: string
-    url: string
-}
-
 function buildPersistedNeuralState(run: ActiveNeuralRun): WorkflowTimelineNeuralState {
     return {
         draftInputs: run.draftInputs,
@@ -1816,10 +1809,8 @@ function NeuralRerunFields({
 function NeuralRunOverlay({
     run,
     referenceImage,
-    viewerSamples,
     draftInputs,
     generatedAssets,
-    onLoadDemo,
     onDraftInputChange,
     onRequestMeshSelection,
     onContinueToSuggestedTool,
@@ -1830,10 +1821,8 @@ function NeuralRunOverlay({
 }: {
     run: ActiveNeuralRun
     referenceImage?: string
-    viewerSamples: ViewerSample[]
     draftInputs: Record<string, string>
     generatedAssets: GeneratedAssetItem[]
-    onLoadDemo: (sample: ViewerSample) => void
     onDraftInputChange: (key: string, value: string) => void
     onRequestMeshSelection: (inputKey: string, currentInputs: Record<string, string>) => void
     onContinueToSuggestedTool: (toolId: string) => void
@@ -1906,68 +1895,6 @@ function NeuralRunOverlay({
             </div>
 
             <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-5">
-                {viewerSamples.length > 0 && (
-                    <div
-                        className="rounded-2xl border p-4"
-                        style={{
-                            borderColor: "hsl(var(--forge-border))",
-                            backgroundColor: "rgba(255,255,255,0.78)",
-                        }}
-                    >
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div className="space-y-1">
-                                <p
-                                    className="text-xs font-semibold uppercase tracking-[0.18em]"
-                                    style={{ color: "hsl(var(--forge-text-subtle))" }}
-                                >
-                                    Viewer demo
-                                </p>
-                                <p
-                                    className="text-sm"
-                                    style={{ color: "hsl(var(--forge-text-muted))" }}
-                                >
-                                    Preview the workspace with a local GLB before a real neural result arrives.
-                                </p>
-                            </div>
-                            {run.viewerSource === "demo" && run.viewerLabel && (
-                                <span
-                                    className="rounded-full border px-3 py-1 text-xs font-medium"
-                                    style={{
-                                        borderColor: "hsl(var(--forge-border))",
-                                        color: "hsl(var(--forge-accent))",
-                                        backgroundColor: "hsl(var(--forge-accent-subtle))",
-                                    }}
-                                >
-                                    Loaded: {run.viewerLabel}
-                                </span>
-                            )}
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                            {viewerSamples.slice(0, 3).map((sample) => (
-                                <button
-                                    key={sample.id}
-                                    type="button"
-                                    onClick={() => onLoadDemo(sample)}
-                                    className="rounded-full border px-3 py-1.5 text-xs font-medium transition hover:opacity-90"
-                                    style={{
-                                        borderColor: "hsl(var(--forge-border))",
-                                        backgroundColor:
-                                            run.viewerLabel === sample.name && run.viewerSource === "demo"
-                                                ? "hsl(var(--forge-accent-subtle))"
-                                                : "rgba(255,255,255,0.9)",
-                                        color:
-                                            run.viewerLabel === sample.name && run.viewerSource === "demo"
-                                                ? "hsl(var(--forge-accent))"
-                                                : "hsl(var(--forge-text))",
-                                    }}
-                                >
-                                    {sample.name}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
                 <div
                     className="rounded-2xl border p-4"
                     style={{
@@ -2251,7 +2178,6 @@ export function StudioWorkspace({
     const [toolDrafts, setToolDrafts] = useState<Record<string, Record<string, string>>>({})
     const [neuralRun, setNeuralRun] = useState<ActiveNeuralRun | null>(null)
     const [savedNeuralRuns, setSavedNeuralRuns] = useState<Record<string, ActiveNeuralRun>>({})
-    const [viewerSamples, setViewerSamples] = useState<ViewerSample[]>([])
     const [pendingMeshSelection, setPendingMeshSelection] = useState<PendingMeshSelection | null>(null)
     const neuralAbortRef = useRef<AbortController | null>(null)
     const handledExternalLaunchTokenRef = useRef<string | null>(null)
@@ -2388,30 +2314,6 @@ export function StudioWorkspace({
         }))
         setSelectedTool(tool)
     }, [externalToolLaunch])
-
-    useEffect(() => {
-        let cancelled = false
-
-        fetch("/api/generate/3d/samples")
-            .then(async (response) => {
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`)
-                }
-                return response.json() as Promise<{ samples?: ViewerSample[] }>
-            })
-            .then((data) => {
-                if (cancelled) return
-                setViewerSamples(Array.isArray(data.samples) ? data.samples : [])
-            })
-            .catch((error) => {
-                if (cancelled) return
-                console.warn("Failed to load Studio viewer samples", error)
-            })
-
-        return () => {
-            cancelled = true
-        }
-    }, [])
 
     const runNeuralTool = async (tool: ToolEntry, inputs: Record<string, string>, existingStepId?: string) => {
         if (!tool.provider) return
@@ -2624,19 +2526,6 @@ export function StudioWorkspace({
         void runNeuralTool(neuralRun.tool, neuralRun.draftInputs, neuralRun.stepId)
     }
 
-    const handleLoadDemoSample = (sample: ViewerSample) => {
-        setNeuralRun((current) => {
-            if (!current) return current
-            return {
-                ...current,
-                viewerUrl: sample.url,
-                viewerLabel: sample.name,
-                viewerSource: "demo",
-                assetStats: null,
-            }
-        })
-    }
-
     useEffect(() => {
         if (!neuralRun?.viewerUrl || neuralRun.viewerSource === "demo") return
 
@@ -2745,10 +2634,8 @@ export function StudioWorkspace({
                     <NeuralRunOverlay
                         run={neuralRun}
                         referenceImage={referenceImage}
-                        viewerSamples={viewerSamples}
                         draftInputs={neuralRun.draftInputs}
                         generatedAssets={generatedAssets}
-                        onLoadDemo={handleLoadDemoSample}
                         onDraftInputChange={handleDraftInputChange}
                         onRequestMeshSelection={(inputKey, currentInputs) =>
                             requestNeuralMeshSelection(neuralRun.tool.id, inputKey, currentInputs)

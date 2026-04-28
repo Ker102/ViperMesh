@@ -1857,7 +1857,7 @@ function HeavyModelViewerInner({
             y: modelBounds ? modelBounds.minY - 0.004 : -1.6,
             size: gridSize,
             cellSize: THREE.MathUtils.clamp(gridSize / 8, 0.32, 0.75),
-            sectionSize: THREE.MathUtils.clamp(gridSize / 2, 1.5, 3),
+            sectionSize: THREE.MathUtils.clamp(gridSize / 3, 1.35, 2.4),
         };
     }, [modelBounds]);
     const handleModelBoundsChange = React.useCallback((bounds: ModelBounds | null) => {
@@ -2047,13 +2047,13 @@ function HeavyModelViewerInner({
                             position={[0, floorGrid.y, 0]}
                             args={[floorGrid.size, floorGrid.size]}
                             cellSize={floorGrid.cellSize}
-                            cellThickness={0.35}
-                            cellColor="#364150"
+                            cellThickness={0.58}
+                            cellColor="#4b5563"
                             sectionSize={floorGrid.sectionSize}
-                            sectionThickness={0.65}
-                            sectionColor="#6b7280"
-                            fadeDistance={floorGrid.size * 0.72}
-                            fadeStrength={1.6}
+                            sectionThickness={1.05}
+                            sectionColor="#94a3b8"
+                            fadeDistance={floorGrid.size * 1.35}
+                            fadeStrength={0.8}
                             infiniteGrid={false}
                             side={THREE.DoubleSide}
                         />
