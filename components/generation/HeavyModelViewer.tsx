@@ -1,6 +1,6 @@
 "use client";
 
-import { Bounds, Grid, OrbitControls, useBounds } from "@react-three/drei";
+import { Bounds, OrbitControls, useBounds } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Download, FolderOpen, Loader2, Maximize2, RotateCcw } from "lucide-react";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
@@ -1706,6 +1706,57 @@ function LoadedAsset({
     return <primitive object={scene} />;
 }
 
+function buildFloorGridGeometry(size: number, divisions: number) {
+    const geometry = new THREE.BufferGeometry();
+    const halfSize = size / 2;
+    const step = size / divisions;
+    const positions: number[] = [];
+
+    for (let index = 0; index <= divisions; index += 1) {
+        const offset = -halfSize + index * step;
+        positions.push(-halfSize, 0, offset, halfSize, 0, offset);
+        positions.push(offset, 0, -halfSize, offset, 0, halfSize);
+    }
+
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    return geometry;
+}
+
+function FloorGrid({ y, size, cellSize }: { y: number; size: number; cellSize: number }) {
+    const fineDivisions = Math.max(8, Math.round(size / cellSize));
+    const fineGeometry = useMemo(
+        () => buildFloorGridGeometry(size, fineDivisions),
+        [fineDivisions, size],
+    );
+    const sectionGeometry = useMemo(
+        () => buildFloorGridGeometry(size, 2),
+        [size],
+    );
+
+    return (
+        <group position={[0, y, 0]} renderOrder={-1}>
+            <lineSegments geometry={fineGeometry}>
+                <lineBasicMaterial
+                    color="#455160"
+                    transparent
+                    opacity={0.68}
+                    depthWrite={false}
+                    toneMapped={false}
+                />
+            </lineSegments>
+            <lineSegments geometry={sectionGeometry}>
+                <lineBasicMaterial
+                    color="#9aa6b5"
+                    transparent
+                    opacity={0.86}
+                    depthWrite={false}
+                    toneMapped={false}
+                />
+            </lineSegments>
+        </group>
+    );
+}
+
 function HeavyModelViewerInner({
     safeUrl,
     className,
@@ -1857,7 +1908,6 @@ function HeavyModelViewerInner({
             y: modelBounds ? modelBounds.minY - 0.004 : -1.6,
             size: gridSize,
             cellSize: THREE.MathUtils.clamp(gridSize / 8, 0.32, 0.75),
-            sectionSize: THREE.MathUtils.clamp(gridSize / 3, 1.35, 2.4),
         };
     }, [modelBounds]);
     const handleModelBoundsChange = React.useCallback((bounds: ModelBounds | null) => {
@@ -2043,19 +2093,10 @@ function HeavyModelViewerInner({
                         ) : null}
                     </Bounds>
                     {floorGridEnabled && (
-                        <Grid
-                            position={[0, floorGrid.y, 0]}
-                            args={[floorGrid.size, floorGrid.size]}
+                        <FloorGrid
+                            y={floorGrid.y}
+                            size={floorGrid.size}
                             cellSize={floorGrid.cellSize}
-                            cellThickness={0.58}
-                            cellColor="#4b5563"
-                            sectionSize={floorGrid.sectionSize}
-                            sectionThickness={1.05}
-                            sectionColor="#94a3b8"
-                            fadeDistance={floorGrid.size * 1.35}
-                            fadeStrength={0.8}
-                            infiniteGrid={false}
-                            side={THREE.DoubleSide}
                         />
                     )}
                 </ViewerErrorBoundary>
