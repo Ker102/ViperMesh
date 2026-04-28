@@ -7,6 +7,7 @@ import { FBXLoader } from "three/addons/loaders/FBXLoader.js"
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js"
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js"
 import { STLLoader } from "three/addons/loaders/STLLoader.js"
+import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js"
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js"
 import type { AssetInspectionStats } from "./workflow-timeline"
 import { isRenderablePreviewImage } from "./generated-assets"
@@ -108,11 +109,56 @@ function getModelPreviewSource(modelUrl?: string | null): { url: string; extensi
     }
 }
 
+function normalizePreviewMaterial(material: THREE.Material) {
+    const normalized = material.clone() as THREE.Material & {
+        flatShading?: boolean
+        roughness?: number
+        metalness?: number
+        envMapIntensity?: number
+    }
+
+    normalized.side = THREE.DoubleSide
+    if ("flatShading" in normalized) {
+        normalized.flatShading = false
+    }
+    if ("roughness" in normalized && typeof normalized.roughness === "number") {
+        normalized.roughness = Math.max(normalized.roughness, 0.62)
+    }
+    if ("metalness" in normalized && typeof normalized.metalness === "number") {
+        normalized.metalness = Math.min(normalized.metalness, 0.42)
+    }
+    if ("envMapIntensity" in normalized && typeof normalized.envMapIntensity === "number") {
+        normalized.envMapIntensity = 0.42
+    }
+    normalized.needsUpdate = true
+    return normalized
+}
+
+function normalizePreviewGeometry(geometry: THREE.BufferGeometry) {
+    try {
+        const merged = mergeVertices(geometry.clone(), 0.0001)
+        merged.computeVertexNormals()
+        merged.computeBoundingBox()
+        merged.computeBoundingSphere()
+        return merged
+    } catch {
+        const fallback = geometry.clone()
+        fallback.computeVertexNormals()
+        fallback.computeBoundingBox()
+        fallback.computeBoundingSphere()
+        return fallback
+    }
+}
+
 function normalizePreviewObject(object: THREE.Object3D) {
     const source = SkeletonUtils.clone(object)
     source.traverse((child) => {
         const mesh = child as THREE.Mesh
         if (!mesh.isMesh) return
+        mesh.geometry = normalizePreviewGeometry(mesh.geometry)
+        mesh.material = Array.isArray(mesh.material)
+            ? mesh.material.map((material) => normalizePreviewMaterial(material))
+            : normalizePreviewMaterial(mesh.material)
         mesh.castShadow = true
         mesh.receiveShadow = true
     })
@@ -127,8 +173,10 @@ function normalizePreviewObject(object: THREE.Object3D) {
 
     const group = new THREE.Group()
     group.add(source)
-    const maxDimension = Math.max(size.x, size.y, size.z, 0.001)
-    group.scale.setScalar(1.62 / maxDimension)
+    const horizontalSize = Math.max(size.x, size.z, 0.001)
+    const heightFit = 1.42 / Math.max(size.y, 0.001)
+    const widthFit = 1.28 / horizontalSize
+    group.scale.setScalar(Math.min(heightFit, widthFit))
     group.rotation.set(0, 0.62, 0)
     return group
 }
@@ -238,7 +286,8 @@ function StaticModelPreviewTile({
             <Canvas
                 frameloop="demand"
                 dpr={[1, 1.5]}
-                camera={{ position: [2.25, 1.45, 2.7], fov: 27 }}
+                orthographic
+                camera={{ position: [2.35, 1.55, 2.75], zoom: 78, near: 0.1, far: 100 }}
                 shadows
                 gl={{ antialias: true, alpha: true, powerPreference: "low-power" }}
                 onCreated={({ gl }) => {
@@ -249,16 +298,16 @@ function StaticModelPreviewTile({
                 }}
             >
                 <PreviewCameraController />
-                <ambientLight intensity={0.5} />
-                <hemisphereLight args={["#f8fafc", "#202734", 1.05]} />
+                <ambientLight intensity={0.62} />
+                <hemisphereLight args={["#f8fafc", "#202734", 1.18]} />
                 <directionalLight
-                    position={[3.5, 5.5, 4.5]}
-                    intensity={1.55}
+                    position={[-3.6, 5.5, 4.8]}
+                    intensity={1.32}
                     castShadow
                     shadow-mapSize-width={512}
                     shadow-mapSize-height={512}
                 />
-                <directionalLight position={[-3, 2.6, -4]} intensity={0.42} color="#dbeafe" />
+                <directionalLight position={[3.2, 2.4, -4]} intensity={0.34} color="#dbeafe" />
                 <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.012, 0]}>
                     <circleGeometry args={[1.18, 64]} />
                     <shadowMaterial opacity={0.34} transparent />

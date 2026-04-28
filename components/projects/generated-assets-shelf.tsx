@@ -41,11 +41,8 @@ export function GeneratedAssetsShelf({
     const assetLibrary = useMemo(() => buildProjectAssetLibrary(assets), [assets])
     const [activeCategoryId, setActiveCategoryId] = useState<AssetLibraryCategoryId>("all")
     const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null)
+    const [activeAssetId, setActiveAssetId] = useState<string | null>(null)
     const importInputRef = useRef<HTMLInputElement | null>(null)
-
-    if (!open) {
-        return null
-    }
 
     const effectiveCategoryId = assetLibrary.categories.some((category) => category.id === activeCategoryId)
         ? activeCategoryId
@@ -66,13 +63,21 @@ export function GeneratedAssetsShelf({
         void onTogglePinned(asset)
     }
 
+    const handleOpenAsset = (asset: GeneratedAssetItem, options?: { attachToActiveTool?: boolean }) => {
+        setActiveAssetId(asset.id)
+        onOpenAsset(asset, options)
+    }
+
     return (
         <aside
-            className="absolute inset-y-0 right-0 z-20 flex h-full w-[320px] flex-col border-l shadow-2xl transition-all duration-300"
+            aria-hidden={!open}
+            className="absolute inset-y-0 right-0 z-20 flex h-full w-[320px] flex-col border-l shadow-2xl transition-transform duration-300"
             style={{
                 borderColor: "hsl(var(--forge-border))",
                 backgroundColor: "hsl(var(--forge-surface))",
                 boxShadow: "-24px 0 48px rgba(15,23,42,0.12)",
+                pointerEvents: open ? "auto" : "none",
+                transform: open ? "translateX(0)" : "translateX(100%)",
             }}
         >
             <div
@@ -149,7 +154,7 @@ export function GeneratedAssetsShelf({
                         asset={selectedAsset}
                         selectionMode={selectionMode}
                         onClose={() => setSelectedAssetId(null)}
-                        onOpenAsset={onOpenAsset}
+                        onOpenAsset={handleOpenAsset}
                         onContinueToTool={onContinueToTool}
                         onUseAsset={onUseAsset}
                         onSaveAsset={onSaveAsset}
@@ -167,8 +172,8 @@ export function GeneratedAssetsShelf({
                                 key={asset.id}
                                 asset={asset}
                                 isFavorite={Boolean(asset.isPinned)}
-                                isSelected={selectedAsset?.id === asset.id}
-                                onOpenAsset={onOpenAsset}
+                                isSelected={selectedAsset?.id === asset.id || activeAssetId === asset.id}
+                                onOpenAsset={handleOpenAsset}
                                 attachToSelectionMode={Boolean(selectionMode)}
                                 onSelectInfo={setSelectedAssetId}
                                 onToggleFavorite={toggleFavorite}
@@ -373,22 +378,22 @@ function AssetLibraryGridCard({
 }) {
     return (
         <div
-            className="group relative overflow-hidden rounded-2xl border transition-all duration-200 hover:shadow-lg"
+            className="group relative aspect-square overflow-hidden rounded-2xl border transition-all duration-200 hover:shadow-lg"
             style={{
-                borderColor: isSelected ? "hsl(var(--forge-accent))" : "hsl(var(--forge-border))",
+                borderColor: isSelected ? "hsl(var(--forge-accent))" : "rgba(226,232,240,0.58)",
                 backgroundColor: "#10141b",
                 boxShadow: isSelected
-                    ? "0 0 0 1px hsl(var(--forge-accent)) inset, 0 14px 30px rgba(15,23,42,0.16)"
+                    ? "0 0 0 1px hsl(var(--forge-accent)) inset, 0 0 0 3px hsl(var(--forge-accent-subtle)), 0 14px 30px rgba(15,23,42,0.16)"
                     : "0 10px 24px rgba(15,23,42,0.08)",
             }}
         >
             <button
                 type="button"
                 onClick={() => onOpenAsset(asset, { attachToActiveTool: attachToSelectionMode && asset.assetKind === "model" })}
-                className="group block w-full text-left"
+                className="group block h-full w-full text-left"
                 title="Open in viewer"
             >
-                <div className="relative aspect-square w-full overflow-hidden">
+                <div className="relative h-full w-full overflow-hidden">
                     <AssetPreviewTile
                         imageUrl={asset.previewImageUrl}
                         modelUrl={asset.assetKind === "model" ? asset.viewerUrl : undefined}
