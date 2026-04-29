@@ -14,6 +14,8 @@ export interface SavedAssetRecordLike {
     label: string
     objectKey: string
     viewerUrl?: string | null
+    previewObjectKey?: string | null
+    previewUrl?: string | null
     fileSizeBytes?: number | null
     assetStats?: Prisma.JsonValue | AssetInspectionStats | null
     librarySource: string
@@ -28,6 +30,12 @@ export interface SavedAssetObjectKeyInput {
     assetId: string
     extension: string
     packagePath?: string
+}
+
+export interface SavedAssetPreviewObjectKeyInput {
+    userId: string
+    projectId: string
+    assetId: string
 }
 
 export function normalizeAssetExtension(extension: string): string {
@@ -59,8 +67,20 @@ export function buildSavedAssetObjectKey({
     return `${baseKey}/original${normalizeAssetExtension(extension)}`
 }
 
+export function buildSavedAssetPreviewObjectKey({
+    userId,
+    projectId,
+    assetId,
+}: SavedAssetPreviewObjectKeyInput): string {
+    return `users/${userId}/projects/${projectId}/assets/${assetId}/preview.png`
+}
+
 export function buildSavedAssetViewerUrl(assetId: string): string {
     return `/api/projects/assets/${assetId}/file`
+}
+
+export function buildSavedAssetThumbnailUrl(assetId: string): string {
+    return `/api/projects/assets/${assetId}/thumbnail`
 }
 
 export function buildSavedAssetPackageViewerUrl(assetId: string, packagePath: string): string {
@@ -136,7 +156,9 @@ export function mapSavedAssetRecordToGeneratedAsset(
         viewerLabel: record.label,
         providerLabel: sourceProvider,
         stageLabel,
-        previewImageUrl: undefined,
+        previewImageUrl: record.previewUrl ?? (
+            record.previewObjectKey ? buildSavedAssetThumbnailUrl(record.id) : undefined
+        ),
         assetStats: assetStats
             ? {
                 ...assetStats,

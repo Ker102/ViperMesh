@@ -93,7 +93,7 @@ function getPreviewInitials(stageLabel?: string, providerLabel?: string) {
     return "3D"
 }
 
-function getModelPreviewSource(modelUrl?: string | null): { url: string; extension: string } | null {
+export function getModelPreviewSource(modelUrl?: string | null, filenameHint?: string | null): { url: string; extension: string } | null {
     if (!modelUrl) return null
 
     try {
@@ -101,10 +101,16 @@ function getModelPreviewSource(modelUrl?: string | null): { url: string; extensi
         const url = new URL(modelUrl, baseUrl)
         const filename = url.searchParams.get("filename")
         const target = filename ?? url.pathname
-        const extension = target.match(/\.(glb|gltf|fbx|obj|stl)$/i)?.[0]?.toLowerCase()
+        const extension = (
+            target.match(/\.(glb|gltf|fbx|obj|stl)$/i)?.[0] ??
+            filenameHint?.match(/\.(glb|gltf|fbx|obj|stl)$/i)?.[0]
+        )?.toLowerCase()
         return extension ? { url: url.toString(), extension } : null
     } catch {
-        const extension = modelUrl.match(/\.(glb|gltf|fbx|obj|stl)(?:$|[?#])/i)?.[1]
+        const extension = (
+            modelUrl.match(/\.(glb|gltf|fbx|obj|stl)(?:$|[?#])/i)?.[1] ??
+            filenameHint?.match(/\.(glb|gltf|fbx|obj|stl)$/i)?.[1]
+        )
         return extension ? { url: modelUrl, extension: `.${extension.toLowerCase()}` } : null
     }
 }
@@ -218,7 +224,7 @@ function StlPreviewObject({ url }: { url: string }) {
     return <NormalizedPreviewObject object={object} />
 }
 
-function ModelPreviewObject({ source }: { source: { url: string; extension: string } }) {
+export function ModelPreviewObject({ source }: { source: { url: string; extension: string } }) {
     switch (source.extension) {
         case ".glb":
         case ".gltf":
@@ -255,7 +261,7 @@ class ModelPreviewErrorBoundary extends React.Component<
     }
 }
 
-function PreviewCameraController() {
+export function PreviewCameraController() {
     const { camera } = useThree()
 
     React.useEffect(() => {
@@ -380,7 +386,7 @@ export function AssetPreviewTile({
         return <img src={imageUrl} alt={alt} className={className ?? "h-full w-full object-cover"} />
     }
 
-    const modelPreviewSource = getModelPreviewSource(modelUrl)
+    const modelPreviewSource = getModelPreviewSource(modelUrl, alt)
     if (modelPreviewSource) {
         const fallback = (
             <FallbackAssetPreviewTile

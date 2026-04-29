@@ -115,6 +115,8 @@ model SavedAsset {
   label         String   @db.VarChar(255)
   objectKey     String   @unique @db.Text
   viewerUrl     String?  @db.Text
+  previewObjectKey String? @unique @db.Text
+  previewUrl    String?  @db.Text
   fileSizeBytes Int?
   assetStats    Json?    @db.JsonB
   librarySource String   @default("saved") @db.VarChar(50)
