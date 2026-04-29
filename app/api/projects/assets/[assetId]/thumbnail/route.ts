@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { sanitizeDownloadFilename } from "@/lib/neural/output-files"
+import { SAVED_ASSET_THUMBNAIL_VERSION } from "@/lib/projects/asset-thumbnails"
 import {
     getSignedAssetReadUrl,
     uploadAssetObject,
@@ -13,6 +14,7 @@ import {
     buildSavedAssetViewerUrlForObjectKey,
     mapSavedAssetRecordToGeneratedAsset,
 } from "@/lib/projects/saved-assets"
+import type { Prisma } from "@prisma/client"
 
 const MAX_THUMBNAIL_BYTES = 2 * 1024 * 1024
 
@@ -96,6 +98,7 @@ export async function POST(
             userId: true,
             projectId: true,
             objectKey: true,
+            assetStats: true,
         },
     })
 
@@ -126,6 +129,16 @@ export async function POST(
             data: {
                 previewObjectKey,
                 previewUrl,
+                assetStats: {
+                    ...(
+                        asset.assetStats &&
+                        typeof asset.assetStats === "object" &&
+                        !Array.isArray(asset.assetStats)
+                            ? asset.assetStats
+                            : {}
+                    ),
+                    thumbnailVersion: SAVED_ASSET_THUMBNAIL_VERSION,
+                } as Prisma.InputJsonValue,
             },
         })
 

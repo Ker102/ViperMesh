@@ -123,6 +123,7 @@ function normalizeAssetStats(
         sourceToolLabel: typeof candidate.sourceToolLabel === "string" ? candidate.sourceToolLabel : undefined,
         sourceProvider: typeof candidate.sourceProvider === "string" ? candidate.sourceProvider : undefined,
         stageLabel: typeof candidate.stageLabel === "string" ? candidate.stageLabel : undefined,
+        thumbnailVersion: typeof candidate.thumbnailVersion === "string" ? candidate.thumbnailVersion : undefined,
     }
 
     if (!normalized.fileSizeBytes && fileSizeBytes) {

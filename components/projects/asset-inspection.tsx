@@ -180,8 +180,8 @@ function normalizePreviewObject(object: THREE.Object3D) {
     const group = new THREE.Group()
     group.add(source)
     const horizontalSize = Math.max(size.x, size.z, 0.001)
-    const heightFit = 1.18 / Math.max(size.y, 0.001)
-    const widthFit = 1.16 / horizontalSize
+    const heightFit = 1.42 / Math.max(size.y, 0.001)
+    const widthFit = 1.38 / horizontalSize
     group.scale.setScalar(Math.min(heightFit, widthFit))
     group.rotation.set(0, 0.62, 0)
     return group

@@ -9,6 +9,7 @@ import {
     ModelPreviewObject,
     PreviewCameraController,
 } from "./asset-inspection"
+import { SAVED_ASSET_THUMBNAIL_VERSION } from "@/lib/projects/asset-thumbnails"
 import type { GeneratedAssetItem } from "./generated-assets"
 
 const THUMBNAIL_SIZE = 320
@@ -155,7 +156,7 @@ export function SavedAssetThumbnailGenerator({
     const pendingAssets = useMemo(() => {
         return assets.filter((asset) => {
             if (!getSavedAssetId(asset)) return false
-            if (asset.previewImageUrl) return false
+            if (asset.previewImageUrl && asset.assetStats?.thumbnailVersion === SAVED_ASSET_THUMBNAIL_VERSION) return false
             return Boolean(getModelPreviewSource(asset.viewerUrl, asset.viewerLabel ?? asset.title))
         })
     }, [assets])
