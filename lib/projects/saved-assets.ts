@@ -79,8 +79,9 @@ export function buildSavedAssetViewerUrl(assetId: string): string {
     return `/api/projects/assets/${assetId}/file`
 }
 
-export function buildSavedAssetThumbnailUrl(assetId: string): string {
-    return `/api/projects/assets/${assetId}/thumbnail`
+export function buildSavedAssetThumbnailUrl(assetId: string, version?: string | null): string {
+    const thumbnailUrl = `/api/projects/assets/${assetId}/thumbnail`
+    return version ? `${thumbnailUrl}?${new URLSearchParams({ v: version }).toString()}` : thumbnailUrl
 }
 
 export function buildSavedAssetPackageViewerUrl(assetId: string, packagePath: string): string {
@@ -157,9 +158,9 @@ export function mapSavedAssetRecordToGeneratedAsset(
         viewerLabel: record.label,
         providerLabel: sourceProvider,
         stageLabel,
-        previewImageUrl: record.previewUrl ?? (
-            record.previewObjectKey ? buildSavedAssetThumbnailUrl(record.id) : undefined
-        ),
+        previewImageUrl: record.previewObjectKey
+            ? buildSavedAssetThumbnailUrl(record.id, assetStats?.thumbnailVersion)
+            : record.previewUrl ?? undefined,
         assetStats: assetStats
             ? {
                 ...assetStats,

@@ -1,1 +1,1 @@
-export const SAVED_ASSET_THUMBNAIL_VERSION = "studio-card-v2"
+export const SAVED_ASSET_THUMBNAIL_VERSION = "studio-card-v3"

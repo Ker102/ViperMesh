@@ -237,7 +237,7 @@ export function SavedAssetThumbnailGenerator({
                     frameloop="always"
                     dpr={1.5}
                     orthographic
-                    camera={{ position: [2.35, 1.42, 2.75], zoom: 72, near: 0.1, far: 100 }}
+                    camera={{ position: [2.35, 1.42, 2.75], zoom: 112, near: 0.1, far: 100 }}
                     shadows
                     gl={{
                         antialias: true,

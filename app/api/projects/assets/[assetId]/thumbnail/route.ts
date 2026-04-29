@@ -116,7 +116,7 @@ export async function POST(
             projectId: asset.projectId,
             assetId: asset.id,
         })
-        const previewUrl = buildSavedAssetThumbnailUrl(asset.id)
+        const previewUrl = buildSavedAssetThumbnailUrl(asset.id, SAVED_ASSET_THUMBNAIL_VERSION)
 
         await uploadAssetObject({
             key: previewObjectKey,
