@@ -23,6 +23,17 @@ const PACKAGE_RESOURCE_EXTENSIONS = new Set([
     ".ktx2",
 ])
 
+export interface ZipAssetExtractionLimits {
+    maxEntries: number
+    maxUncompressedBytes: number
+    maxFileBytes?: number
+}
+
+export interface ExtractedAssetPackageFile {
+    entryPath: string
+    absolutePath: string
+}
+
 function normalizeArchiveEntryPath(entryName: string): string | null {
     const normalized = path.posix.normalize(entryName.replace(/\\/g, "/"))
     if (!normalized || normalized === "." || normalized.endsWith("/")) {
@@ -75,10 +86,41 @@ export async function extractZipAssetPackage(
     zipBuffer: Buffer,
     outputDirectory: string,
     uploadFilename: string,
-): Promise<{ rootModelPath: string; rootModelEntryPath: string; extractedFiles: Array<{ entryPath: string; absolutePath: string; content: Buffer }> }> {
-    const archive = unzipSync(new Uint8Array(zipBuffer))
-    const entryPaths = Object.keys(archive)
-        .map((entryName) => normalizeArchiveEntryPath(entryName))
+    limits: ZipAssetExtractionLimits,
+): Promise<{ rootModelPath: string; rootModelEntryPath: string; extractedFiles: ExtractedAssetPackageFile[] }> {
+    const normalizedEntryPaths = new Map<string, string>()
+    let totalUncompressedBytes = 0
+    let extractedEntryCount = 0
+
+    const archive = unzipSync(new Uint8Array(zipBuffer), {
+        filter: (entry) => {
+            const entryPath = normalizeArchiveEntryPath(entry.name)
+            if (!entryPath) return false
+
+            const fileExtension = path.posix.extname(entryPath).toLowerCase()
+            if (!PACKAGE_RESOURCE_EXTENSIONS.has(fileExtension)) return false
+
+            extractedEntryCount += 1
+            if (extractedEntryCount > limits.maxEntries) {
+                throw new Error(`ZIP package contains too many supported files. Limit is ${limits.maxEntries}.`)
+            }
+
+            if (limits.maxFileBytes && entry.originalSize > limits.maxFileBytes) {
+                throw new Error(`ZIP entry ${entryPath} is larger than the per-file import limit.`)
+            }
+
+            totalUncompressedBytes += entry.originalSize
+            if (totalUncompressedBytes > limits.maxUncompressedBytes) {
+                throw new Error("ZIP package exceeds the maximum uncompressed import size.")
+            }
+
+            normalizedEntryPaths.set(entry.name, entryPath)
+            return true
+        },
+    })
+    const archiveEntries = Object.entries(archive)
+    const entryPaths = archiveEntries
+        .map(([entryName]) => normalizedEntryPaths.get(entryName) ?? normalizeArchiveEntryPath(entryName))
         .filter((entryName): entryName is string => Boolean(entryName))
 
     const rootModelPath = pickRootModelPath(entryPaths, uploadFilename)
@@ -88,25 +130,21 @@ export async function extractZipAssetPackage(
 
     await mkdir(outputDirectory, { recursive: true })
 
-    const extractedFiles: Array<{ entryPath: string; absolutePath: string; content: Buffer }> = []
+    const extractedFiles: ExtractedAssetPackageFile[] = []
 
-    await Promise.all(entryPaths.map(async (entryPath) => {
-        const fileExtension = path.posix.extname(entryPath).toLowerCase()
-        if (!PACKAGE_RESOURCE_EXTENSIONS.has(fileExtension)) {
-            return
-        }
-
-        const entryBuffer = archive[entryPath]
+    for (const [entryName, entryBuffer] of archiveEntries) {
+        const entryPath = normalizedEntryPaths.get(entryName) ?? normalizeArchiveEntryPath(entryName)
+        if (!entryPath) continue
         if (!entryBuffer) {
-            return
+            continue
         }
 
         const absolutePath = path.join(outputDirectory, ...entryPath.split("/"))
-        const content = Buffer.from(entryBuffer)
         await mkdir(path.dirname(absolutePath), { recursive: true })
-        await writeFile(absolutePath, content)
-        extractedFiles.push({ entryPath, absolutePath, content })
-    }))
+        await writeFile(absolutePath, entryBuffer)
+        extractedFiles.push({ entryPath, absolutePath })
+        delete archive[entryName]
+    }
 
     return {
         rootModelPath: path.join(outputDirectory, ...rootModelPath.split("/")),

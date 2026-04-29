@@ -42,7 +42,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
         assets: savedAssets.map((asset) =>
             mapSavedAssetRecordToGeneratedAsset(asset, {
-                viewerUrl: buildSavedAssetViewerUrlForObjectKey(asset.id, asset.objectKey, asset.label),
+                viewerUrl: buildSavedAssetViewerUrlForObjectKey(asset.id, asset.objectKey),
             }),
         ),
     })

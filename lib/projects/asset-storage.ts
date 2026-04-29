@@ -1,4 +1,5 @@
 import {
+    DeleteObjectCommand,
     GetObjectCommand,
     PutObjectCommand,
     S3Client,
@@ -91,6 +92,14 @@ export async function uploadAssetObject({
         Key: key,
         Body: body,
         ContentType: contentType,
+    }))
+}
+
+export async function deleteAssetObject(key: string): Promise<void> {
+    const config = getR2Config()
+    await getR2Client().send(new DeleteObjectCommand({
+        Bucket: config.bucket,
+        Key: key,
     }))
 }
 

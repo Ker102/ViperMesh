@@ -13,7 +13,7 @@ import {
     resolveNeuralOutputPath,
 } from "@/lib/neural/output-files"
 import { readModelStats } from "@/lib/neural/model-stats"
-import { getModelContentType, uploadAssetObject } from "@/lib/projects/asset-storage"
+import { deleteAssetObject, getModelContentType, uploadAssetObject } from "@/lib/projects/asset-storage"
 import {
     buildSavedAssetObjectKey,
     buildSavedAssetViewerUrl,
@@ -68,6 +68,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Only existing local neural outputs can be saved to R2 in this branch" }, { status: 400 })
     }
 
+    let uploadedObjectKey: string | null = null
+    let savedAssetCreated = false
     try {
         const assetId = randomUUID()
         const extension = path.extname(localPath) || ".glb"
@@ -83,6 +85,7 @@ export async function POST(request: Request) {
             body: fileBuffer,
             contentType: getModelContentType(localPath),
         })
+        uploadedObjectKey = objectKey
 
         const parsedStats = await readModelStats(localPath)
         const label = parsed.data.label ?? getAssetLabelFromPath(localPath)
@@ -106,6 +109,7 @@ export async function POST(request: Request) {
                 isPinned: isPinned ?? true,
             },
         })
+        savedAssetCreated = true
 
         return NextResponse.json({
             asset: mapSavedAssetRecordToGeneratedAsset(savedAsset, {
@@ -113,6 +117,16 @@ export async function POST(request: Request) {
             }),
         }, { status: 201 })
     } catch (error) {
+        if (uploadedObjectKey && !savedAssetCreated) {
+            try {
+                await deleteAssetObject(uploadedObjectKey)
+            } catch (cleanupError) {
+                console.warn("Failed to rollback uploaded asset object", {
+                    objectKey: uploadedObjectKey,
+                    error: cleanupError,
+                })
+            }
+        }
         const message = error instanceof Error ? error.message : "Failed to save asset"
         return NextResponse.json({ error: message }, { status: 500 })
     }

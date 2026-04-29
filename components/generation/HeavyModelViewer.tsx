@@ -343,15 +343,36 @@ function ErrorState({ message }: { message: string }) {
     );
 }
 
-function getDownloadFilename(safeUrl: string) {
+function getContentDispositionFilename(contentDisposition?: string | null) {
+    if (!contentDisposition) return null;
+
+    const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) {
+        try {
+            return decodeURIComponent(utf8Match[1].trim());
+        } catch {
+            return utf8Match[1].trim();
+        }
+    }
+
+    const filenameMatch = contentDisposition.match(/filename="([^"]+)"|filename=([^;]+)/i);
+    return (filenameMatch?.[1] ?? filenameMatch?.[2] ?? null)?.trim() ?? null;
+}
+
+function getDownloadFilename(safeUrl: string, contentDisposition?: string | null) {
     try {
+        const headerFilename = getContentDispositionFilename(contentDisposition);
+        if (headerFilename) {
+            return headerFilename;
+        }
+
         const parsed = new URL(safeUrl, typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1");
-        const queryPath = parsed.searchParams.get("path") ?? parsed.searchParams.get("filename");
+        const queryPath = parsed.searchParams.get("filename") ?? parsed.searchParams.get("path");
         const candidate = queryPath
             ? decodeURIComponent(queryPath).split(/[\\/]/).filter(Boolean).at(-1)
             : parsed.pathname.split("/").filter(Boolean).at(-1);
 
-        if (!candidate) {
+        if (!candidate || candidate === "file" || candidate === "files") {
             return "model.glb";
         }
 
@@ -2018,7 +2039,7 @@ function HeavyModelViewerInner({
             const objectUrl = URL.createObjectURL(blob);
             const anchor = document.createElement("a");
             anchor.href = objectUrl;
-            anchor.download = getDownloadFilename(safeUrl);
+            anchor.download = getDownloadFilename(safeUrl, response.headers.get("content-disposition"));
             anchor.rel = "noopener noreferrer";
             document.body.appendChild(anchor);
             anchor.click();

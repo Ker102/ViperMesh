@@ -71,6 +71,7 @@ export function GeneratedAssetsShelf({
     return (
         <aside
             aria-hidden={!open}
+            inert={!open}
             className="absolute inset-y-0 right-0 z-20 flex h-full w-[320px] flex-col border-l shadow-2xl transition-transform duration-300"
             style={{
                 borderColor: "hsl(var(--forge-border))",
@@ -158,6 +159,7 @@ export function GeneratedAssetsShelf({
                         onContinueToTool={onContinueToTool}
                         onUseAsset={onUseAsset}
                         onSaveAsset={onSaveAsset}
+                        useLivePreview={open}
                     />
                 )}
 
@@ -167,7 +169,7 @@ export function GeneratedAssetsShelf({
                             disabled={importInFlight}
                             onClick={() => importInputRef.current?.click()}
                         />
-                        {sortedItems.map((asset) => (
+                        {sortedItems.map((asset, index) => (
                             <AssetLibraryGridCard
                                 key={asset.id}
                                 asset={asset}
@@ -177,6 +179,7 @@ export function GeneratedAssetsShelf({
                                 attachToSelectionMode={Boolean(selectionMode)}
                                 onSelectInfo={setSelectedAssetId}
                                 onToggleFavorite={toggleFavorite}
+                                useLivePreview={open && index < 6}
                             />
                         ))}
                     </div>
@@ -223,6 +226,7 @@ function AssetDetailsPanel({
     onContinueToTool,
     onUseAsset,
     onSaveAsset,
+    useLivePreview,
 }: {
     asset: AssetLibraryItem
     selectionMode?: { label: string } | null
@@ -231,6 +235,7 @@ function AssetDetailsPanel({
     onContinueToTool: (asset: AssetLibraryItem, toolId: string) => void
     onUseAsset: (asset: AssetLibraryItem) => void
     onSaveAsset: (asset: AssetLibraryItem) => Promise<void> | void
+    useLivePreview: boolean
 }) {
     return (
         <div
@@ -253,6 +258,7 @@ function AssetDetailsPanel({
                             stageLabel={asset.stageLabel}
                             providerLabel={asset.providerLabel}
                             className="h-full w-full object-cover"
+                            useLivePreview={useLivePreview}
                         />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -367,6 +373,7 @@ function AssetLibraryGridCard({
     attachToSelectionMode,
     onSelectInfo,
     onToggleFavorite,
+    useLivePreview,
 }: {
     asset: AssetLibraryItem
     isFavorite: boolean
@@ -375,6 +382,7 @@ function AssetLibraryGridCard({
     attachToSelectionMode: boolean
     onSelectInfo: (assetId: string) => void
     onToggleFavorite: (asset: AssetLibraryItem) => void
+    useLivePreview: boolean
 }) {
     return (
         <div
@@ -401,6 +409,7 @@ function AssetLibraryGridCard({
                         stageLabel={asset.stageLabel}
                         providerLabel={asset.providerLabel}
                         className="h-full w-full object-cover"
+                        useLivePreview={useLivePreview}
                     />
 
                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/28 via-transparent to-black/8 opacity-80" />

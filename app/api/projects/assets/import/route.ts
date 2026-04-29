@@ -1,5 +1,5 @@
 import path from "node:path"
-import { mkdir, writeFile } from "node:fs/promises"
+import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { randomUUID } from "node:crypto"
 import { NextResponse } from "next/server"
 import type { Prisma } from "@prisma/client"
@@ -8,7 +8,7 @@ import { prisma } from "@/lib/db"
 import { getNeuralOutputRoot } from "@/lib/neural/output-files"
 import { readModelStats } from "@/lib/neural/model-stats"
 import { extractZipAssetPackage } from "@/lib/projects/asset-imports"
-import { getModelContentType, uploadAssetObject } from "@/lib/projects/asset-storage"
+import { deleteAssetObject, getModelContentType, uploadAssetObject } from "@/lib/projects/asset-storage"
 import {
     buildSavedAssetObjectKey,
     buildSavedAssetPackageViewerUrl,
@@ -17,6 +17,7 @@ import {
 } from "@/lib/projects/saved-assets"
 
 const MAX_IMPORT_SIZE_BYTES = 150 * 1024 * 1024
+const MAX_IMPORT_PACKAGE_FILES = 256
 
 function sanitizeBasename(filename: string): string {
     return filename
@@ -30,6 +31,18 @@ function sanitizeBasename(filename: string): string {
 function buildViewerUrlWithFilename(viewerUrl: string, filename: string): string {
     const params = new URLSearchParams({ filename })
     return `${viewerUrl}?${params.toString()}`
+}
+
+async function rollbackUploadedObjects(objectKeys: string[]): Promise<void> {
+    const cleanupResults = await Promise.allSettled(objectKeys.map((objectKey) => deleteAssetObject(objectKey)))
+    cleanupResults.forEach((result, index) => {
+        if (result.status === "rejected") {
+            console.warn("Failed to rollback uploaded asset object", {
+                objectKey: objectKeys[index],
+                error: result.reason,
+            })
+        }
+    })
 }
 
 export async function POST(request: Request) {
@@ -82,6 +95,8 @@ export async function POST(request: Request) {
     const outputDirectory = path.join(getNeuralOutputRoot(), "imports", projectId)
     const outputFilename = `${Date.now()}-${sanitizeBasename(file.name)}${extension}`
     const absoluteOutputPath = path.join(outputDirectory, outputFilename)
+    const uploadedObjectKeys: string[] = []
+    let savedAssetCreated = false
 
     try {
         await mkdir(outputDirectory, { recursive: true })
@@ -93,7 +108,11 @@ export async function POST(request: Request) {
 
         if (extension === ".zip") {
             const packageDirectory = path.join(outputDirectory, `${Date.now()}-${sanitizeBasename(file.name)}`)
-            const extracted = await extractZipAssetPackage(buffer, packageDirectory, file.name)
+            const extracted = await extractZipAssetPackage(buffer, packageDirectory, file.name, {
+                maxEntries: MAX_IMPORT_PACKAGE_FILES,
+                maxUncompressedBytes: MAX_IMPORT_SIZE_BYTES,
+                maxFileBytes: MAX_IMPORT_SIZE_BYTES,
+            })
             absoluteViewerPath = extracted.rootModelPath
             rootEntryPath = extracted.rootModelEntryPath
             objectKey = buildSavedAssetObjectKey({
@@ -103,19 +122,22 @@ export async function POST(request: Request) {
                 extension: path.extname(rootEntryPath),
                 packagePath: rootEntryPath,
             })
-            await Promise.all(extracted.extractedFiles.map((entry) =>
-                uploadAssetObject({
-                    key: buildSavedAssetObjectKey({
-                        userId: session.user.id,
-                        projectId,
-                        assetId: importId,
-                        extension: path.extname(entry.entryPath),
-                        packagePath: entry.entryPath,
-                    }),
-                    body: entry.content,
+            for (const entry of extracted.extractedFiles) {
+                const entryObjectKey = buildSavedAssetObjectKey({
+                    userId: session.user.id,
+                    projectId,
+                    assetId: importId,
+                    extension: path.extname(entry.entryPath),
+                    packagePath: entry.entryPath,
+                })
+                const entryContent = await readFile(entry.absolutePath)
+                await uploadAssetObject({
+                    key: entryObjectKey,
+                    body: entryContent,
                     contentType: getModelContentType(entry.entryPath),
-                }),
-            ))
+                })
+                uploadedObjectKeys.push(entryObjectKey)
+            }
             viewerUrl = buildSavedAssetPackageViewerUrl(importId, rootEntryPath)
         } else {
             await writeFile(absoluteOutputPath, buffer)
@@ -130,6 +152,7 @@ export async function POST(request: Request) {
                 body: buffer,
                 contentType: getModelContentType(file.name),
             })
+            uploadedObjectKeys.push(objectKey)
             viewerUrl = buildViewerUrlWithFilename(buildSavedAssetViewerUrl(importId), file.name)
         }
 
@@ -158,11 +181,15 @@ export async function POST(request: Request) {
                 isPinned: false,
             },
         })
+        savedAssetCreated = true
 
         return NextResponse.json({
             asset: mapSavedAssetRecordToGeneratedAsset(savedAsset, { viewerUrl }),
         })
     } catch (error) {
+        if (!savedAssetCreated && uploadedObjectKeys.length > 0) {
+            await rollbackUploadedObjects(uploadedObjectKeys)
+        }
         const message = error instanceof Error ? error.message : "Failed to import model"
         return NextResponse.json({ error: message }, { status: 500 })
     }

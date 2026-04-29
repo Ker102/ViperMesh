@@ -364,6 +364,7 @@ export function AssetPreviewTile({
     stageLabel,
     providerLabel,
     className,
+    useLivePreview = true,
 }: {
     imageUrl?: string | null
     modelUrl?: string | null
@@ -371,6 +372,7 @@ export function AssetPreviewTile({
     stageLabel?: string
     providerLabel?: string
     className?: string
+    useLivePreview?: boolean
 }) {
     if (isRenderablePreviewImage(imageUrl)) {
         // Uploaded or remote previews are already browser-safe at this point.
@@ -387,6 +389,10 @@ export function AssetPreviewTile({
                 className={className}
             />
         )
+        if (!useLivePreview) {
+            return fallback
+        }
+
         return (
             <ModelPreviewErrorBoundary fallback={fallback}>
                 <StaticModelPreviewTile
