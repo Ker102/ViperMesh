@@ -44,6 +44,7 @@ next-env.d.ts
 # prisma
 /prisma/migrations/*
 !/prisma/migrations/.gitkeep
+!/prisma/migrations/**
 
 # secrets and keys
 *.key
@@ -54,3 +55,4 @@ secrets/
 
 # IDE/Agent config
 .cursor/
+.codex-logs/

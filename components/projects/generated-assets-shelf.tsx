@@ -1,8 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { ArrowUpRight, Import, Info, Star } from "lucide-react"
-import { getToolById } from "@/lib/orchestration/tool-catalog"
 import { AssetPreviewTile, AssetStatsPills } from "./asset-inspection"
 import {
     buildProjectAssetLibrary,
@@ -13,13 +12,14 @@ import {
 import type { GeneratedAssetItem } from "./generated-assets"
 
 interface GeneratedAssetsShelfProps {
-    projectId: string
     open: boolean
     assets: GeneratedAssetItem[]
     onOpenAsset: (asset: GeneratedAssetItem, options?: { attachToActiveTool?: boolean }) => void
     onContinueToTool: (asset: GeneratedAssetItem, toolId: string) => void
     onUseAsset: (asset: GeneratedAssetItem) => void
     onImportAsset: (file: File) => Promise<void> | void
+    onSaveAsset: (asset: GeneratedAssetItem) => Promise<void> | void
+    onTogglePinned: (asset: GeneratedAssetItem) => Promise<void> | void
     selectionMode?: {
         label: string
     } | null
@@ -27,43 +27,22 @@ interface GeneratedAssetsShelfProps {
 }
 
 export function GeneratedAssetsShelf({
-    projectId,
     open,
     assets,
     onOpenAsset,
     onContinueToTool,
     onUseAsset,
     onImportAsset,
+    onSaveAsset,
+    onTogglePinned,
     selectionMode,
     importInFlight = false,
 }: GeneratedAssetsShelfProps) {
     const assetLibrary = useMemo(() => buildProjectAssetLibrary(assets), [assets])
     const [activeCategoryId, setActiveCategoryId] = useState<AssetLibraryCategoryId>("all")
     const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null)
+    const [activeAssetId, setActiveAssetId] = useState<string | null>(null)
     const importInputRef = useRef<HTMLInputElement | null>(null)
-    const favoritesStorageKey = `studio-asset-library-favorites:${projectId}`
-    const [favoriteAssetIds, setFavoriteAssetIds] = useState<string[]>(() => {
-        if (typeof window === "undefined") return []
-        try {
-            const saved = window.sessionStorage.getItem(favoritesStorageKey)
-            if (!saved) return []
-            const parsed = JSON.parse(saved)
-            return Array.isArray(parsed)
-                ? parsed.filter((value): value is string => typeof value === "string")
-                : []
-        } catch {
-            return []
-        }
-    })
-
-    useEffect(() => {
-        if (typeof window === "undefined") return
-        window.sessionStorage.setItem(favoritesStorageKey, JSON.stringify(favoriteAssetIds))
-    }, [favoriteAssetIds, favoritesStorageKey])
-
-    if (!open) {
-        return null
-    }
 
     const effectiveCategoryId = assetLibrary.categories.some((category) => category.id === activeCategoryId)
         ? activeCategoryId
@@ -71,30 +50,35 @@ export function GeneratedAssetsShelf({
 
     const visibleItems = filterProjectAssetLibraryItems(assetLibrary, effectiveCategoryId)
     const sortedItems = [...visibleItems].sort((left, right) => {
-        const leftFavorite = favoriteAssetIds.includes(left.id) ? 1 : 0
-        const rightFavorite = favoriteAssetIds.includes(right.id) ? 1 : 0
+        const leftFavorite = left.isPinned ? 1 : 0
+        const rightFavorite = right.isPinned ? 1 : 0
         return rightFavorite - leftFavorite
     })
 
-    const selectedAsset =
-        sortedItems.find((asset) => asset.id === selectedAssetId) ??
-        sortedItems[0] ??
-        null
+    const selectedAsset = selectedAssetId
+        ? assetLibrary.items.find((asset) => asset.id === selectedAssetId) ?? null
+        : null
 
-    const toggleFavorite = (assetId: string) => {
-        setFavoriteAssetIds((current) =>
-            current.includes(assetId)
-                ? current.filter((id) => id !== assetId)
-                : [...current, assetId]
-        )
+    const toggleFavorite = (asset: GeneratedAssetItem) => {
+        void onTogglePinned(asset)
+    }
+
+    const handleOpenAsset = (asset: GeneratedAssetItem, options?: { attachToActiveTool?: boolean }) => {
+        setActiveAssetId(asset.id)
+        onOpenAsset(asset, options)
     }
 
     return (
         <aside
-            className="flex h-full w-[320px] shrink-0 flex-col border-l transition-all duration-300"
+            aria-hidden={!open}
+            inert={!open}
+            className="absolute inset-y-0 right-0 z-20 flex h-full w-[320px] flex-col border-l shadow-2xl transition-transform duration-300"
             style={{
                 borderColor: "hsl(var(--forge-border))",
                 backgroundColor: "hsl(var(--forge-surface))",
+                boxShadow: "-24px 0 48px rgba(15,23,42,0.12)",
+                pointerEvents: open ? "auto" : "none",
+                transform: open ? "translateX(0)" : "translateX(100%)",
             }}
         >
             <div
@@ -166,22 +150,36 @@ export function GeneratedAssetsShelf({
                     })}
                 </div>
 
+                {selectedAsset && (
+                    <AssetDetailsPanel
+                        asset={selectedAsset}
+                        selectionMode={selectionMode}
+                        onClose={() => setSelectedAssetId(null)}
+                        onOpenAsset={handleOpenAsset}
+                        onContinueToTool={onContinueToTool}
+                        onUseAsset={onUseAsset}
+                        onSaveAsset={onSaveAsset}
+                        useLivePreview={open}
+                    />
+                )}
+
                 <div className="mt-4">
                     <div className="grid grid-cols-2 gap-3">
                         <ImportAssetTile
                             disabled={importInFlight}
                             onClick={() => importInputRef.current?.click()}
                         />
-                        {sortedItems.map((asset) => (
+                        {sortedItems.map((asset, index) => (
                             <AssetLibraryGridCard
                                 key={asset.id}
                                 asset={asset}
-                                isFavorite={favoriteAssetIds.includes(asset.id)}
-                                isSelected={selectedAsset?.id === asset.id}
-                                onOpenAsset={onOpenAsset}
+                                isFavorite={Boolean(asset.isPinned)}
+                                isSelected={selectedAsset?.id === asset.id || activeAssetId === asset.id}
+                                onOpenAsset={handleOpenAsset}
                                 attachToSelectionMode={Boolean(selectionMode)}
                                 onSelectInfo={setSelectedAssetId}
                                 onToggleFavorite={toggleFavorite}
+                                useLivePreview={open && index < 6}
                             />
                         ))}
                     </div>
@@ -215,107 +213,155 @@ export function GeneratedAssetsShelf({
                         await onImportAsset(file)
                     }}
                 />
-
-                {selectedAsset && (
-                    <div
-                        className="mt-4 rounded-2xl border p-4"
-                        style={{
-                            borderColor: "hsl(var(--forge-border))",
-                            backgroundColor: "hsl(var(--forge-surface-dim))",
-                        }}
-                    >
-                        <div className="flex items-start gap-3">
-                            <div
-                                className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border"
-                                style={{ borderColor: "hsl(var(--forge-border))" }}
-                            >
-                                <AssetPreviewTile
-                                    imageUrl={selectedAsset.previewImageUrl}
-                                    alt={selectedAsset.viewerLabel ?? selectedAsset.title}
-                                    stageLabel={selectedAsset.stageLabel}
-                                    providerLabel={selectedAsset.providerLabel}
-                                    className="h-full w-full object-cover"
-                                />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
-                                    {selectedAsset.viewerLabel ?? selectedAsset.title}
-                                </p>
-                                <p className="mt-1 text-xs" style={{ color: "hsl(var(--forge-text-muted))" }}>
-                                    From {selectedAsset.toolLabel}
-                                    {selectedAsset.stageLabel ? ` • ${selectedAsset.stageLabel}` : ""}
-                                    {selectedAsset.providerLabel ? ` • ${selectedAsset.providerLabel}` : ""}
-                                </p>
-                                <p
-                                    className="mt-2 text-[11px] font-medium uppercase tracking-[0.14em]"
-                                    style={{ color: "hsl(var(--forge-text-subtle))" }}
-                                >
-                                    {selectedAsset.assetKind === "image"
-                                        ? "Image asset"
-                                        : selectedAsset.densityBucket === "high-poly"
-                                            ? "High poly model"
-                                            : selectedAsset.densityBucket === "low-poly"
-                                                ? "Low poly model"
-                                                : "Model asset"}
-                                </p>
-                            </div>
-                        </div>
-
-                        <AssetStatsPills stats={selectedAsset.assetStats} className="mt-3 flex flex-wrap gap-2" />
-
-                        <div className="mt-4 flex flex-wrap gap-2">
-                            {selectionMode && selectedAsset.assetKind === "model" && (
-                                <button
-                                    type="button"
-                                    onClick={() => onUseAsset(selectedAsset)}
-                                    className="rounded-xl px-3 py-2 text-xs font-semibold transition hover:opacity-90"
-                                    style={{
-                                        backgroundColor: "hsl(var(--forge-accent))",
-                                        color: "white",
-                                    }}
-                                >
-                                    Use in {selectionMode.label}
-                                </button>
-                            )}
-                            <button
-                                type="button"
-                                onClick={() => onOpenAsset(selectedAsset, {
-                                    attachToActiveTool: Boolean(selectionMode && selectedAsset.assetKind === "model"),
-                                })}
-                                className="rounded-xl border px-3 py-2 text-xs font-semibold transition hover:opacity-90"
-                                style={{
-                                    borderColor: "hsl(var(--forge-border))",
-                                    color: "hsl(var(--forge-text-muted))",
-                                }}
-                            >
-                                Open in viewer
-                            </button>
-                            {selectedAsset.nextSuggestions.map((suggestion) => (
-                                <button
-                                    key={suggestion.toolId}
-                                    type="button"
-                                    onClick={() => onContinueToTool(selectedAsset, suggestion.toolId)}
-                                    className="rounded-xl px-3 py-2 text-xs font-semibold transition hover:opacity-90"
-                                    style={suggestion.variant === "primary"
-                                        ? {
-                                            backgroundColor: "hsl(var(--forge-accent))",
-                                            color: "white",
-                                        }
-                                        : {
-                                            borderColor: "hsl(var(--forge-border))",
-                                            borderWidth: "1px",
-                                            color: "hsl(var(--forge-text-muted))",
-                                        }}
-                                    title={suggestion.description}
-                                >
-                                    {suggestion.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
             </div>
         </aside>
+    )
+}
+
+function AssetDetailsPanel({
+    asset,
+    selectionMode,
+    onClose,
+    onOpenAsset,
+    onContinueToTool,
+    onUseAsset,
+    onSaveAsset,
+    useLivePreview,
+}: {
+    asset: AssetLibraryItem
+    selectionMode?: { label: string } | null
+    onClose: () => void
+    onOpenAsset: (asset: AssetLibraryItem, options?: { attachToActiveTool?: boolean }) => void
+    onContinueToTool: (asset: AssetLibraryItem, toolId: string) => void
+    onUseAsset: (asset: AssetLibraryItem) => void
+    onSaveAsset: (asset: AssetLibraryItem) => Promise<void> | void
+    useLivePreview: boolean
+}) {
+    return (
+        <div
+            className="mt-4 rounded-2xl border p-4"
+            style={{
+                borderColor: "hsl(var(--forge-border))",
+                backgroundColor: "hsl(var(--forge-surface-dim))",
+            }}
+        >
+            <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-start gap-3">
+                    <div
+                        className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl border"
+                        style={{ borderColor: "hsl(var(--forge-border))" }}
+                    >
+                        <AssetPreviewTile
+                            imageUrl={asset.previewImageUrl}
+                            modelUrl={asset.assetKind === "model" ? asset.viewerUrl : undefined}
+                            alt={asset.viewerLabel ?? asset.title}
+                            stageLabel={asset.stageLabel}
+                            providerLabel={asset.providerLabel}
+                            className="h-full w-full object-cover"
+                            useLivePreview={useLivePreview}
+                        />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
+                            {asset.viewerLabel ?? asset.title}
+                        </p>
+                        <p className="mt-1 text-xs" style={{ color: "hsl(var(--forge-text-muted))" }}>
+                            From {asset.toolLabel}
+                            {asset.stageLabel ? ` • ${asset.stageLabel}` : ""}
+                            {asset.providerLabel ? ` • ${asset.providerLabel}` : ""}
+                        </p>
+                        <p
+                            className="mt-2 text-[11px] font-medium uppercase tracking-[0.14em]"
+                            style={{ color: "hsl(var(--forge-text-subtle))" }}
+                        >
+                            {asset.assetKind === "image"
+                                ? "Image asset"
+                                : asset.densityBucket === "high-poly"
+                                    ? "High poly model"
+                                    : asset.densityBucket === "low-poly"
+                                        ? "Low poly model"
+                                        : "Model asset"}
+                        </p>
+                    </div>
+                </div>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="rounded-full border px-2 py-1 text-[11px] font-semibold transition hover:opacity-90"
+                    style={{
+                        borderColor: "hsl(var(--forge-border))",
+                        color: "hsl(var(--forge-text-muted))",
+                    }}
+                >
+                    Hide
+                </button>
+            </div>
+
+            <AssetStatsPills stats={asset.assetStats} className="mt-3 flex flex-wrap gap-2" />
+
+            <div className="mt-4 flex flex-wrap gap-2">
+                {!asset.id.startsWith("saved:") && (
+                    <button
+                        type="button"
+                        onClick={() => onSaveAsset(asset)}
+                        className="rounded-xl px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+                        style={{
+                            backgroundColor: "hsl(var(--forge-accent))",
+                            color: "white",
+                        }}
+                    >
+                        Save to library
+                    </button>
+                )}
+                {selectionMode && asset.assetKind === "model" && (
+                    <button
+                        type="button"
+                        onClick={() => onUseAsset(asset)}
+                        className="rounded-xl px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+                        style={{
+                            backgroundColor: "hsl(var(--forge-accent))",
+                            color: "white",
+                        }}
+                    >
+                        Use in {selectionMode.label}
+                    </button>
+                )}
+                <button
+                    type="button"
+                    onClick={() => onOpenAsset(asset, {
+                        attachToActiveTool: Boolean(selectionMode && asset.assetKind === "model"),
+                    })}
+                    className="rounded-xl border px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+                    style={{
+                        borderColor: "hsl(var(--forge-border))",
+                        color: "hsl(var(--forge-text-muted))",
+                    }}
+                >
+                    Open in viewer
+                </button>
+                {asset.nextSuggestions.map((suggestion) => (
+                    <button
+                        key={suggestion.toolId}
+                        type="button"
+                        onClick={() => onContinueToTool(asset, suggestion.toolId)}
+                        className="rounded-xl px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+                        style={suggestion.variant === "primary"
+                            ? {
+                                backgroundColor: "hsl(var(--forge-accent))",
+                                color: "white",
+                            }
+                            : {
+                                borderColor: "hsl(var(--forge-border))",
+                                borderWidth: "1px",
+                                color: "hsl(var(--forge-text-muted))",
+                            }}
+                        title={suggestion.description}
+                    >
+                        {suggestion.label}
+                    </button>
+                ))}
+            </div>
+        </div>
     )
 }
 
@@ -327,6 +373,7 @@ function AssetLibraryGridCard({
     attachToSelectionMode,
     onSelectInfo,
     onToggleFavorite,
+    useLivePreview,
 }: {
     asset: AssetLibraryItem
     isFavorite: boolean
@@ -334,96 +381,90 @@ function AssetLibraryGridCard({
     onOpenAsset: (asset: AssetLibraryItem, options?: { attachToActiveTool?: boolean }) => void
     attachToSelectionMode: boolean
     onSelectInfo: (assetId: string) => void
-    onToggleFavorite: (assetId: string) => void
+    onToggleFavorite: (asset: AssetLibraryItem) => void
+    useLivePreview: boolean
 }) {
-    const tool = getToolById(asset.toolName)
-
     return (
         <div
-            className="relative overflow-hidden rounded-2xl border transition-all duration-200"
+            className="group relative aspect-square overflow-hidden rounded-2xl border transition-all duration-200 hover:shadow-lg"
             style={{
-                borderColor: isSelected ? "hsl(var(--forge-accent))" : "hsl(var(--forge-border))",
-                backgroundColor: "hsl(var(--forge-surface-dim))",
-                boxShadow: isSelected ? "0 0 0 1px hsl(var(--forge-accent-subtle)) inset" : undefined,
+                borderColor: isSelected ? "hsl(var(--forge-accent))" : "rgba(226,232,240,0.58)",
+                backgroundColor: "#10141b",
+                boxShadow: isSelected
+                    ? "0 0 0 1px hsl(var(--forge-accent)) inset, 0 0 0 3px hsl(var(--forge-accent-subtle)), 0 14px 30px rgba(15,23,42,0.16)"
+                    : "0 10px 24px rgba(15,23,42,0.08)",
             }}
         >
             <button
                 type="button"
                 onClick={() => onOpenAsset(asset, { attachToActiveTool: attachToSelectionMode && asset.assetKind === "model" })}
-                className="group block w-full text-left"
+                className="group block h-full w-full text-left"
                 title="Open in viewer"
             >
-                <div className="relative aspect-square w-full overflow-hidden">
+                <div className="relative h-full w-full overflow-hidden">
                     <AssetPreviewTile
                         imageUrl={asset.previewImageUrl}
+                        modelUrl={asset.assetKind === "model" ? asset.viewerUrl : undefined}
                         alt={asset.viewerLabel ?? asset.title}
                         stageLabel={asset.stageLabel}
                         providerLabel={asset.providerLabel}
                         className="h-full w-full object-cover"
+                        useLivePreview={useLivePreview}
                     />
 
-                    <span
-                        className="absolute left-2 top-2 rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]"
-                        style={{
-                            backgroundColor: "rgba(15,23,42,0.78)",
-                            color: "white",
-                        }}
-                    >
-                        {asset.stageLabel ?? tool?.category ?? "Asset"}
-                    </span>
-
-                    <span
-                        className="absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-full border"
-                        style={{
-                            borderColor: "rgba(255,255,255,0.22)",
-                            backgroundColor: "rgba(15,23,42,0.72)",
-                            color: "rgba(255,255,255,0.9)",
-                        }}
-                        aria-hidden="true"
-                    >
-                        <ArrowUpRight className="h-4 w-4" />
-                    </span>
-                </div>
-
-                <div className="px-3 py-2.5">
-                    <p className="truncate text-sm font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
-                        {asset.viewerLabel ?? asset.title}
-                    </p>
-                    <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed" style={{ color: "hsl(var(--forge-text-muted))" }}>
-                        {asset.stageLabel ?? tool?.category ?? "Asset"}
-                        {asset.providerLabel ? ` • ${asset.providerLabel}` : ""}
-                    </p>
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/28 via-transparent to-black/8 opacity-80" />
                 </div>
             </button>
 
             <button
                 type="button"
-                onClick={() => onToggleFavorite(asset.id)}
-                className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full border transition hover:opacity-90"
+                onClick={(event) => {
+                    event.stopPropagation()
+                    onToggleFavorite(asset)
+                }}
+                className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full transition hover:scale-105"
                 style={{
-                    borderColor: "rgba(255,255,255,0.22)",
-                    backgroundColor: "rgba(15,23,42,0.72)",
+                    backgroundColor: "rgba(9,12,18,0.68)",
                     color: isFavorite ? "#facc15" : "rgba(255,255,255,0.9)",
                 }}
-                aria-label={isFavorite ? "Remove favorite" : "Favorite asset"}
-                title={isFavorite ? "Favorited" : "Add to favorites"}
+                aria-label={isFavorite ? "Unpin asset" : "Pin asset"}
+                title={isFavorite ? "Pinned" : "Pin to library"}
             >
-                <Star className={`h-4 w-4 ${isFavorite ? "fill-current" : ""}`} />
+                <Star className={`h-3.5 w-3.5 ${isFavorite ? "fill-current" : ""}`} />
             </button>
 
             <button
                 type="button"
-                onClick={() => onSelectInfo(asset.id)}
-                className="absolute bottom-16 left-2 inline-flex h-8 w-8 items-center justify-center rounded-full border transition hover:opacity-90"
+                onClick={(event) => {
+                    event.stopPropagation()
+                    onSelectInfo(asset.id)
+                }}
+                className="absolute bottom-2 left-2 inline-flex h-7 w-7 items-center justify-center rounded-full transition hover:scale-105"
                 style={{
-                    borderColor: "rgba(255,255,255,0.22)",
-                    backgroundColor: "rgba(15,23,42,0.72)",
+                    backgroundColor: "rgba(9,12,18,0.68)",
                     color: "rgba(255,255,255,0.9)",
                 }}
                 aria-label="View asset details"
                 title="View asset details"
             >
-                <Info className="h-4 w-4" />
+                <Info className="h-3.5 w-3.5" />
+            </button>
+
+            <button
+                type="button"
+                onClick={(event) => {
+                    event.stopPropagation()
+                    onOpenAsset(asset, { attachToActiveTool: attachToSelectionMode && asset.assetKind === "model" })
+                }}
+                className="absolute bottom-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-full transition hover:scale-105"
+                style={{
+                    backgroundColor: "rgba(9,12,18,0.68)",
+                    color: "rgba(255,255,255,0.9)",
+                }}
+                aria-label="Open asset in viewer"
+                title="Open in viewer"
+            >
+                <ArrowUpRight className="h-3.5 w-3.5" />
             </button>
         </div>
     )

@@ -1,7 +1,7 @@
 "use client";
 
-import { Bounds, ContactShadows, OrbitControls, useBounds } from "@react-three/drei";
-import { Canvas, useThree } from "@react-three/fiber";
+import { Bounds, OrbitControls, useBounds } from "@react-three/drei";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Download, FolderOpen, Loader2, Maximize2, RotateCcw } from "lucide-react";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
@@ -11,12 +11,12 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
-import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import { cn } from "@/lib/utils";
 
 export type HeavyInspectionMode = "material" | "geometry" | "solid" | "toon" | "wireframe";
 export type HeavyShadingMode = "smooth" | "flat";
+export type HeavyEnvironmentPreset = "beach" | "desert" | "forest" | "interior" | "night" | "studio";
 
 interface HeavyModelViewerProps {
     url: string;
@@ -30,11 +30,23 @@ interface HeavyModelViewerProps {
     pbrEnabled?: boolean;
     unlitEnabled?: boolean;
     toonEdgesEnabled?: boolean;
+    meshEdgesEnabled?: boolean;
     previewMetalness?: number;
     previewRoughness?: number;
+    environmentPreset?: HeavyEnvironmentPreset;
+    environmentStrength?: number;
+    environmentRotation?: number;
+    environmentAutoRotate?: boolean;
+    floorGridEnabled?: boolean;
 }
 
 type ViewerStatus = "loading" | "ready" | "error";
+
+type ModelBounds = {
+    minY: number;
+    sizeX: number;
+    sizeZ: number;
+};
 
 type ViewerApi = {
     fit: () => void;
@@ -72,11 +84,16 @@ const clearColorByMode: Record<HeavyInspectionMode, string> = {
 };
 
 const frameBackgroundByMode: Record<HeavyInspectionMode, string> = {
-    material: "radial-gradient(circle at top, rgba(148, 163, 184, 0.18), rgba(31, 41, 55, 0.95) 64%)",
-    geometry: "radial-gradient(circle at top, rgba(186, 230, 253, 0.18), rgba(39, 46, 58, 0.98) 64%)",
-    solid: "radial-gradient(circle at top, rgba(226, 232, 240, 0.12), rgba(39, 46, 58, 0.96) 66%)",
-    toon: "radial-gradient(circle at top, rgba(196, 181, 253, 0.24), rgba(31, 41, 55, 0.95) 64%)",
-    wireframe: "radial-gradient(circle at top, rgba(125, 211, 252, 0.14), rgba(17, 24, 39, 0.98) 64%)",
+    material:
+        "radial-gradient(circle at 50% 45%, rgba(104, 116, 130, 0.44), rgba(51, 59, 70, 0.9) 42%, rgba(24, 29, 37, 0.98) 78%, #11151c 100%)",
+    geometry:
+        "radial-gradient(circle at 50% 45%, rgba(92, 106, 124, 0.4), rgba(43, 51, 63, 0.92) 44%, rgba(18, 23, 31, 0.98) 82%, #0f131a 100%)",
+    solid:
+        "radial-gradient(circle at 50% 44%, rgba(112, 122, 135, 0.42), rgba(49, 57, 68, 0.92) 42%, rgba(19, 24, 32, 0.98) 80%, #0f131a 100%)",
+    toon:
+        "radial-gradient(circle at 50% 45%, rgba(99, 108, 128, 0.42), rgba(45, 53, 66, 0.92) 42%, rgba(19, 24, 33, 0.98) 80%, #0f131a 100%)",
+    wireframe:
+        "radial-gradient(circle at 50% 45%, rgba(58, 74, 92, 0.38), rgba(27, 37, 50, 0.96) 44%, rgba(9, 14, 22, 0.99) 82%, #070c13 100%)",
 };
 
 const toneMappingExposureByMode: Record<HeavyInspectionMode, number> = {
@@ -87,7 +104,136 @@ const toneMappingExposureByMode: Record<HeavyInspectionMode, number> = {
     wireframe: 1,
 };
 
+export const HEAVY_ENVIRONMENT_PRESETS: Array<{ id: HeavyEnvironmentPreset; label: string }> = [
+    { id: "beach", label: "Beach" },
+    { id: "desert", label: "Desert" },
+    { id: "forest", label: "Forest" },
+    { id: "interior", label: "Interior" },
+    { id: "night", label: "Night" },
+    { id: "studio", label: "Studio" },
+];
+
+const environmentPresetDefinitions: Record<HeavyEnvironmentPreset, {
+    environmentIntensity: number;
+    exposure: number;
+    ambient: number;
+    hemisphere: number;
+    key: number;
+    fill: number;
+    cool: number;
+    rim: number;
+    skyColor: string;
+    groundColor: string;
+    keyColor: string;
+    fillColor: string;
+    coolColor: string;
+    rimColor: string;
+}> = {
+    beach: {
+        environmentIntensity: 1.18,
+        exposure: 1.08,
+        ambient: 1.02,
+        hemisphere: 1.34,
+        key: 1.24,
+        fill: 0.82,
+        cool: 1.18,
+        rim: 0.82,
+        skyColor: "#dbeafe",
+        groundColor: "#475569",
+        keyColor: "#fff7cc",
+        fillColor: "#dbeafe",
+        coolColor: "#bae6fd",
+        rimColor: "#ffffff",
+    },
+    desert: {
+        environmentIntensity: 1.08,
+        exposure: 1.06,
+        ambient: 0.96,
+        hemisphere: 1.18,
+        key: 1.34,
+        fill: 0.58,
+        cool: 0.62,
+        rim: 0.76,
+        skyColor: "#fff7ed",
+        groundColor: "#6b3f24",
+        keyColor: "#ffd18a",
+        fillColor: "#fef3c7",
+        coolColor: "#dbeafe",
+        rimColor: "#fff7ed",
+    },
+    forest: {
+        environmentIntensity: 0.82,
+        exposure: 0.96,
+        ambient: 0.82,
+        hemisphere: 1.08,
+        key: 0.82,
+        fill: 0.72,
+        cool: 0.96,
+        rim: 0.68,
+        skyColor: "#d1fae5",
+        groundColor: "#173526",
+        keyColor: "#e8f8d3",
+        fillColor: "#bbf7d0",
+        coolColor: "#bfdbfe",
+        rimColor: "#ecfccb",
+    },
+    interior: {
+        environmentIntensity: 0.74,
+        exposure: 0.98,
+        ambient: 0.96,
+        hemisphere: 0.92,
+        key: 0.82,
+        fill: 1.08,
+        cool: 0.44,
+        rim: 0.62,
+        skyColor: "#f8fafc",
+        groundColor: "#2f3744",
+        keyColor: "#fff1c2",
+        fillColor: "#f8fafc",
+        coolColor: "#c7d2fe",
+        rimColor: "#fef9c3",
+    },
+    night: {
+        environmentIntensity: 0.44,
+        exposure: 0.84,
+        ambient: 0.58,
+        hemisphere: 0.72,
+        key: 0.44,
+        fill: 0.38,
+        cool: 1.18,
+        rim: 1.08,
+        skyColor: "#93c5fd",
+        groundColor: "#090f1c",
+        keyColor: "#c7d2fe",
+        fillColor: "#64748b",
+        coolColor: "#60a5fa",
+        rimColor: "#e0f2fe",
+    },
+    studio: {
+        environmentIntensity: 0.88,
+        exposure: 1.02,
+        ambient: 1.08,
+        hemisphere: 1.12,
+        key: 0.78,
+        fill: 1.32,
+        cool: 0.72,
+        rim: 1.36,
+        skyColor: "#ffffff",
+        groundColor: "#334155",
+        keyColor: "#ffffff",
+        fillColor: "#e2e8f0",
+        coolColor: "#dbeafe",
+        rimColor: "#ffffff",
+    },
+};
+
+function getEnvironmentPresetDefinition(preset: HeavyEnvironmentPreset) {
+    return environmentPresetDefinitions[preset] ?? environmentPresetDefinitions.studio;
+}
+
 const SUPPORTED_VIEWER_EXTENSIONS = new Set([".glb", ".gltf", ".fbx", ".obj", ".stl"]);
+const NORMAL_MERGE_TOLERANCE_RATIO = 0.005;
+const MIN_NORMAL_MERGE_TOLERANCE = 0.0001;
 
 let toonGradientTexture: THREE.DataTexture | null = null;
 
@@ -97,13 +243,12 @@ function getToonGradientTexture() {
     }
 
     const colors = new Uint8Array([
-        20, 24, 31, 255,
-        62, 72, 92, 255,
-        118, 132, 156, 255,
-        196, 208, 224, 255,
-        250, 250, 255, 255,
+        112, 118, 130, 255,
+        178, 188, 204, 255,
+        224, 232, 242, 255,
+        255, 255, 255, 255,
     ]);
-    const texture = new THREE.DataTexture(colors, 5, 1, THREE.RGBAFormat);
+    const texture = new THREE.DataTexture(colors, 4, 1, THREE.RGBAFormat);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.magFilter = THREE.NearestFilter;
     texture.minFilter = THREE.NearestFilter;
@@ -198,15 +343,36 @@ function ErrorState({ message }: { message: string }) {
     );
 }
 
-function getDownloadFilename(safeUrl: string) {
+function getContentDispositionFilename(contentDisposition?: string | null) {
+    if (!contentDisposition) return null;
+
+    const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) {
+        try {
+            return decodeURIComponent(utf8Match[1].trim());
+        } catch {
+            return utf8Match[1].trim();
+        }
+    }
+
+    const filenameMatch = contentDisposition.match(/filename="([^"]+)"|filename=([^;]+)/i);
+    return (filenameMatch?.[1] ?? filenameMatch?.[2] ?? null)?.trim() ?? null;
+}
+
+function getDownloadFilename(safeUrl: string, contentDisposition?: string | null) {
     try {
+        const headerFilename = getContentDispositionFilename(contentDisposition);
+        if (headerFilename) {
+            return headerFilename;
+        }
+
         const parsed = new URL(safeUrl, typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1");
-        const queryPath = parsed.searchParams.get("path");
+        const queryPath = parsed.searchParams.get("filename") ?? parsed.searchParams.get("path");
         const candidate = queryPath
             ? decodeURIComponent(queryPath).split(/[\\/]/).filter(Boolean).at(-1)
             : parsed.pathname.split("/").filter(Boolean).at(-1);
 
-        if (!candidate) {
+        if (!candidate || candidate === "file" || candidate === "files") {
             return "model.glb";
         }
 
@@ -228,7 +394,8 @@ function getDownloadUrl(safeUrl: string) {
         );
         if (
             parsed.pathname === "/api/ai/neural-output" ||
-            parsed.pathname.startsWith("/api/ai/neural-output/files/")
+            parsed.pathname.startsWith("/api/ai/neural-output/files/") ||
+            parsed.pathname.startsWith("/api/projects/assets/")
         ) {
             parsed.searchParams.set("download", "1");
         }
@@ -270,7 +437,7 @@ function inferModelExtension(safeUrl: string): string | null {
             safeUrl,
             typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1",
         );
-        const queryPath = parsed.searchParams.get("path");
+        const queryPath = parsed.searchParams.get("path") ?? parsed.searchParams.get("filename");
         const candidate = queryPath
             ? decodeURIComponent(queryPath)
             : parsed.pathname.split("/").map((segment) => decodeURIComponent(segment)).join("/");
@@ -287,6 +454,10 @@ function collectMaterialTextures(material: THREE.Material, textureSet: Set<THREE
             textureSet.add(value);
         }
     });
+}
+
+function isInspectionOverlayObject(object: THREE.Object3D) {
+    return Boolean(object.userData.__inspectionOverlay);
 }
 
 function disposeLoadedAssetResources(root: THREE.Object3D) {
@@ -393,8 +564,8 @@ async function loadAssetRoot(url: string, extension: string): Promise<THREE.Obje
                 side: THREE.DoubleSide,
             }),
         );
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
         const group = new THREE.Group();
         group.add(mesh);
         return group;
@@ -405,6 +576,8 @@ async function loadAssetRoot(url: string, extension: string): Promise<THREE.Obje
 
 function disposeGeneratedMaterials(object: THREE.Object3D) {
     object.traverse((child) => {
+        if (isInspectionOverlayObject(child)) return;
+
         const mesh = child as THREE.Mesh;
         if (!mesh.isMesh) return;
 
@@ -416,6 +589,25 @@ function disposeGeneratedMaterials(object: THREE.Object3D) {
             overlayMaterials.forEach((material) => material.dispose());
             delete mesh.userData.__toonEdgeOverlay;
             delete mesh.userData.__toonEdgeOverlayKey;
+        }
+
+        const toonSilhouette = mesh.userData.__toonSilhouetteOverlay as THREE.Mesh | undefined;
+        if (toonSilhouette) {
+            mesh.remove(toonSilhouette);
+            const silhouetteMaterials = Array.isArray(toonSilhouette.material) ? toonSilhouette.material : [toonSilhouette.material];
+            silhouetteMaterials.forEach((material) => material.dispose());
+            delete mesh.userData.__toonSilhouetteOverlay;
+            delete mesh.userData.__toonSilhouetteOverlayKey;
+        }
+
+        const meshOverlay = mesh.userData.__meshEdgeOverlay as THREE.LineSegments | undefined;
+        if (meshOverlay) {
+            mesh.remove(meshOverlay);
+            meshOverlay.geometry.dispose();
+            const overlayMaterials = Array.isArray(meshOverlay.material) ? meshOverlay.material : [meshOverlay.material];
+            overlayMaterials.forEach((material) => material.dispose());
+            delete mesh.userData.__meshEdgeOverlay;
+            delete mesh.userData.__meshEdgeOverlayKey;
         }
 
         const generatedMaterials = mesh.userData.__generatedMaterials as THREE.Material[] | undefined;
@@ -633,12 +825,117 @@ function copyCommonMaterialProps(
     dest.needsUpdate = true;
 }
 
+function copySolidReliefMaterialProps(
+    target: THREE.Material,
+    original: THREE.Material,
+    flatShading: boolean,
+    maxAnisotropy: number,
+) {
+    const source = original as THREE.Material & {
+        normalMap?: THREE.Texture | null;
+        normalScale?: THREE.Vector2;
+        bumpMap?: THREE.Texture | null;
+        bumpScale?: number;
+        aoMap?: THREE.Texture | null;
+        aoMapIntensity?: number;
+        alphaMap?: THREE.Texture | null;
+        transparent?: boolean;
+        opacity?: number;
+        alphaTest?: number;
+        side?: THREE.Side;
+    };
+    const dest = target as THREE.Material & {
+        normalMap?: THREE.Texture | null;
+        normalScale?: THREE.Vector2;
+        bumpMap?: THREE.Texture | null;
+        bumpScale?: number;
+        aoMap?: THREE.Texture | null;
+        aoMapIntensity?: number;
+        alphaMap?: THREE.Texture | null;
+        transparent?: boolean;
+        opacity?: number;
+        alphaTest?: number;
+        side?: THREE.Side;
+        flatShading?: boolean;
+    };
+
+    if ("normalMap" in dest) {
+        dest.normalMap = source.normalMap ?? null;
+        if (dest.normalMap) {
+            dest.normalMap.colorSpace = THREE.NoColorSpace;
+            dest.normalMap.generateMipmaps = true;
+            dest.normalMap.magFilter = THREE.LinearFilter;
+            dest.normalMap.minFilter = THREE.LinearMipmapLinearFilter;
+            dest.normalMap.anisotropy = maxAnisotropy;
+            dest.normalMap.needsUpdate = true;
+        }
+    }
+    if (dest.normalScale && source.normalScale) {
+        dest.normalScale.copy(source.normalScale);
+    }
+    if ("bumpMap" in dest) {
+        dest.bumpMap = source.bumpMap ?? null;
+        if (dest.bumpMap) {
+            dest.bumpMap.colorSpace = THREE.NoColorSpace;
+            dest.bumpMap.generateMipmaps = true;
+            dest.bumpMap.magFilter = THREE.LinearFilter;
+            dest.bumpMap.minFilter = THREE.LinearMipmapLinearFilter;
+            dest.bumpMap.anisotropy = maxAnisotropy;
+            dest.bumpMap.needsUpdate = true;
+        }
+    }
+    if ("bumpScale" in dest && typeof source.bumpScale === "number") {
+        dest.bumpScale = source.bumpScale;
+    }
+    if ("aoMap" in dest) {
+        dest.aoMap = source.aoMap ?? null;
+        if (dest.aoMap) {
+            dest.aoMap.colorSpace = THREE.NoColorSpace;
+            dest.aoMap.generateMipmaps = true;
+            dest.aoMap.magFilter = THREE.LinearFilter;
+            dest.aoMap.minFilter = THREE.LinearMipmapLinearFilter;
+            dest.aoMap.anisotropy = maxAnisotropy;
+            dest.aoMap.needsUpdate = true;
+        }
+    }
+    if ("aoMapIntensity" in dest) {
+        dest.aoMapIntensity = Math.max(source.aoMapIntensity ?? 0.45, 0.6);
+    }
+    if ("alphaMap" in dest) {
+        dest.alphaMap = source.alphaMap ?? null;
+        if (dest.alphaMap) {
+            dest.alphaMap.colorSpace = THREE.NoColorSpace;
+            dest.alphaMap.generateMipmaps = true;
+            dest.alphaMap.magFilter = THREE.LinearFilter;
+            dest.alphaMap.minFilter = THREE.LinearMipmapLinearFilter;
+            dest.alphaMap.anisotropy = maxAnisotropy;
+            dest.alphaMap.needsUpdate = true;
+        }
+    }
+    if (typeof source.transparent === "boolean") {
+        dest.transparent = source.transparent;
+    }
+    if (typeof source.opacity === "number") {
+        dest.opacity = source.opacity;
+    }
+    if (typeof source.alphaTest === "number") {
+        dest.alphaTest = source.alphaTest;
+    }
+    dest.side = source.side ?? THREE.DoubleSide;
+    if ("flatShading" in dest) {
+        dest.flatShading = flatShading;
+    }
+    dest.needsUpdate = true;
+}
+
 function stripFacetMutedMaps(material: THREE.Material) {
     const candidate = material as THREE.Material & {
         normalMap?: THREE.Texture | null;
         bumpMap?: THREE.Texture | null;
         aoMap?: THREE.Texture | null;
         specularMap?: THREE.Texture | null;
+        metalnessMap?: THREE.Texture | null;
+        roughnessMap?: THREE.Texture | null;
     };
     if ("normalMap" in candidate) {
         candidate.normalMap = null;
@@ -651,6 +948,12 @@ function stripFacetMutedMaps(material: THREE.Material) {
     }
     if ("specularMap" in candidate) {
         candidate.specularMap = null;
+    }
+    if ("metalnessMap" in candidate) {
+        candidate.metalnessMap = null;
+    }
+    if ("roughnessMap" in candidate) {
+        candidate.roughnessMap = null;
     }
     material.needsUpdate = true;
 }
@@ -674,9 +977,7 @@ function buildClassicPreviewMaterial(
             material.combine = THREE.MultiplyOperation;
             material.envMap = null;
         }
-        if (flatShading) {
-            stripFacetMutedMaps(material);
-        }
+        stripFacetMutedMaps(material);
         material.needsUpdate = true;
         return material;
     }
@@ -695,9 +996,7 @@ function buildClassicPreviewMaterial(
     material.combine = THREE.MultiplyOperation;
     material.reflectivity = 0.03;
     material.shininess = 14;
-    if (flatShading) {
-        stripFacetMutedMaps(material);
-    }
+    stripFacetMutedMaps(material);
     material.needsUpdate = true;
     return material;
 }
@@ -788,9 +1087,7 @@ function buildReplacementMaterial(
         material.aoMapIntensity = 0.2;
         material.metalness = resolvedMetalness;
         material.roughness = resolvedRoughness;
-        if (flatShading) {
-            stripFacetMutedMaps(material);
-        }
+        stripFacetMutedMaps(material);
         material.needsUpdate = true;
         return material;
     }
@@ -804,13 +1101,29 @@ function buildReplacementMaterial(
     }
 
     if (mode === "solid") {
-        return new THREE.MeshStandardMaterial({
+        if (unlitEnabled) {
+            const material = new THREE.MeshBasicMaterial({
+                color: "#c3c8d0",
+                side: THREE.DoubleSide,
+            });
+            copySolidReliefMaterialProps(material, original, flatShading, maxAnisotropy);
+            return material;
+        }
+
+        const material = new THREE.MeshStandardMaterial({
             color: "#c3c8d0",
             metalness: 0,
-            roughness: 0.96,
+            roughness: 0.88,
             flatShading,
             side: THREE.DoubleSide,
         });
+        copySolidReliefMaterialProps(material, original, flatShading, maxAnisotropy);
+        material.color.set("#c3c8d0");
+        material.metalness = 0;
+        material.roughness = 0.88;
+        material.envMapIntensity = 0.34;
+        material.needsUpdate = true;
+        return material;
     }
 
     if (mode === "toon") {
@@ -870,23 +1183,121 @@ function getInspectionGeometryVariant(mesh: THREE.Mesh, shadingMode: HeavyShadin
                 return sourceGeometry.index ? sourceGeometry.toNonIndexed() : sourceGeometry.clone();
             }
 
-            return mergeVertices(sourceGeometry.clone(), 1e-4);
+            return sourceGeometry.clone();
         })();
 
-        geometry.deleteAttribute("normal");
-        geometry.computeVertexNormals();
-        geometry.normalizeNormals();
+        if (shadingMode === "flat") {
+            geometry.deleteAttribute("normal");
+            geometry.computeVertexNormals();
+        } else {
+            applyPositionSmoothedNormals(geometry);
+        }
+        if (geometry.attributes.normal) {
+            geometry.normalizeNormals();
+            geometry.attributes.normal.needsUpdate = true;
+        }
         geometry.computeBoundingBox();
         geometry.computeBoundingSphere();
-        geometry.attributes.normal.needsUpdate = true;
         mesh.userData[variantKey] = geometry;
     }
 
     return mesh.userData[variantKey] as THREE.BufferGeometry;
 }
 
+function getNormalMergeTolerance(geometry: THREE.BufferGeometry) {
+    geometry.computeBoundingBox();
+    const size = new THREE.Vector3();
+    geometry.boundingBox?.getSize(size);
+    const diagonal = size.length();
+    return Math.max(diagonal * NORMAL_MERGE_TOLERANCE_RATIO, MIN_NORMAL_MERGE_TOLERANCE);
+}
+
+function getPositionNormalKey(position: THREE.BufferAttribute, index: number, tolerance: number) {
+    return [
+        Math.round(position.getX(index) / tolerance),
+        Math.round(position.getY(index) / tolerance),
+        Math.round(position.getZ(index) / tolerance),
+    ].join(",");
+}
+
+function applyPositionSmoothedNormals(geometry: THREE.BufferGeometry) {
+    const position = geometry.attributes.position as THREE.BufferAttribute | undefined;
+    if (!position) {
+        geometry.computeVertexNormals();
+        return;
+    }
+
+    const index = geometry.index;
+    const normalMergeTolerance = getNormalMergeTolerance(geometry);
+    const normalSums = new Map<string, THREE.Vector3>();
+    const triangle = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+    const edgeA = new THREE.Vector3();
+    const edgeB = new THREE.Vector3();
+    const faceNormal = new THREE.Vector3();
+    const angleEdgeA = new THREE.Vector3();
+    const angleEdgeB = new THREE.Vector3();
+    const weightedNormal = new THREE.Vector3();
+
+    const getCornerAngle = (center: THREE.Vector3, left: THREE.Vector3, right: THREE.Vector3) => {
+        angleEdgeA.subVectors(left, center).normalize();
+        angleEdgeB.subVectors(right, center).normalize();
+        return Math.acos(THREE.MathUtils.clamp(angleEdgeA.dot(angleEdgeB), -1, 1));
+    };
+
+    const addWeightedNormal = (vertexIndex: number, weight: number) => {
+        const key = getPositionNormalKey(position, vertexIndex, normalMergeTolerance);
+        const sum = normalSums.get(key) ?? new THREE.Vector3();
+        weightedNormal.copy(faceNormal).multiplyScalar(Number.isFinite(weight) && weight > 0 ? weight : 1);
+        sum.add(weightedNormal);
+        normalSums.set(key, sum);
+    };
+
+    const addTriangle = (a: number, b: number, c: number) => {
+        triangle[0].fromBufferAttribute(position, a);
+        triangle[1].fromBufferAttribute(position, b);
+        triangle[2].fromBufferAttribute(position, c);
+
+        edgeA.subVectors(triangle[1], triangle[0]);
+        edgeB.subVectors(triangle[2], triangle[0]);
+        faceNormal.crossVectors(edgeA, edgeB);
+        if (faceNormal.lengthSq() <= Number.EPSILON) return;
+        faceNormal.normalize();
+
+        addWeightedNormal(a, getCornerAngle(triangle[0], triangle[1], triangle[2]));
+        addWeightedNormal(b, getCornerAngle(triangle[1], triangle[2], triangle[0]));
+        addWeightedNormal(c, getCornerAngle(triangle[2], triangle[0], triangle[1]));
+    };
+
+    if (index) {
+        for (let i = 0; i + 2 < index.count; i += 3) {
+            addTriangle(index.getX(i), index.getX(i + 1), index.getX(i + 2));
+        }
+    } else {
+        for (let i = 0; i + 2 < position.count; i += 3) {
+            addTriangle(i, i + 1, i + 2);
+        }
+    }
+
+    const normals = new Float32Array(position.count * 3);
+    for (let i = 0; i < position.count; i += 1) {
+        const sum = normalSums.get(getPositionNormalKey(position, i, normalMergeTolerance));
+        if (!sum || sum.lengthSq() <= Number.EPSILON) {
+            normals[i * 3 + 1] = 1;
+            continue;
+        }
+        sum.normalize();
+        normals[i * 3] = sum.x;
+        normals[i * 3 + 1] = sum.y;
+        normals[i * 3 + 2] = sum.z;
+    }
+
+    geometry.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
+}
+
 function prepareInspectionGeometry(root: THREE.Object3D, shadingMode: HeavyShadingMode) {
     root.traverse((child) => {
+        if (isInspectionOverlayObject(child)) return;
+
         const mesh = child as THREE.Mesh;
         if (!mesh.isMesh || !mesh.geometry) return;
 
@@ -895,11 +1306,16 @@ function prepareInspectionGeometry(root: THREE.Object3D, shadingMode: HeavyShadi
 }
 
 function syncToonEdgeOverlay(root: THREE.Object3D, enabled: boolean, shadingMode: HeavyShadingMode) {
+    const meshes: THREE.Mesh[] = [];
     root.traverse((child) => {
         const mesh = child as THREE.Mesh;
-        if (!mesh.isMesh) return;
+        if (!mesh.isMesh || isInspectionOverlayObject(mesh)) return;
+        meshes.push(mesh);
+    });
 
+    meshes.forEach((mesh) => {
         const existingOverlay = mesh.userData.__toonEdgeOverlay as THREE.LineSegments | undefined;
+        const existingSilhouette = mesh.userData.__toonSilhouetteOverlay as THREE.Mesh | undefined;
         if (!enabled) {
             if (existingOverlay) {
                 mesh.remove(existingOverlay);
@@ -909,11 +1325,23 @@ function syncToonEdgeOverlay(root: THREE.Object3D, enabled: boolean, shadingMode
                 delete mesh.userData.__toonEdgeOverlay;
                 delete mesh.userData.__toonEdgeOverlayKey;
             }
+            if (existingSilhouette) {
+                mesh.remove(existingSilhouette);
+                const silhouetteMaterials = Array.isArray(existingSilhouette.material) ? existingSilhouette.material : [existingSilhouette.material];
+                silhouetteMaterials.forEach((material) => material.dispose());
+                delete mesh.userData.__toonSilhouetteOverlay;
+                delete mesh.userData.__toonSilhouetteOverlayKey;
+            }
             return;
         }
 
         const overlayKey = `${shadingMode}:${mesh.geometry.uuid}`;
-        if (existingOverlay && mesh.userData.__toonEdgeOverlayKey === overlayKey) {
+        if (
+            existingOverlay &&
+            mesh.userData.__toonEdgeOverlayKey === overlayKey &&
+            existingSilhouette &&
+            mesh.userData.__toonSilhouetteOverlayKey === overlayKey
+        ) {
             return;
         }
 
@@ -923,12 +1351,32 @@ function syncToonEdgeOverlay(root: THREE.Object3D, enabled: boolean, shadingMode
             const overlayMaterials = Array.isArray(existingOverlay.material) ? existingOverlay.material : [existingOverlay.material];
             overlayMaterials.forEach((material) => material.dispose());
         }
+        if (existingSilhouette) {
+            mesh.remove(existingSilhouette);
+            const silhouetteMaterials = Array.isArray(existingSilhouette.material) ? existingSilhouette.material : [existingSilhouette.material];
+            silhouetteMaterials.forEach((material) => material.dispose());
+        }
 
-        const edgeGeometry = new THREE.EdgesGeometry(mesh.geometry, shadingMode === "flat" ? 6 : 18);
+        const silhouetteMaterial = new THREE.MeshBasicMaterial({
+            color: "#05070a",
+            side: THREE.BackSide,
+            transparent: true,
+            opacity: 0.82,
+            depthWrite: false,
+            depthTest: true,
+            toneMapped: false,
+        });
+        const silhouette = new THREE.Mesh(mesh.geometry, silhouetteMaterial);
+        silhouette.userData.__inspectionOverlay = true;
+        silhouette.renderOrder = 6;
+        silhouette.scale.setScalar(shadingMode === "flat" ? 1.012 : 1.008);
+        mesh.add(silhouette);
+
+        const edgeGeometry = new THREE.EdgesGeometry(mesh.geometry, shadingMode === "flat" ? 76 : 98);
         const edgeMaterial = new THREE.LineBasicMaterial({
             color: "#0b0f16",
             transparent: true,
-            opacity: 0.95,
+            opacity: shadingMode === "flat" ? 0.34 : 0.26,
             depthWrite: false,
             polygonOffset: true,
             polygonOffsetFactor: -1,
@@ -941,6 +1389,56 @@ function syncToonEdgeOverlay(root: THREE.Object3D, enabled: boolean, shadingMode
         mesh.add(overlay);
         mesh.userData.__toonEdgeOverlay = overlay;
         mesh.userData.__toonEdgeOverlayKey = overlayKey;
+        mesh.userData.__toonSilhouetteOverlay = silhouette;
+        mesh.userData.__toonSilhouetteOverlayKey = overlayKey;
+    });
+}
+
+function syncMeshEdgeOverlay(root: THREE.Object3D, enabled: boolean, shadingMode: HeavyShadingMode) {
+    root.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+
+        const existingOverlay = mesh.userData.__meshEdgeOverlay as THREE.LineSegments | undefined;
+        if (!enabled) {
+            if (existingOverlay) {
+                mesh.remove(existingOverlay);
+                existingOverlay.geometry.dispose();
+                const overlayMaterials = Array.isArray(existingOverlay.material) ? existingOverlay.material : [existingOverlay.material];
+                overlayMaterials.forEach((material) => material.dispose());
+                delete mesh.userData.__meshEdgeOverlay;
+                delete mesh.userData.__meshEdgeOverlayKey;
+            }
+            return;
+        }
+
+        const overlayKey = `${shadingMode}:${mesh.geometry.uuid}`;
+        if (existingOverlay && mesh.userData.__meshEdgeOverlayKey === overlayKey) {
+            return;
+        }
+
+        if (existingOverlay) {
+            mesh.remove(existingOverlay);
+            existingOverlay.geometry.dispose();
+            const overlayMaterials = Array.isArray(existingOverlay.material) ? existingOverlay.material : [existingOverlay.material];
+            overlayMaterials.forEach((material) => material.dispose());
+        }
+
+        const edgeGeometry = new THREE.WireframeGeometry(mesh.geometry);
+        const edgeMaterial = new THREE.LineBasicMaterial({
+            color: "#05070a",
+            transparent: true,
+            opacity: 0.82,
+            depthWrite: false,
+            depthTest: true,
+            toneMapped: false,
+        });
+        const overlay = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+        overlay.userData.__inspectionOverlay = true;
+        overlay.renderOrder = 9;
+        mesh.add(overlay);
+        mesh.userData.__meshEdgeOverlay = overlay;
+        mesh.userData.__meshEdgeOverlayKey = overlayKey;
     });
 }
 
@@ -948,13 +1446,22 @@ function SceneEnvironmentController({
     inspectionMode,
     pbrEnabled,
     unlitEnabled,
+    environmentPreset,
+    environmentStrength,
+    environmentRotation,
+    environmentAutoRotate,
 }: {
     inspectionMode: HeavyInspectionMode;
     pbrEnabled: boolean;
     unlitEnabled: boolean;
+    environmentPreset: HeavyEnvironmentPreset;
+    environmentStrength: number;
+    environmentRotation: number;
+    environmentAutoRotate: boolean;
 }) {
     const { gl, scene } = useThree();
     const envTextureRef = useRef<THREE.Texture | null>(null);
+    const presetDefinition = getEnvironmentPresetDefinition(environmentPreset);
 
     useEffect(() => {
         const environment = new RoomEnvironment();
@@ -973,32 +1480,43 @@ function SceneEnvironmentController({
     useEffect(() => {
         // Three renderer exposure is runtime state, not React props.
         // eslint-disable-next-line react-hooks/immutability
-        gl.toneMappingExposure = toneMappingExposureByMode[inspectionMode];
-        gl.setClearColor(clearColorByMode[inspectionMode], 1);
+        gl.toneMappingExposure = toneMappingExposureByMode[inspectionMode] * presetDefinition.exposure;
+        gl.setClearColor(clearColorByMode[inspectionMode], 0);
 
         // Three scene environment is renderer-owned runtime state.
         /* eslint-disable react-hooks/immutability */
         if (inspectionMode === "material" && !unlitEnabled) {
             scene.environment = envTextureRef.current;
-            scene.environmentIntensity = pbrEnabled ? 0.62 : 0.2;
+            scene.environmentIntensity = (pbrEnabled ? 0.95 : 0.45) * presetDefinition.environmentIntensity * environmentStrength;
         } else if (inspectionMode === "toon") {
             scene.environment = envTextureRef.current;
-            scene.environmentIntensity = 0.18;
+            scene.environmentIntensity = 0.3 * presetDefinition.environmentIntensity * environmentStrength;
         } else if (inspectionMode === "solid") {
             scene.environment = envTextureRef.current;
-            scene.environmentIntensity = 0.08;
+            scene.environmentIntensity = unlitEnabled
+                ? 0
+                : 0.24 * presetDefinition.environmentIntensity * environmentStrength;
         } else {
             scene.environment = null;
             scene.environmentIntensity = 1;
         }
+        scene.environmentRotation.set(0, THREE.MathUtils.degToRad(environmentRotation), 0);
 
         return () => {
             scene.environment = null;
             scene.environmentIntensity = 1;
+            scene.environmentRotation.set(0, 0, 0);
             gl.toneMappingExposure = 1;
         };
         /* eslint-enable react-hooks/immutability */
-    }, [gl, inspectionMode, pbrEnabled, scene, unlitEnabled]);
+    }, [environmentAutoRotate, environmentRotation, environmentStrength, gl, inspectionMode, pbrEnabled, presetDefinition, scene, unlitEnabled]);
+
+    useFrame((_, delta) => {
+        if (!environmentAutoRotate || !scene.environment) return;
+        // Three scene environment rotation is runtime renderer state.
+        // eslint-disable-next-line react-hooks/immutability
+        scene.environmentRotation.y = (scene.environmentRotation.y + delta * 0.16) % (Math.PI * 2);
+    });
 
     return null;
 }
@@ -1013,12 +1531,22 @@ function applyInspectionMaterials(
     previewMetalness: number,
     previewRoughness: number,
     toonEdgesEnabled: boolean,
+    meshEdgesEnabled: boolean,
     maxAnisotropy: number,
 ) {
-    prepareInspectionGeometry(root, shadingMode);
+    const geometryShadingMode = mode === "geometry" || mode === "solid" ? shadingMode : "smooth";
+    const materialShadingMode =
+        mode === "wireframe" || mode === "geometry" || mode === "solid"
+            ? geometryShadingMode
+            : "smooth";
+
+    prepareInspectionGeometry(root, geometryShadingMode);
     syncToonEdgeOverlay(root, mode === "toon" && toonEdgesEnabled, shadingMode);
+    syncMeshEdgeOverlay(root, mode === "solid" && meshEdgesEnabled, geometryShadingMode);
 
     root.traverse((child) => {
+        if (isInspectionOverlayObject(child)) return;
+
         const mesh = child as THREE.Mesh;
         if (!mesh.isMesh) return;
 
@@ -1035,7 +1563,7 @@ function applyInspectionMaterials(
                 material,
                 mode,
                 tint,
-                shadingMode,
+                materialShadingMode,
                 pbrEnabled,
                 unlitEnabled,
                 previewMetalness,
@@ -1045,8 +1573,8 @@ function applyInspectionMaterials(
         );
         mesh.userData.__generatedMaterials = replacements;
         mesh.material = Array.isArray(mesh.material) || replacements.length > 1 ? replacements : replacements[0];
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
     });
 }
 
@@ -1134,8 +1662,10 @@ function LoadedAsset({
     previewMetalness,
     previewRoughness,
     toonEdgesEnabled,
+    meshEdgesEnabled,
     onReady,
     onError,
+    onBoundsChange,
 }: {
     url: string;
     extension: string;
@@ -1147,8 +1677,10 @@ function LoadedAsset({
     previewMetalness: number;
     previewRoughness: number;
     toonEdgesEnabled: boolean;
+    meshEdgesEnabled: boolean;
     onReady: () => void;
     onError: (error: Error) => void;
+    onBoundsChange: (bounds: ModelBounds | null) => void;
 }) {
     const { gl } = useThree();
     const [scene, setScene] = useState<THREE.Object3D | null>(null);
@@ -1170,6 +1702,20 @@ function LoadedAsset({
                     return;
                 }
 
+                nextScene.updateMatrixWorld(true);
+                const boundingBox = new THREE.Box3().setFromObject(nextScene);
+                if (!boundingBox.isEmpty()) {
+                    const size = new THREE.Vector3();
+                    boundingBox.getSize(size);
+                    onBoundsChange({
+                        minY: boundingBox.min.y,
+                        sizeX: size.x,
+                        sizeZ: size.z,
+                    });
+                } else {
+                    onBoundsChange(null);
+                }
+
                 loadedScene = nextScene;
                 setScene(nextScene);
             } catch (error) {
@@ -1183,11 +1729,12 @@ function LoadedAsset({
 
         return () => {
             cancelled = true;
+            onBoundsChange(null);
             if (loadedScene) {
                 disposeLoadedAssetResources(loadedScene);
             }
         };
-    }, [extension, onError, url]);
+    }, [extension, onBoundsChange, onError, url]);
 
     useEffect(() => {
         if (!scene) {
@@ -1218,19 +1765,71 @@ function LoadedAsset({
             previewMetalness,
             previewRoughness,
             toonEdgesEnabled,
+            meshEdgesEnabled,
             maxAnisotropy,
         );
 
         return () => {
             disposeGeneratedMaterials(scene);
         };
-    }, [inspectionMode, inspectionTint, maxAnisotropy, pbrEnabled, previewMetalness, previewRoughness, scene, shadingMode, toonEdgesEnabled, unlitEnabled]);
+    }, [inspectionMode, inspectionTint, maxAnisotropy, meshEdgesEnabled, pbrEnabled, previewMetalness, previewRoughness, scene, shadingMode, toonEdgesEnabled, unlitEnabled]);
 
     if (!scene) {
         return null;
     }
 
     return <primitive object={scene} />;
+}
+
+function buildFloorGridGeometry(size: number, divisions: number) {
+    const geometry = new THREE.BufferGeometry();
+    const halfSize = size / 2;
+    const step = size / divisions;
+    const positions: number[] = [];
+
+    for (let index = 0; index <= divisions; index += 1) {
+        const offset = -halfSize + index * step;
+        positions.push(-halfSize, 0, offset, halfSize, 0, offset);
+        positions.push(offset, 0, -halfSize, offset, 0, halfSize);
+    }
+
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    return geometry;
+}
+
+function FloorGrid({ y, size, cellSize }: { y: number; size: number; cellSize: number }) {
+    const fineDivisions = Math.max(8, Math.round(size / cellSize));
+    const fineGeometry = useMemo(
+        () => buildFloorGridGeometry(size, fineDivisions),
+        [fineDivisions, size],
+    );
+    const sectionGeometry = useMemo(
+        () => buildFloorGridGeometry(size, 2),
+        [size],
+    );
+
+    return (
+        <group position={[0, y, 0]} renderOrder={-1}>
+            <lineSegments geometry={fineGeometry}>
+                <lineBasicMaterial
+                    color="#455160"
+                    transparent
+                    opacity={0.68}
+                    depthWrite={false}
+                    toneMapped={false}
+                />
+            </lineSegments>
+            <lineSegments geometry={sectionGeometry}>
+                <lineBasicMaterial
+                    color="#9aa6b5"
+                    transparent
+                    opacity={0.86}
+                    depthWrite={false}
+                    toneMapped={false}
+                />
+            </lineSegments>
+        </group>
+    );
 }
 
 function HeavyModelViewerInner({
@@ -1245,8 +1844,14 @@ function HeavyModelViewerInner({
     pbrEnabled = true,
     unlitEnabled = false,
     toonEdgesEnabled = true,
+    meshEdgesEnabled = false,
     previewMetalness = 1,
     previewRoughness = 1,
+    environmentPreset = "studio",
+    environmentStrength = 1,
+    environmentRotation = 0,
+    environmentAutoRotate = false,
+    floorGridEnabled = false,
 }: Omit<HeavyModelViewerProps, "url"> & { safeUrl: string }) {
     const frameRef = useRef<HTMLDivElement | null>(null);
     const viewerApiRef = useRef<ViewerApi | null>(null);
@@ -1256,6 +1861,7 @@ function HeavyModelViewerInner({
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isRevealPending, setIsRevealPending] = useState(false);
+    const [modelBounds, setModelBounds] = useState<ModelBounds | null>(null);
     const desktopRevealAvailable =
         typeof window !== "undefined" &&
         typeof window.vipermesh?.revealItemInFolder === "function";
@@ -1279,89 +1885,114 @@ function HeavyModelViewerInner({
         setErrorMessage(`Failed to load 3D model (${error.message})`);
     }, []);
     const useMaterialView = inspectionMode === "material";
-    const useFlatLighting = useMaterialView && !unlitEnabled && shadingMode === "flat";
+    const usePresentationLighting =
+        inspectionMode === "material" || inspectionMode === "solid" || inspectionMode === "toon";
+    const lightingDisabledForMode =
+        unlitEnabled && (inspectionMode === "material" || inspectionMode === "solid");
+    const useFlatLighting = usePresentationLighting && !lightingDisabledForMode && shadingMode === "flat";
+    const environmentLighting = getEnvironmentPresetDefinition(environmentPreset);
     const materialAmbientIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 0.42
+            ? (useFlatLighting ? 0.58 : 0.86)
             : inspectionMode === "solid"
-                ? 0.28
+                ? (useFlatLighting ? 0.42 : 0.72)
                 : 0.92
         : unlitEnabled
             ? 0.15
             : useFlatLighting
-                ? (pbrEnabled ? 0.18 : 0.24)
+                ? (pbrEnabled ? 0.68 : 0.74)
                 : pbrEnabled
-                    ? 0.34
-                    : 0.5;
+                    ? 0.56
+                    : 0.66;
     const materialHemisphereIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 0.72
+            ? (useFlatLighting ? 0.82 : 1.08)
             : inspectionMode === "solid"
-                ? 0.58
+                ? (useFlatLighting ? 0.72 : 0.98)
                 : 1.45
         : unlitEnabled
             ? 0.15
             : useFlatLighting
-                ? (pbrEnabled ? 0.24 : 0.34)
+                ? (pbrEnabled ? 1.18 : 1.24)
                 : pbrEnabled
-                    ? 0.62
-                    : 0.92;
+                    ? 1.02
+                    : 1.12;
     const keyDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 2.75
+            ? (useFlatLighting ? 0.46 : 0.36)
             : inspectionMode === "solid"
-                ? 1.95
+                ? (useFlatLighting ? 0.38 : 0.32)
                 : 2.15
         : unlitEnabled
             ? 0.1
             : useFlatLighting
-                ? (pbrEnabled ? 2.15 : 2.4)
+                ? (pbrEnabled ? 0.42 : 0.48)
                 : pbrEnabled
-                    ? 1.35
-                    : 1.68;
+                    ? 0.62
+                    : 0.72;
     const fillDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 0.18
+            ? (useFlatLighting ? 0.08 : 0.06)
             : inspectionMode === "solid"
-                ? 0.18
+                ? (useFlatLighting ? 0.08 : 0.06)
                 : 0.9
         : unlitEnabled
             ? 0.08
             : useFlatLighting
-                ? (pbrEnabled ? 0.16 : 0.22)
+                ? (pbrEnabled ? 0.08 : 0.1)
                 : pbrEnabled
-                    ? 0.42
-                    : 0.58;
+                    ? 0.18
+                    : 0.24;
     const coolDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 0.08
+            ? (useFlatLighting ? 0.08 : 0.04)
             : inspectionMode === "solid"
-                ? 0.08
+                ? (useFlatLighting ? 0.08 : 0.04)
                 : 0.45
         : unlitEnabled
             ? 0.06
             : useFlatLighting
-                ? (pbrEnabled ? 0.12 : 0.18)
+                ? (pbrEnabled ? 0.06 : 0.08)
                 : pbrEnabled
-                    ? 0.22
-                    : 0.34;
+                    ? 0.12
+                    : 0.16;
     const rimDirectionalIntensity = !useMaterialView
         ? inspectionMode === "toon"
-            ? 0.28
+            ? (useFlatLighting ? 0.08 : 0.06)
             : inspectionMode === "solid"
-                ? 0.12
+                ? (useFlatLighting ? 0.06 : 0.04)
                 : 0.28
         : unlitEnabled
             ? 0.04
             : useFlatLighting
-                ? (pbrEnabled ? 0.08 : 0.12)
+                ? (pbrEnabled ? 0.04 : 0.06)
                 : pbrEnabled
-                    ? 0.12
-                    : 0.2;
+                    ? 0.08
+                    : 0.1;
+    const resolvedAmbientIntensity = materialAmbientIntensity * environmentLighting.ambient;
+    const resolvedHemisphereIntensity = materialHemisphereIntensity * environmentLighting.hemisphere;
+    const resolvedKeyDirectionalIntensity = keyDirectionalIntensity * environmentLighting.key;
+    const resolvedFillDirectionalIntensity = fillDirectionalIntensity * environmentLighting.fill;
+    const resolvedCoolDirectionalIntensity = coolDirectionalIntensity * environmentLighting.cool;
+    const resolvedRimDirectionalIntensity = rimDirectionalIntensity * environmentLighting.rim;
+    const floorGrid = useMemo(() => {
+        const horizontalSize = modelBounds ? Math.max(modelBounds.sizeX, modelBounds.sizeZ) : 4;
+        const gridSize = THREE.MathUtils.clamp(horizontalSize * 1.35, 3.5, 9);
+
+        return {
+            y: modelBounds ? modelBounds.minY - 0.004 : -1.6,
+            size: gridSize,
+            cellSize: THREE.MathUtils.clamp(gridSize / 8, 0.32, 0.75),
+        };
+    }, [modelBounds]);
+    const handleModelBoundsChange = React.useCallback((bounds: ModelBounds | null) => {
+        setModelBounds(bounds);
+    }, []);
 
     useEffect(() => {
         setStatus(modelExtension ? "loading" : "error");
         setErrorMessage(modelExtension ? null : "Unsupported model format");
+        setModelBounds(null);
     }, [modelExtension, safeUrl]);
 
     useEffect(() => {
@@ -1408,7 +2039,7 @@ function HeavyModelViewerInner({
             const objectUrl = URL.createObjectURL(blob);
             const anchor = document.createElement("a");
             anchor.href = objectUrl;
-            anchor.download = getDownloadFilename(safeUrl);
+            anchor.download = getDownloadFilename(safeUrl, response.headers.get("content-disposition"));
             anchor.rel = "noopener noreferrer";
             document.body.appendChild(anchor);
             anchor.click();
@@ -1471,7 +2102,6 @@ function HeavyModelViewerInner({
             </div>
 
             <Canvas
-                shadows
                 camera={{ position: [0, 1.4, 4.8], fov: 32 }}
                 gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
                 onCreated={({ gl }) => {
@@ -1479,16 +2109,39 @@ function HeavyModelViewerInner({
                 }}
                 className="h-full w-full"
             >
-                <color attach="background" args={[clearColorByMode[inspectionMode]]} />
-                <SceneEnvironmentController inspectionMode={inspectionMode} pbrEnabled={pbrEnabled} unlitEnabled={unlitEnabled} />
-                <ambientLight intensity={materialAmbientIntensity} />
-                <hemisphereLight
-                    args={["#f8fafc", "#1e293b", materialHemisphereIntensity]}
+                <SceneEnvironmentController
+                    inspectionMode={inspectionMode}
+                    pbrEnabled={pbrEnabled}
+                    unlitEnabled={unlitEnabled}
+                    environmentPreset={environmentPreset}
+                    environmentStrength={environmentStrength}
+                    environmentRotation={environmentRotation}
+                    environmentAutoRotate={environmentAutoRotate}
                 />
-                <directionalLight position={[5.5, 7, 4.5]} intensity={keyDirectionalIntensity} castShadow />
-                <directionalLight position={[-4, 3, -5]} intensity={fillDirectionalIntensity} />
-                <directionalLight position={[0, 4, -7]} intensity={coolDirectionalIntensity} color="#dbeafe" />
-                <directionalLight position={[0, -1.5, 5]} intensity={rimDirectionalIntensity} color="#f8fafc" />
+                <ambientLight intensity={resolvedAmbientIntensity} />
+                <hemisphereLight
+                    args={[environmentLighting.skyColor, environmentLighting.groundColor, resolvedHemisphereIntensity]}
+                />
+                <directionalLight
+                    position={[5.5, 7, 4.5]}
+                    intensity={resolvedKeyDirectionalIntensity}
+                    color={environmentLighting.keyColor}
+                />
+                <directionalLight
+                    position={[-4, 3, -5]}
+                    intensity={resolvedFillDirectionalIntensity}
+                    color={environmentLighting.fillColor}
+                />
+                <directionalLight
+                    position={[0, 4, -7]}
+                    intensity={resolvedCoolDirectionalIntensity}
+                    color={environmentLighting.coolColor}
+                />
+                <directionalLight
+                    position={[0, -1.5, 5]}
+                    intensity={resolvedRimDirectionalIntensity}
+                    color={environmentLighting.rimColor}
+                />
                 <ViewerErrorBoundary
                     onError={(error) => {
                         console.error("HeavyModelViewer: model load failure", error);
@@ -1521,23 +2174,22 @@ function HeavyModelViewerInner({
                                 pbrEnabled={pbrEnabled}
                                 unlitEnabled={unlitEnabled}
                                 toonEdgesEnabled={toonEdgesEnabled}
+                                meshEdgesEnabled={meshEdgesEnabled}
                                 previewMetalness={previewMetalness}
                                 previewRoughness={previewRoughness}
                                 onReady={handleAssetReady}
                                 onError={handleAssetError}
+                                onBoundsChange={handleModelBoundsChange}
                             />
                         ) : null}
                     </Bounds>
-                    <ContactShadows
-                        position={[0, -1.6, 0]}
-                        opacity={inspectionMode === "material" ? 0.2 : inspectionMode === "toon" ? 0.12 : inspectionMode === "solid" ? 0.14 : 0.08}
-                        scale={18}
-                        blur={2.6}
-                        far={6}
-                        resolution={512}
-                        color="#000000"
-                        frames={1}
-                    />
+                    {floorGridEnabled && (
+                        <FloorGrid
+                            y={floorGrid.y}
+                            size={floorGrid.size}
+                            cellSize={floorGrid.cellSize}
+                        />
+                    )}
                 </ViewerErrorBoundary>
             </Canvas>
 

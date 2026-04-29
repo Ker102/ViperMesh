@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Loader2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, RefreshCw, SlidersHorizontal, Square } from "lucide-react"
-import { HeavyModelViewer } from "@/components/generation/HeavyModelViewer"
+import {
+    HEAVY_ENVIRONMENT_PRESETS,
+    HeavyModelViewer,
+    type HeavyEnvironmentPreset,
+} from "@/components/generation/HeavyModelViewer"
 import { cn } from "@/lib/utils"
 import {
     CATEGORIES,
@@ -69,13 +73,6 @@ interface NeuralRunResponse {
     viewerUrl?: string | null
     generationTimeMs?: number
     error?: string
-}
-
-interface ViewerSample {
-    id: string
-    name: string
-    source: string
-    url: string
 }
 
 function buildPersistedNeuralState(run: ActiveNeuralRun): WorkflowTimelineNeuralState {
@@ -328,6 +325,7 @@ function MeshAttachmentCard({
                 >
                     <AssetPreviewTile
                         imageUrl={previewImageUrl}
+                        modelUrl={value}
                         alt="Attached model preview"
                         stageLabel={stageLabel}
                         providerLabel={providerLabel}
@@ -1005,8 +1003,14 @@ function NeuralViewerStage({
     const [pbrEnabled, setPbrEnabled] = useState(true)
     const [unlitEnabled, setUnlitEnabled] = useState(false)
     const [toonEdgesEnabled, setToonEdgesEnabled] = useState(true)
+    const [meshEdgesEnabled, setMeshEdgesEnabled] = useState(false)
     const [previewMetalness, setPreviewMetalness] = useState(0.5)
     const [previewRoughness, setPreviewRoughness] = useState(0.55)
+    const [environmentPreset, setEnvironmentPreset] = useState<HeavyEnvironmentPreset>("studio")
+    const [environmentStrength, setEnvironmentStrength] = useState(1)
+    const [environmentRotation, setEnvironmentRotation] = useState(0)
+    const [environmentAutoRotate, setEnvironmentAutoRotate] = useState(false)
+    const [floorGridEnabled, setFloorGridEnabled] = useState(false)
     const [showViewSettings, setShowViewSettings] = useState(false)
     const displayViewerLabel =
         viewerSource === "input" && viewerUrl
@@ -1023,11 +1027,14 @@ function NeuralViewerStage({
     }[inspectionMode]
     const supportsShadingControls =
         inspectionMode === "material" ||
-        inspectionMode === "toon" ||
         inspectionMode === "geometry" ||
-        inspectionMode === "solid"
+        inspectionMode === "solid" ||
+        inspectionMode === "toon"
     const supportsTintControls = inspectionMode === "geometry" || inspectionMode === "wireframe"
     const supportsMaterialControls = inspectionMode === "material"
+    const supportsLightingControls = inspectionMode === "material" || inspectionMode === "solid"
+    const supportsEnvironmentControls =
+        inspectionMode === "material" || inspectionMode === "solid" || inspectionMode === "toon"
     const shadingControlsEnabled = !(inspectionMode === "material" && unlitEnabled)
 
     const viewSettingsOpen = showViewSettings && Boolean(viewerUrl) && inspectionMode !== "stats"
@@ -1049,8 +1056,14 @@ function NeuralViewerStage({
                     pbrEnabled={pbrEnabled}
                     unlitEnabled={unlitEnabled}
                     toonEdgesEnabled={toonEdgesEnabled}
+                    meshEdgesEnabled={meshEdgesEnabled}
                     previewMetalness={previewMetalness}
                     previewRoughness={previewRoughness}
+                    environmentPreset={environmentPreset}
+                    environmentStrength={environmentStrength}
+                    environmentRotation={environmentRotation}
+                    environmentAutoRotate={environmentAutoRotate}
+                    floorGridEnabled={floorGridEnabled}
                 />
             ) : (
                 <div
@@ -1181,7 +1194,7 @@ function NeuralViewerStage({
                     <div className="pointer-events-auto flex flex-col items-center gap-2">
                         {viewSettingsOpen && (
                             <div
-                                className="w-[min(360px,calc(100vw-3rem))] rounded-3xl border px-4 py-4 text-[11px] font-medium shadow-2xl backdrop-blur"
+                                className="max-h-[min(76vh,680px)] w-[min(380px,calc(100vw-3rem))] overflow-y-auto rounded-3xl border px-4 py-4 text-[11px] font-medium shadow-2xl backdrop-blur"
                                 style={{
                                     borderColor: "rgba(255,255,255,0.14)",
                                     backgroundColor: "rgba(15, 23, 42, 0.84)",
@@ -1246,32 +1259,34 @@ function NeuralViewerStage({
                                             </div>
                                         </div>
                                     )}
-                                    {supportsMaterialControls && (
+                                    {supportsLightingControls && (
                                         <div className="space-y-3">
                                             <div className="grid grid-cols-2 gap-3">
-                                                <div className="space-y-2">
-                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
-                                                        PBR
-                                                    </p>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setPbrEnabled((current) => !current)}
-                                                        className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
-                                                        style={pbrEnabled
-                                                            ? {
-                                                                backgroundColor: "rgba(45,212,191,0.2)",
-                                                                color: "white",
-                                                            }
-                                                            : {
-                                                                backgroundColor: "rgba(255,255,255,0.05)",
-                                                                color: "rgba(226,232,240,0.84)",
-                                                            }}
-                                                        title="Toggle PBR shading"
-                                                    >
-                                                        <span>Physical</span>
-                                                        <span>{pbrEnabled ? "On" : "Off"}</span>
-                                                    </button>
-                                                </div>
+                                                {supportsMaterialControls && (
+                                                    <div className="space-y-2">
+                                                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                            PBR
+                                                        </p>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setPbrEnabled((current) => !current)}
+                                                            className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                                            style={pbrEnabled
+                                                                ? {
+                                                                    backgroundColor: "rgba(45,212,191,0.2)",
+                                                                    color: "white",
+                                                                }
+                                                                : {
+                                                                    backgroundColor: "rgba(255,255,255,0.05)",
+                                                                    color: "rgba(226,232,240,0.84)",
+                                                                }}
+                                                            title="Toggle PBR shading"
+                                                        >
+                                                            <span>Physical</span>
+                                                            <span>{pbrEnabled ? "On" : "Off"}</span>
+                                                        </button>
+                                                    </div>
+                                                )}
                                                 <div className="space-y-2">
                                                     <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
                                                         Unlit
@@ -1289,7 +1304,7 @@ function NeuralViewerStage({
                                                     </button>
                                                 </div>
                                             </div>
-                                            {pbrEnabled && !unlitEnabled && (
+                                            {supportsMaterialControls && pbrEnabled && !unlitEnabled && (
                                                 <div className="space-y-3 rounded-2xl border px-3 py-3" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
                                                     <label className="flex items-center gap-3">
                                                         <span className="w-16 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
@@ -1323,13 +1338,99 @@ function NeuralViewerStage({
                                                     </label>
                                                 </div>
                                             )}
-                                            {pbrEnabled && unlitEnabled && (
+                                            {supportsMaterialControls && pbrEnabled && unlitEnabled && (
                                                 <p className="rounded-2xl border px-3 py-2 text-xs leading-relaxed" style={{ borderColor: "rgba(255,255,255,0.08)", color: "rgba(203,213,225,0.82)" }}>
                                                     Metallic and roughness controls apply when Lighting is on.
                                                 </p>
                                             )}
                                         </div>
                                     )}
+                                    {supportsEnvironmentControls && (
+                                        <div className="space-y-3 rounded-2xl border px-3 py-3" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+                                            <div className="flex items-center justify-between gap-3">
+                                                <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                    HDRI
+                                                </p>
+                                                <select
+                                                    value={environmentPreset}
+                                                    onChange={(event) => setEnvironmentPreset(event.target.value as HeavyEnvironmentPreset)}
+                                                    className="h-8 max-w-40 rounded-xl border px-2 text-xs font-semibold outline-none"
+                                                    style={{
+                                                        borderColor: "rgba(255,255,255,0.12)",
+                                                        backgroundColor: "rgba(255,255,255,0.06)",
+                                                        color: "rgba(241,245,249,0.96)",
+                                                    }}
+                                                    aria-label="HDRI environment preset"
+                                                >
+                                                    {HEAVY_ENVIRONMENT_PRESETS.map((preset) => (
+                                                        <option key={preset.id} value={preset.id} className="bg-slate-950 text-slate-100">
+                                                            {preset.label}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <label className="flex items-center gap-3">
+                                                <span className="w-16 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                    Strength
+                                                </span>
+                                                <input
+                                                    type="range"
+                                                    min={0}
+                                                    max={2}
+                                                    step={0.05}
+                                                    value={environmentStrength}
+                                                    onChange={(event) => setEnvironmentStrength(Number(event.target.value))}
+                                                    className="flex-1"
+                                                />
+                                                <span className="w-8 text-right tabular-nums">{environmentStrength.toFixed(2)}</span>
+                                            </label>
+                                            <label className="flex items-center gap-3">
+                                                <span className="w-16 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                    Rotation
+                                                </span>
+                                                <input
+                                                    type="range"
+                                                    min={0}
+                                                    max={360}
+                                                    step={1}
+                                                    value={environmentRotation}
+                                                    disabled={environmentAutoRotate}
+                                                    onChange={(event) => setEnvironmentRotation(Number(event.target.value))}
+                                                    className="flex-1 disabled:opacity-45"
+                                                />
+                                                <span className="w-8 text-right tabular-nums">{Math.round(environmentRotation)}deg</span>
+                                            </label>
+                                            <button
+                                                type="button"
+                                                onClick={() => setEnvironmentAutoRotate((current) => !current)}
+                                                className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                                style={environmentAutoRotate
+                                                    ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
+                                                    : { backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(226,232,240,0.84)" }}
+                                                title="Toggle environment auto-rotation"
+                                            >
+                                                <span>Auto-rotate</span>
+                                                <span>{environmentAutoRotate ? "On" : "Off"}</span>
+                                            </button>
+                                        </div>
+                                    )}
+                                    <div className="space-y-2">
+                                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                            Display
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFloorGridEnabled((current) => !current)}
+                                            className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                            style={floorGridEnabled
+                                                ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
+                                                : { backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(226,232,240,0.84)" }}
+                                            title="Toggle the viewer floor grid"
+                                        >
+                                            <span>Grid</span>
+                                            <span>{floorGridEnabled ? "On" : "Off"}</span>
+                                        </button>
+                                    </div>
                                     {inspectionMode === "toon" && (
                                         <div className="space-y-2">
                                             <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
@@ -1346,6 +1447,25 @@ function NeuralViewerStage({
                                             >
                                                 <span>Ink lines</span>
                                                 <span>{toonEdgesEnabled ? "On" : "Off"}</span>
+                                            </button>
+                                        </div>
+                                    )}
+                                    {inspectionMode === "solid" && (
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
+                                                Topology
+                                            </p>
+                                            <button
+                                                type="button"
+                                                onClick={() => setMeshEdgesEnabled((current) => !current)}
+                                                className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                                style={meshEdgesEnabled
+                                                    ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
+                                                    : { backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(226,232,240,0.84)" }}
+                                                title="Show triangle edges over the solid preview"
+                                            >
+                                                <span>Show edges</span>
+                                                <span>{meshEdgesEnabled ? "On" : "Off"}</span>
                                             </button>
                                         </div>
                                     )}
@@ -1689,10 +1809,8 @@ function NeuralRerunFields({
 function NeuralRunOverlay({
     run,
     referenceImage,
-    viewerSamples,
     draftInputs,
     generatedAssets,
-    onLoadDemo,
     onDraftInputChange,
     onRequestMeshSelection,
     onContinueToSuggestedTool,
@@ -1703,10 +1821,8 @@ function NeuralRunOverlay({
 }: {
     run: ActiveNeuralRun
     referenceImage?: string
-    viewerSamples: ViewerSample[]
     draftInputs: Record<string, string>
     generatedAssets: GeneratedAssetItem[]
-    onLoadDemo: (sample: ViewerSample) => void
     onDraftInputChange: (key: string, value: string) => void
     onRequestMeshSelection: (inputKey: string, currentInputs: Record<string, string>) => void
     onContinueToSuggestedTool: (toolId: string) => void
@@ -1779,68 +1895,6 @@ function NeuralRunOverlay({
             </div>
 
             <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-5">
-                {viewerSamples.length > 0 && (
-                    <div
-                        className="rounded-2xl border p-4"
-                        style={{
-                            borderColor: "hsl(var(--forge-border))",
-                            backgroundColor: "rgba(255,255,255,0.78)",
-                        }}
-                    >
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div className="space-y-1">
-                                <p
-                                    className="text-xs font-semibold uppercase tracking-[0.18em]"
-                                    style={{ color: "hsl(var(--forge-text-subtle))" }}
-                                >
-                                    Viewer demo
-                                </p>
-                                <p
-                                    className="text-sm"
-                                    style={{ color: "hsl(var(--forge-text-muted))" }}
-                                >
-                                    Preview the workspace with a local GLB before a real neural result arrives.
-                                </p>
-                            </div>
-                            {run.viewerSource === "demo" && run.viewerLabel && (
-                                <span
-                                    className="rounded-full border px-3 py-1 text-xs font-medium"
-                                    style={{
-                                        borderColor: "hsl(var(--forge-border))",
-                                        color: "hsl(var(--forge-accent))",
-                                        backgroundColor: "hsl(var(--forge-accent-subtle))",
-                                    }}
-                                >
-                                    Loaded: {run.viewerLabel}
-                                </span>
-                            )}
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                            {viewerSamples.slice(0, 3).map((sample) => (
-                                <button
-                                    key={sample.id}
-                                    type="button"
-                                    onClick={() => onLoadDemo(sample)}
-                                    className="rounded-full border px-3 py-1.5 text-xs font-medium transition hover:opacity-90"
-                                    style={{
-                                        borderColor: "hsl(var(--forge-border))",
-                                        backgroundColor:
-                                            run.viewerLabel === sample.name && run.viewerSource === "demo"
-                                                ? "hsl(var(--forge-accent-subtle))"
-                                                : "rgba(255,255,255,0.9)",
-                                        color:
-                                            run.viewerLabel === sample.name && run.viewerSource === "demo"
-                                                ? "hsl(var(--forge-accent))"
-                                                : "hsl(var(--forge-text))",
-                                    }}
-                                >
-                                    {sample.name}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
                 <div
                     className="rounded-2xl border p-4"
                     style={{
@@ -2124,7 +2178,6 @@ export function StudioWorkspace({
     const [toolDrafts, setToolDrafts] = useState<Record<string, Record<string, string>>>({})
     const [neuralRun, setNeuralRun] = useState<ActiveNeuralRun | null>(null)
     const [savedNeuralRuns, setSavedNeuralRuns] = useState<Record<string, ActiveNeuralRun>>({})
-    const [viewerSamples, setViewerSamples] = useState<ViewerSample[]>([])
     const [pendingMeshSelection, setPendingMeshSelection] = useState<PendingMeshSelection | null>(null)
     const neuralAbortRef = useRef<AbortController | null>(null)
     const handledExternalLaunchTokenRef = useRef<string | null>(null)
@@ -2261,30 +2314,6 @@ export function StudioWorkspace({
         }))
         setSelectedTool(tool)
     }, [externalToolLaunch])
-
-    useEffect(() => {
-        let cancelled = false
-
-        fetch("/api/generate/3d/samples")
-            .then(async (response) => {
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`)
-                }
-                return response.json() as Promise<{ samples?: ViewerSample[] }>
-            })
-            .then((data) => {
-                if (cancelled) return
-                setViewerSamples(Array.isArray(data.samples) ? data.samples : [])
-            })
-            .catch((error) => {
-                if (cancelled) return
-                console.warn("Failed to load Studio viewer samples", error)
-            })
-
-        return () => {
-            cancelled = true
-        }
-    }, [])
 
     const runNeuralTool = async (tool: ToolEntry, inputs: Record<string, string>, existingStepId?: string) => {
         if (!tool.provider) return
@@ -2497,19 +2526,6 @@ export function StudioWorkspace({
         void runNeuralTool(neuralRun.tool, neuralRun.draftInputs, neuralRun.stepId)
     }
 
-    const handleLoadDemoSample = (sample: ViewerSample) => {
-        setNeuralRun((current) => {
-            if (!current) return current
-            return {
-                ...current,
-                viewerUrl: sample.url,
-                viewerLabel: sample.name,
-                viewerSource: "demo",
-                assetStats: null,
-            }
-        })
-    }
-
     useEffect(() => {
         if (!neuralRun?.viewerUrl || neuralRun.viewerSource === "demo") return
 
@@ -2603,27 +2619,23 @@ export function StudioWorkspace({
                     <button
                         type="button"
                         onClick={handleRestoreNeuralPanel}
-                        className="absolute left-4 top-24 z-30 inline-flex items-center gap-2 rounded-2xl border px-3 py-2 shadow-lg transition hover:opacity-90"
+                        className="absolute left-4 top-1/2 z-30 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-2xl border shadow-lg transition hover:opacity-90"
                         style={{
                             borderColor: "hsl(var(--forge-border))",
                             backgroundColor: "rgba(255,255,255,0.96)",
                             color: "hsl(var(--forge-text-muted))",
                         }}
                         aria-label="Restore neural panel"
+                        title="Restore tool panel"
                     >
                         <PanelLeftOpen className="h-4 w-4" />
-                        <span className="text-xs font-semibold uppercase tracking-[0.14em]">
-                            Tool panel
-                        </span>
                     </button>
                 ) : (
                     <NeuralRunOverlay
                         run={neuralRun}
                         referenceImage={referenceImage}
-                        viewerSamples={viewerSamples}
                         draftInputs={neuralRun.draftInputs}
                         generatedAssets={generatedAssets}
-                        onLoadDemo={handleLoadDemoSample}
                         onDraftInputChange={handleDraftInputChange}
                         onRequestMeshSelection={(inputKey, currentInputs) =>
                             requestNeuralMeshSelection(neuralRun.tool.id, inputKey, currentInputs)

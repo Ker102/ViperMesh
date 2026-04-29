@@ -95,6 +95,33 @@ async function deletePersistedSteps(projectId: string) {
     }
 }
 
+async function fetchSavedAssets(projectId: string): Promise<GeneratedAssetItem[]> {
+    try {
+        const res = await fetch(`/api/projects/assets?projectId=${projectId}`)
+        if (!res.ok) return []
+        const data = await res.json()
+        return Array.isArray(data.assets) ? data.assets as GeneratedAssetItem[] : []
+    } catch (err) {
+        console.warn("[StudioLayout] Failed to fetch saved assets:", err)
+        return []
+    }
+}
+
+function upsertAsset(items: GeneratedAssetItem[], nextAsset: GeneratedAssetItem): GeneratedAssetItem[] {
+    const existingIndex = items.findIndex((item) => item.id === nextAsset.id)
+    if (existingIndex === -1) {
+        return [nextAsset, ...items]
+    }
+
+    const next = [...items]
+    next[existingIndex] = nextAsset
+    return next
+}
+
+function getSavedAssetId(asset: GeneratedAssetItem): string | null {
+    return asset.id.startsWith("saved:") ? asset.id.slice("saved:".length) : null
+}
+
 export function StudioLayout({ projectId }: StudioLayoutProps) {
     const [activeCategory, setActiveCategory] = useState("shape")
     const [generatedAssetsOpen, setGeneratedAssetsOpen] = useState(false)
@@ -121,6 +148,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         asset: GeneratedAssetItem
     } | null>(null)
     const [libraryImportInFlight, setLibraryImportInFlight] = useState(false)
+    const [savedAssets, setSavedAssets] = useState<GeneratedAssetItem[]>([])
 
     // Keep ref in sync with state
     useEffect(() => {
@@ -153,6 +181,16 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         return () => { cancelled = true }
     }, [projectId, selectedStepStorageKey])
 
+    useEffect(() => {
+        let cancelled = false
+        fetchSavedAssets(projectId).then((assets) => {
+            if (!cancelled) {
+                setSavedAssets(assets)
+            }
+        })
+        return () => { cancelled = true }
+    }, [projectId])
+
     // ── Debounced save to API ────────────────────────────────────
     useEffect(() => {
         if (!initialLoadDone.current) return // Don't save until initial load completes
@@ -174,10 +212,23 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         }
     }, [selectedStepId, selectedStepStorageKey])
 
-    const generatedAssets = useMemo<GeneratedAssetItem[]>(
+    const sessionGeneratedAssets = useMemo<GeneratedAssetItem[]>(
         () => extractGeneratedAssets(workflowSteps),
         [workflowSteps]
     )
+    const generatedAssets = useMemo<GeneratedAssetItem[]>(() => {
+        const savedSourceStepIds = new Set(
+            savedAssets
+                .map((asset) => asset.stepId)
+                .filter((stepId) => !stepId.startsWith("saved:")),
+        )
+        const savedViewerUrls = new Set(savedAssets.map((asset) => asset.viewerUrl))
+        const unsavedSessionAssets = sessionGeneratedAssets.filter((asset) =>
+            !savedSourceStepIds.has(asset.stepId) &&
+            !savedViewerUrls.has(asset.viewerUrl)
+        )
+        return [...savedAssets, ...unsavedSessionAssets]
+    }, [savedAssets, sessionGeneratedAssets])
 
     // ── Helpers ──────────────────────────────────────────────────
 
@@ -523,9 +574,51 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         deletePersistedSteps(projectId)
     }, [projectId, selectedStepStorageKey])
 
+    const ensureAssetStep = useCallback((asset: GeneratedAssetItem): WorkflowTimelineStep => {
+        const existing = workflowStepsRef.current.find((item) => item.id === asset.stepId)
+        const nextStep: WorkflowTimelineStep = {
+            ...(existing ?? {}),
+            id: asset.stepId,
+            title: asset.viewerLabel ?? asset.title,
+            toolName: asset.toolName,
+            status: existing?.status ?? "done",
+            hiddenFromTimeline: true,
+            inputs: { ...(existing?.inputs ?? {}), viewerUrl: asset.viewerUrl },
+            neuralState: {
+                ...(existing?.neuralState ?? {}),
+                viewerUrl: asset.viewerUrl,
+                viewerLabel: asset.viewerLabel ?? asset.title,
+                viewerSource: "input",
+                assetOrigin: asset.librarySource === "generated" ? "generated" : "imported",
+                assetStats: asset.assetStats ?? null,
+            },
+        }
+
+        setWorkflowSteps((prev) => {
+            const existingIndex = prev.findIndex((step) => step.id === nextStep.id)
+            if (existingIndex === -1) {
+                return [...prev, nextStep]
+            }
+
+            const current = prev[existingIndex]
+            if (
+                current.neuralState?.viewerUrl === nextStep.neuralState?.viewerUrl &&
+                current.title === nextStep.title &&
+                current.toolName === nextStep.toolName
+            ) {
+                return prev
+            }
+
+            const next = [...prev]
+            next[existingIndex] = nextStep
+            return next
+        })
+        return nextStep
+    }, [])
+
     const handleOpenGeneratedAsset = useCallback((asset: GeneratedAssetItem, options?: { attachToActiveTool?: boolean }) => {
-        const stepId = asset.stepId
-        const step = workflowStepsRef.current.find((item) => item.id === stepId)
+        const step = ensureAssetStep(asset)
+        const stepId = step.id
         const tool = step ? getToolById(step.toolName) : undefined
         if (tool) {
             setActiveCategory(tool.category)
@@ -542,7 +635,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         setGeneratedAssetsOpen(false)
         setAssistantOpen(false)
         setLibrarySelectionMode(null)
-    }, [librarySelectionMode])
+    }, [ensureAssetStep, librarySelectionMode])
 
     const handleRequestLibrarySelection = useCallback((selection: { token: string; label: string }) => {
         setLibrarySelectionMode(selection)
@@ -609,6 +702,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
             }
 
             const asset = payload.asset as GeneratedAssetItem
+            setSavedAssets((current) => upsertAsset(current, asset))
             const importedStep: WorkflowTimelineStep = {
                 id: asset.stepId,
                 title: asset.title,
@@ -643,6 +737,60 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
             setLibraryImportInFlight(false)
         }
     }, [librarySelectionMode, projectId])
+
+    const handleSaveLibraryAsset = useCallback(async (asset: GeneratedAssetItem) => {
+        const savedAssetId = getSavedAssetId(asset)
+        if (savedAssetId) {
+            return
+        }
+
+        try {
+            const response = await fetch("/api/projects/assets/save", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    projectId,
+                    sourceStepId: asset.stepId,
+                    label: asset.viewerLabel ?? asset.title,
+                    viewerUrl: asset.viewerUrl,
+                    assetStats: asset.assetStats ?? undefined,
+                    isPinned: true,
+                }),
+            })
+            const payload = await response.json().catch(() => null)
+            if (!response.ok || !payload?.asset) {
+                throw new Error(payload?.error ?? `Save failed with HTTP ${response.status}`)
+            }
+            setSavedAssets((current) => upsertAsset(current, payload.asset as GeneratedAssetItem))
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed to save asset"
+            window.alert(message)
+        }
+    }, [projectId])
+
+    const handleToggleLibraryAssetPinned = useCallback(async (asset: GeneratedAssetItem) => {
+        const savedAssetId = getSavedAssetId(asset)
+        if (!savedAssetId) {
+            await handleSaveLibraryAsset(asset)
+            return
+        }
+
+        try {
+            const response = await fetch(`/api/projects/assets/${savedAssetId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ isPinned: !asset.isPinned }),
+            })
+            const payload = await response.json().catch(() => null)
+            if (!response.ok || !payload?.asset) {
+                throw new Error(payload?.error ?? `Pin update failed with HTTP ${response.status}`)
+            }
+            setSavedAssets((current) => upsertAsset(current, payload.asset as GeneratedAssetItem))
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed to update asset pin"
+            window.alert(message)
+        }
+    }, [handleSaveLibraryAsset])
 
     const handleToolRunNow = useCallback(
         (tool: ToolEntry, inputs: Record<string, string>) => {
@@ -834,13 +982,14 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                 </button>
 
                 <GeneratedAssetsShelf
-                    projectId={projectId}
                     open={generatedAssetsOpen}
                     assets={generatedAssets}
                     onOpenAsset={handleOpenGeneratedAsset}
                     onContinueToTool={handleContinueGeneratedAssetToTool}
                     onUseAsset={handleUseLibraryAsset}
                     onImportAsset={handleImportLibraryAsset}
+                    onSaveAsset={handleSaveLibraryAsset}
+                    onTogglePinned={handleToggleLibraryAssetPinned}
                     selectionMode={librarySelectionMode}
                     importInFlight={libraryImportInFlight}
                 />
