@@ -20,13 +20,28 @@ interface StudioLayoutProps {
 
 type NeuralStepPatch = Partial<Pick<WorkflowTimelineStep, "status" | "error" | "inputs" | "neuralState">>
 
+const MODEL_EXTENSION_PATTERN = /\.(glb|gltf|fbx|obj|stl)$/i
+
 function isModelAssetUrl(viewerUrl?: string | null, filenameHint?: string | null) {
     if (!viewerUrl) return false
-    return (
-        /\.(glb|gltf|fbx|obj|stl)(?:$|[?#])/i.test(viewerUrl) ||
-        /\.(glb|gltf|fbx|obj|stl)$/i.test(filenameHint ?? "") ||
-        /\/api\/projects\/assets\/[^/]+\/file(?:$|[?#])/i.test(viewerUrl)
-    )
+
+    try {
+        const baseUrl =
+            typeof window !== "undefined"
+                ? window.location.origin
+                : "http://127.0.0.1"
+        const parsed = new URL(viewerUrl, baseUrl)
+        const decodedPathname = decodeURIComponent(parsed.pathname)
+        const filename = parsed.searchParams.get("filename")
+
+        return (
+            MODEL_EXTENSION_PATTERN.test(decodedPathname) ||
+            MODEL_EXTENSION_PATTERN.test(filename ?? "") ||
+            MODEL_EXTENSION_PATTERN.test(filenameHint ?? "")
+        )
+    } catch {
+        return MODEL_EXTENSION_PATTERN.test(filenameHint ?? "")
+    }
 }
 
 function getToolInputKeyByType(toolId: string, type: "mesh" | "image"): string | null {

@@ -182,11 +182,15 @@ export function SavedAssetThumbnailGenerator({
             return
         }
 
+        const controller = new AbortController()
+        const timeoutId = window.setTimeout(() => controller.abort(), 15_000)
+
         try {
             const response = await fetch(`/api/projects/assets/${savedAssetId}/thumbnail`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ imageDataUrl }),
+                signal: controller.signal,
             })
             const payload = await response.json().catch(() => null)
             if (!response.ok || !payload?.asset) {
@@ -199,6 +203,7 @@ export function SavedAssetThumbnailGenerator({
                 error,
             })
         } finally {
+            window.clearTimeout(timeoutId)
             handleComplete()
         }
     }, [activeAsset, handleComplete, onThumbnailSaved])
