@@ -16,7 +16,7 @@ import { readModelStats } from "@/lib/neural/model-stats"
 import { deleteAssetObject, getModelContentType, uploadAssetObject } from "@/lib/projects/asset-storage"
 import {
     buildSavedAssetObjectKey,
-    buildSavedAssetViewerUrl,
+    buildSavedAssetViewerUrlForObjectKey,
     getAssetLabelFromPath,
     mapSavedAssetRecordToGeneratedAsset,
 } from "@/lib/projects/saved-assets"
@@ -102,7 +102,7 @@ export async function POST(request: Request) {
                 sourceStepId,
                 label,
                 objectKey,
-                viewerUrl: buildSavedAssetViewerUrl(assetId),
+                viewerUrl: buildSavedAssetViewerUrlForObjectKey(assetId, objectKey, label),
                 fileSizeBytes: parsedStats.fileSizeBytes,
                 assetStats: assetStats as Prisma.InputJsonValue,
                 librarySource: "generated",
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
 
         return NextResponse.json({
             asset: mapSavedAssetRecordToGeneratedAsset(savedAsset, {
-                viewerUrl: buildSavedAssetViewerUrl(savedAsset.id),
+                viewerUrl: buildSavedAssetViewerUrlForObjectKey(savedAsset.id, savedAsset.objectKey, savedAsset.label),
             }),
         }, { status: 201 })
     } catch (error) {

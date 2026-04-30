@@ -53,6 +53,11 @@ function normalizePackagePath(packagePath: string): string {
         .join("/")
 }
 
+function getObjectKeyFilename(objectKey: string): string | null {
+    const filename = objectKey.split("/").filter(Boolean).at(-1)
+    return filename && filename.includes(".") ? decodeURIComponent(filename) : null
+}
+
 export function buildSavedAssetObjectKey({
     userId,
     projectId,
@@ -99,7 +104,8 @@ export function buildSavedAssetViewerUrlForObjectKey(assetId: string, objectKey:
     const packagePrefix = getSavedAssetPackagePrefix(objectKey)
     if (!packagePrefix) {
         const viewerUrl = buildSavedAssetViewerUrl(assetId)
-        return filename ? `${viewerUrl}?${new URLSearchParams({ filename }).toString()}` : viewerUrl
+        const filenameHint = filename ?? getObjectKeyFilename(objectKey)
+        return filenameHint ? `${viewerUrl}?${new URLSearchParams({ filename: filenameHint }).toString()}` : viewerUrl
     }
 
     return `/api/projects/assets/${assetId}/files/${objectKey.slice(packagePrefix.length)}`
@@ -154,7 +160,7 @@ export function mapSavedAssetRecordToGeneratedAsset(
         title: record.label,
         toolName: sourceToolId,
         toolLabel: sourceToolLabel,
-        viewerUrl: options?.viewerUrl ?? record.viewerUrl ?? buildSavedAssetViewerUrl(record.id),
+        viewerUrl: options?.viewerUrl ?? buildSavedAssetViewerUrlForObjectKey(record.id, record.objectKey, record.label),
         viewerLabel: record.label,
         providerLabel: sourceProvider,
         stageLabel,

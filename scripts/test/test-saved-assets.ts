@@ -38,6 +38,14 @@ function testObjectKeyUsesStableUserProjectAssetPath() {
         "/api/projects/assets/asset-zip/files/Folder%20With%20Spaces/scene%20file.gltf",
     )
     assert.equal(
+        buildSavedAssetViewerUrlForObjectKey("asset-789", key),
+        "/api/projects/assets/asset-789/file?filename=original.glb",
+    )
+    assert.equal(
+        buildSavedAssetViewerUrlForObjectKey("asset-789", key, "dragon.glb"),
+        "/api/projects/assets/asset-789/file?filename=dragon.glb",
+    )
+    assert.equal(
         buildSavedAssetPreviewObjectKey({
             userId: "user-123",
             projectId: "project-456",
@@ -122,6 +130,34 @@ function testSavedAssetMapsToGeneratedAssetItem() {
     assert.equal(
         versionedItem.previewImageUrl,
         "/api/projects/assets/asset-versioned/thumbnail?v=v123",
+    )
+    assert.equal(
+        versionedItem.viewerUrl,
+        "/api/projects/assets/asset-versioned/file?filename=versioned.glb",
+    )
+
+    const inferredViewerItem = mapSavedAssetRecordToGeneratedAsset(
+        {
+            id: "asset-inferred",
+            projectId: "project-456",
+            sourceStepId: null,
+            label: "inferred.glb",
+            objectKey: "users/user-123/projects/project-456/assets/asset-inferred/original.glb",
+            viewerUrl: null,
+            previewObjectKey: null,
+            previewUrl: null,
+            fileSizeBytes: 2048,
+            assetStats: null,
+            librarySource: "imported",
+            isPinned: false,
+            createdAt: new Date("2026-04-25T00:00:00.000Z"),
+            updatedAt: new Date("2026-04-25T00:00:00.000Z"),
+        },
+    )
+
+    assert.equal(
+        inferredViewerItem.viewerUrl,
+        "/api/projects/assets/asset-inferred/file?filename=inferred.glb",
     )
 }
 

@@ -56,7 +56,7 @@ export async function PATCH(
 
     return NextResponse.json({
         asset: mapSavedAssetRecordToGeneratedAsset(savedAsset, {
-            viewerUrl: buildSavedAssetViewerUrlForObjectKey(savedAsset.id, savedAsset.objectKey),
+            viewerUrl: buildSavedAssetViewerUrlForObjectKey(savedAsset.id, savedAsset.objectKey, savedAsset.label),
         }),
     })
 }
