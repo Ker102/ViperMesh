@@ -50,21 +50,34 @@ function getToolInputKeyByType(toolId: string, type: "mesh" | "image"): string |
 }
 
 // ── API persistence helpers (replaces localStorage) ─────────────
-async function fetchPersistedSteps(projectId: string): Promise<WorkflowTimelineStep[]> {
+type PersistedStepsLoadResult =
+    | { ok: true; steps: WorkflowTimelineStep[] }
+    | { ok: false; steps: WorkflowTimelineStep[]; error: unknown }
+
+async function fetchPersistedSteps(projectId: string): Promise<PersistedStepsLoadResult> {
     try {
         const res = await fetch(`/api/projects/studio-session?projectId=${projectId}`)
-        if (!res.ok) return []
+        if (!res.ok) {
+            return {
+                ok: false,
+                steps: [],
+                error: new Error(`Failed to load studio session: HTTP ${res.status}`),
+            }
+        }
         const data = await res.json()
         const steps = data.steps as WorkflowTimelineStep[] | undefined
-        if (!Array.isArray(steps)) return []
+        if (!Array.isArray(steps)) return { ok: true, steps: [] }
         // Steps that were "running" when the page closed can't be resumed — mark as failed
-        return steps.map((step) =>
-            step.status === "running"
-                ? { ...step, status: "failed" as const, error: step.error ?? "Session interrupted" }
-                : step
-        )
-    } catch {
-        return []
+        return {
+            ok: true,
+            steps: steps.map((step) =>
+                step.status === "running"
+                    ? { ...step, status: "failed" as const, error: step.error ?? "Session interrupted" }
+                    : step
+            ),
+        }
+    } catch (error) {
+        return { ok: false, steps: [], error }
     }
 }
 
@@ -178,8 +191,15 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
     // ── Load steps from API on mount ─────────────────────────────
     useEffect(() => {
         let cancelled = false
-        fetchPersistedSteps(projectId).then((steps) => {
+        fetchPersistedSteps(projectId).then((result) => {
             if (!cancelled) {
+                if (!result.ok) {
+                    console.warn("[StudioLayout] Failed to load persisted steps; skipping session autosave to avoid overwriting existing pipeline.", result.error)
+                    setStepsLoading(false)
+                    return
+                }
+
+                const steps = result.steps
                 setWorkflowSteps(steps)
                 if (typeof window !== "undefined") {
                     const restoredSelectedStepId = window.sessionStorage.getItem(selectedStepStorageKey)

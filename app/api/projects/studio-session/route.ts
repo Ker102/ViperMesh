@@ -76,6 +76,19 @@ export async function PUT(req: Request) {
   }
 
   const serializedSteps = steps as Prisma.InputJsonValue
+  const existingSession = await prisma.studioSession.findUnique({
+    where: { projectId },
+    select: { id: true, steps: true },
+  })
+  const existingSteps = Array.isArray(existingSession?.steps) ? existingSession.steps : []
+
+  if (existingSteps.length > 0 && steps.length === 0) {
+    return NextResponse.json({
+      ok: true,
+      ignored: true,
+      reason: "Ignored empty autosave over an existing non-empty Studio session. Use DELETE to clear the timeline.",
+    })
+  }
 
   const studioSession = await prisma.studioSession.upsert({
     where: { projectId },
