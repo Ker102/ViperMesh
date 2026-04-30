@@ -105,13 +105,25 @@ const toneMappingExposureByMode: Record<HeavyInspectionMode, number> = {
 };
 
 export const HEAVY_ENVIRONMENT_PRESETS: Array<{ id: HeavyEnvironmentPreset; label: string }> = [
+    { id: "studio", label: "Studio" },
     { id: "beach", label: "Beach" },
     { id: "desert", label: "Desert" },
     { id: "forest", label: "Forest" },
     { id: "interior", label: "Interior" },
     { id: "night", label: "Night" },
-    { id: "studio", label: "Studio" },
 ];
+
+export const HEAVY_ENVIRONMENT_PRESET_DEFAULTS: Record<HeavyEnvironmentPreset, {
+    strength: number;
+    rotation: number;
+}> = {
+    studio: { strength: 0.92, rotation: 335 },
+    beach: { strength: 1.08, rotation: 42 },
+    desert: { strength: 0.96, rotation: 22 },
+    forest: { strength: 0.9, rotation: 115 },
+    interior: { strength: 0.86, rotation: 310 },
+    night: { strength: 0.78, rotation: 250 },
+};
 
 const environmentPresetDefinitions: Record<HeavyEnvironmentPreset, {
     environmentIntensity: number;
@@ -128,6 +140,7 @@ const environmentPresetDefinitions: Record<HeavyEnvironmentPreset, {
     fillColor: string;
     coolColor: string;
     rimColor: string;
+    background: string;
 }> = {
     beach: {
         environmentIntensity: 1.18,
@@ -144,6 +157,8 @@ const environmentPresetDefinitions: Record<HeavyEnvironmentPreset, {
         fillColor: "#dbeafe",
         coolColor: "#bae6fd",
         rimColor: "#ffffff",
+        background:
+            "radial-gradient(circle at 46% 38%, rgba(138, 174, 190, 0.46), rgba(55, 68, 78, 0.88) 43%, rgba(20, 26, 32, 0.98) 80%, #101419 100%)",
     },
     desert: {
         environmentIntensity: 1.08,
@@ -160,6 +175,8 @@ const environmentPresetDefinitions: Record<HeavyEnvironmentPreset, {
         fillColor: "#fef3c7",
         coolColor: "#dbeafe",
         rimColor: "#fff7ed",
+        background:
+            "radial-gradient(circle at 47% 38%, rgba(148, 118, 85, 0.42), rgba(62, 56, 48, 0.9) 43%, rgba(24, 23, 22, 0.98) 80%, #121212 100%)",
     },
     forest: {
         environmentIntensity: 0.82,
@@ -176,6 +193,8 @@ const environmentPresetDefinitions: Record<HeavyEnvironmentPreset, {
         fillColor: "#bbf7d0",
         coolColor: "#bfdbfe",
         rimColor: "#ecfccb",
+        background:
+            "radial-gradient(circle at 46% 38%, rgba(82, 116, 94, 0.44), rgba(39, 55, 49, 0.92) 43%, rgba(17, 25, 25, 0.98) 80%, #0d1213 100%)",
     },
     interior: {
         environmentIntensity: 0.74,
@@ -192,6 +211,8 @@ const environmentPresetDefinitions: Record<HeavyEnvironmentPreset, {
         fillColor: "#f8fafc",
         coolColor: "#c7d2fe",
         rimColor: "#fef9c3",
+        background:
+            "radial-gradient(circle at 48% 39%, rgba(127, 118, 108, 0.38), rgba(55, 55, 57, 0.92) 42%, rgba(21, 23, 27, 0.98) 80%, #101216 100%)",
     },
     night: {
         environmentIntensity: 0.44,
@@ -208,22 +229,26 @@ const environmentPresetDefinitions: Record<HeavyEnvironmentPreset, {
         fillColor: "#64748b",
         coolColor: "#60a5fa",
         rimColor: "#e0f2fe",
+        background:
+            "radial-gradient(circle at 48% 39%, rgba(58, 78, 116, 0.36), rgba(24, 35, 57, 0.94) 42%, rgba(8, 13, 24, 0.99) 80%, #050914 100%)",
     },
     studio: {
-        environmentIntensity: 0.88,
-        exposure: 1.02,
-        ambient: 1.08,
-        hemisphere: 1.12,
-        key: 0.78,
-        fill: 1.32,
-        cool: 0.72,
-        rim: 1.36,
+        environmentIntensity: 1,
+        exposure: 1.06,
+        ambient: 1.14,
+        hemisphere: 1.2,
+        key: 0.92,
+        fill: 1.18,
+        cool: 0.64,
+        rim: 1.24,
         skyColor: "#ffffff",
-        groundColor: "#334155",
+        groundColor: "#2f3945",
         keyColor: "#ffffff",
         fillColor: "#e2e8f0",
         coolColor: "#dbeafe",
         rimColor: "#ffffff",
+        background:
+            "radial-gradient(circle at 48% 38%, rgba(112, 123, 137, 0.5), rgba(48, 57, 68, 0.92) 42%, rgba(18, 23, 31, 0.99) 79%, #0f131a 100%)",
     },
 };
 
@@ -1975,6 +2000,9 @@ function HeavyModelViewerInner({
     const resolvedFillDirectionalIntensity = fillDirectionalIntensity * environmentLighting.fill;
     const resolvedCoolDirectionalIntensity = coolDirectionalIntensity * environmentLighting.cool;
     const resolvedRimDirectionalIntensity = rimDirectionalIntensity * environmentLighting.rim;
+    const viewerBackground = usePresentationLighting
+        ? environmentLighting.background
+        : frameBackgroundByMode[inspectionMode];
     const floorGrid = useMemo(() => {
         const horizontalSize = modelBounds ? Math.max(modelBounds.sizeX, modelBounds.sizeZ) : 4;
         const gridSize = THREE.MathUtils.clamp(horizontalSize * 1.35, 3.5, 9);
@@ -2093,7 +2121,7 @@ function HeavyModelViewerInner({
                 "relative h-96 w-full overflow-hidden rounded-lg border border-white/10",
                 className,
             )}
-            style={{ background: frameBackgroundByMode[inspectionMode] }}
+            style={{ background: viewerBackground }}
             role="img"
             aria-label="Interactive advanced 3D model viewer. Drag to orbit the camera, scroll to zoom, and right-click drag to pan."
         >
