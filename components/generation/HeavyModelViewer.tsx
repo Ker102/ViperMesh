@@ -257,6 +257,7 @@ function getEnvironmentPresetDefinition(preset: HeavyEnvironmentPreset) {
 }
 
 const SUPPORTED_VIEWER_EXTENSIONS = new Set([".glb", ".gltf", ".fbx", ".obj", ".stl"]);
+const SUPPORTED_VIEWER_FORMAT_LABEL = "GLB, GLTF, FBX, OBJ, or STL";
 const NORMAL_MERGE_TOLERANCE_RATIO = 0.005;
 const MIN_NORMAL_MERGE_TOLERANCE = 0.0001;
 
@@ -471,6 +472,45 @@ function inferModelExtension(safeUrl: string): string | null {
     } catch {
         return null;
     }
+}
+
+function getModelUrlFilenameHint(safeUrl: string): string | null {
+    try {
+        const parsed = new URL(
+            safeUrl,
+            typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1",
+        );
+        const queryPath = parsed.searchParams.get("filename") ?? parsed.searchParams.get("path");
+        const candidate = queryPath
+            ? decodeURIComponent(queryPath)
+            : parsed.pathname.split("/").map((segment) => decodeURIComponent(segment)).join("/");
+        return candidate.split(/[\\/]/).filter(Boolean).at(-1) ?? null;
+    } catch {
+        return safeUrl.split(/[\\/]/).filter(Boolean).at(-1) ?? null;
+    }
+}
+
+function formatUnsupportedModelMessage(safeUrl: string) {
+    const filename = getModelUrlFilenameHint(safeUrl);
+    return filename
+        ? `Unsupported model format for "${filename}". Use ${SUPPORTED_VIEWER_FORMAT_LABEL}, or upload a ZIP that contains one of those formats.`
+        : `Unsupported model format. Use ${SUPPORTED_VIEWER_FORMAT_LABEL}, or upload a ZIP that contains one of those formats.`;
+}
+
+function formatViewerLoadError(error: Error, safeUrl: string) {
+    const filename = getModelUrlFilenameHint(safeUrl);
+    const prefix = filename ? `Failed to load "${filename}".` : "Failed to load 3D model.";
+    const message = error.message || "";
+
+    if (/networkerror|failed to fetch|fetch resource|load failed/i.test(message)) {
+        return `${prefix} The model file could not be fetched. Refresh the asset or reopen it from the library to request a fresh signed URL.`;
+    }
+
+    if (/unsupported model format/i.test(message)) {
+        return formatUnsupportedModelMessage(safeUrl);
+    }
+
+    return `${prefix} ${message}`;
 }
 
 function collectMaterialTextures(material: THREE.Material, textureSet: Set<THREE.Texture>) {
@@ -1907,8 +1947,8 @@ function HeavyModelViewerInner({
     const handleAssetError = React.useCallback((error: Error) => {
         console.error("HeavyModelViewer: asset load failure", error);
         setStatus("error");
-        setErrorMessage(`Failed to load 3D model (${error.message})`);
-    }, []);
+        setErrorMessage(formatViewerLoadError(error, safeUrl));
+    }, [safeUrl]);
     const useMaterialView = inspectionMode === "material";
     const usePresentationLighting =
         inspectionMode === "material" || inspectionMode === "solid" || inspectionMode === "toon";
@@ -2019,7 +2059,7 @@ function HeavyModelViewerInner({
 
     useEffect(() => {
         setStatus(modelExtension ? "loading" : "error");
-        setErrorMessage(modelExtension ? null : "Unsupported model format");
+        setErrorMessage(modelExtension ? null : formatUnsupportedModelMessage(safeUrl));
         setModelBounds(null);
     }, [modelExtension, safeUrl]);
 
@@ -2174,7 +2214,7 @@ function HeavyModelViewerInner({
                     onError={(error) => {
                         console.error("HeavyModelViewer: model load failure", error);
                         setStatus("error");
-                        setErrorMessage(`Failed to load 3D model (${error.message})`);
+                        setErrorMessage(formatViewerLoadError(error, safeUrl));
                     }}
                 >
                     <OrbitControls

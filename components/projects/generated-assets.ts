@@ -26,6 +26,8 @@ export interface GeneratedAssetItem {
     nextSuggestions: GeneratedAssetSuggestion[]
     librarySource: "generated" | "imported" | "saved"
     isPinned?: boolean
+    createdAt?: string
+    updatedAt?: string
 }
 
 type AssetKind = "character" | "environment" | "object" | "unknown"

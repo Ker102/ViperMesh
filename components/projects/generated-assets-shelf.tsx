@@ -1,7 +1,22 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { ArrowUpRight, Import, Info, Layers3, Save, Star, Tag, Trash2, X } from "lucide-react"
+import {
+    ArrowDownUp,
+    ArrowUpRight,
+    Check,
+    Copy,
+    Import,
+    Info,
+    Layers3,
+    RefreshCw,
+    Save,
+    Search,
+    Star,
+    Tag,
+    Trash2,
+    X,
+} from "lucide-react"
 import { AssetPreviewTile, AssetStatsPills } from "./asset-inspection"
 import {
     buildProjectAssetLibrary,
@@ -16,6 +31,7 @@ const ASSET_SHELF_BUTTON_MOTION =
 const ASSET_SHELF_ICON_MOTION =
     "transition-all duration-200 ease-out hover:-translate-y-0.5 hover:scale-105 hover:shadow-lg active:translate-y-0 active:scale-95 motion-reduce:transition-none"
 const ASSET_SHELF_DRAWER_MOTION = "transition-transform duration-300 ease-out motion-reduce:transition-none"
+const SUPPORTED_MODEL_IMPORT_PATTERN = /\.(glb|gltf|fbx|obj|stl|zip)$/i
 
 function toEditableCategoryId(categoryId?: AssetLibraryCategoryId | null): EditableAssetCategoryId | "auto" {
     return categoryId === "textured" || categoryId === "geometry" || categoryId === "images"
@@ -34,6 +50,7 @@ interface GeneratedAssetsShelfProps {
     onUpdateAsset: (asset: GeneratedAssetItem, patch: AssetLibraryMetadataPatch) => Promise<void> | void
     onDeleteAsset: (asset: GeneratedAssetItem) => Promise<void> | void
     onTogglePinned: (asset: GeneratedAssetItem) => Promise<void> | void
+    onRetryThumbnail: (asset: GeneratedAssetItem) => void
     selectionMode?: {
         label: string
     } | null
@@ -47,6 +64,69 @@ export interface AssetLibraryMetadataPatch {
 }
 
 type EditableAssetCategoryId = "textured" | "geometry" | "images"
+type AssetSortMode = "recent" | "name" | "pinned" | "largest" | "smallest"
+
+function isSupportedImportFile(file: File) {
+    return SUPPORTED_MODEL_IMPORT_PATTERN.test(file.name)
+}
+
+function getAssetSearchText(asset: AssetLibraryItem) {
+    return [
+        asset.title,
+        asset.viewerLabel,
+        asset.toolLabel,
+        asset.providerLabel,
+        asset.stageLabel,
+        asset.userTags.join(" "),
+    ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+}
+
+function getAssetTimestamp(asset: AssetLibraryItem) {
+    const timestamp = asset.createdAt ?? asset.updatedAt
+    return timestamp ? Date.parse(timestamp) || 0 : 0
+}
+
+function sortAssetItems(items: AssetLibraryItem[], sortMode: AssetSortMode) {
+    const next = [...items]
+    next.sort((left, right) => {
+        if (sortMode === "name") {
+            return (left.viewerLabel ?? left.title).localeCompare(right.viewerLabel ?? right.title)
+        }
+        if (sortMode === "pinned") {
+            return Number(Boolean(right.isPinned)) - Number(Boolean(left.isPinned)) || getAssetTimestamp(right) - getAssetTimestamp(left)
+        }
+        if (sortMode === "largest") {
+            return (right.assetStats?.fileSizeBytes ?? 0) - (left.assetStats?.fileSizeBytes ?? 0)
+        }
+        if (sortMode === "smallest") {
+            return (left.assetStats?.fileSizeBytes ?? Number.MAX_SAFE_INTEGER) - (right.assetStats?.fileSizeBytes ?? Number.MAX_SAFE_INTEGER)
+        }
+        return getAssetTimestamp(right) - getAssetTimestamp(left) || Number(Boolean(right.isPinned)) - Number(Boolean(left.isPinned))
+    })
+    return next
+}
+
+function formatAssetDate(timestamp?: string) {
+    if (!timestamp) return "Not recorded"
+    const parsed = new Date(timestamp)
+    if (Number.isNaN(parsed.getTime())) return "Not recorded"
+    return new Intl.DateTimeFormat(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+    }).format(parsed)
+}
+
+function getThumbnailStatus(asset: AssetLibraryItem) {
+    if (asset.previewImageUrl) return "Ready"
+    if (asset.id.startsWith("saved:") && asset.assetKind === "model") return "Pending"
+    return "Not generated"
+}
 
 export function GeneratedAssetsShelf({
     open,
@@ -59,6 +139,7 @@ export function GeneratedAssetsShelf({
     onUpdateAsset,
     onDeleteAsset,
     onTogglePinned,
+    onRetryThumbnail,
     selectionMode,
     importInFlight = false,
 }: GeneratedAssetsShelfProps) {
@@ -66,6 +147,9 @@ export function GeneratedAssetsShelf({
     const [activeCategoryId, setActiveCategoryId] = useState<AssetLibraryCategoryId>("all")
     const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null)
     const [activeAssetId, setActiveAssetId] = useState<string | null>(null)
+    const [searchQuery, setSearchQuery] = useState("")
+    const [sortMode, setSortMode] = useState<AssetSortMode>("recent")
+    const [isDragActive, setIsDragActive] = useState(false)
     const importInputRef = useRef<HTMLInputElement | null>(null)
 
     const effectiveCategoryId = assetLibrary.categories.some((category) => category.id === activeCategoryId)
@@ -73,11 +157,11 @@ export function GeneratedAssetsShelf({
         : "all"
 
     const visibleItems = filterProjectAssetLibraryItems(assetLibrary, effectiveCategoryId)
-    const sortedItems = [...visibleItems].sort((left, right) => {
-        const leftFavorite = left.isPinned ? 1 : 0
-        const rightFavorite = right.isPinned ? 1 : 0
-        return rightFavorite - leftFavorite
-    })
+    const query = searchQuery.trim().toLowerCase()
+    const filteredItems = query
+        ? visibleItems.filter((asset) => getAssetSearchText(asset).includes(query))
+        : visibleItems
+    const sortedItems = sortAssetItems(filteredItems, sortMode)
 
     const selectedAsset = selectedAssetId
         ? assetLibrary.items.find((asset) => asset.id === selectedAssetId) ?? null
@@ -90,6 +174,15 @@ export function GeneratedAssetsShelf({
     const handleOpenAsset = (asset: GeneratedAssetItem, options?: { attachToActiveTool?: boolean }) => {
         setActiveAssetId(asset.id)
         onOpenAsset(asset, options)
+    }
+
+    const handleImportFiles = async (files: FileList | File[]) => {
+        const file = Array.from(files).find(isSupportedImportFile)
+        if (!file) {
+            window.alert("Import a supported model file: GLB, GLTF, FBX, OBJ, STL, or ZIP.")
+            return
+        }
+        await onImportAsset(file)
     }
 
     return (
@@ -111,12 +204,37 @@ export function GeneratedAssetsShelf({
                         setActiveAssetId(null)
                     }
                 }}
+                onRetryThumbnail={onRetryThumbnail}
                 useLivePreview={open}
             />
         )}
         <aside
             aria-hidden={!open}
             inert={!open}
+            onDragEnter={(event) => {
+                if (event.dataTransfer.types.includes("Files")) {
+                    event.preventDefault()
+                    setIsDragActive(true)
+                }
+            }}
+            onDragOver={(event) => {
+                if (event.dataTransfer.types.includes("Files")) {
+                    event.preventDefault()
+                    event.dataTransfer.dropEffect = "copy"
+                    setIsDragActive(true)
+                }
+            }}
+            onDragLeave={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                    setIsDragActive(false)
+                }
+            }}
+            onDrop={async (event) => {
+                event.preventDefault()
+                setIsDragActive(false)
+                if (importInFlight) return
+                await handleImportFiles(event.dataTransfer.files)
+            }}
             className={`absolute inset-y-0 right-0 z-20 flex h-full w-[320px] flex-col border-l shadow-2xl ${ASSET_SHELF_DRAWER_MOTION}`}
             style={{
                 borderColor: "hsl(var(--forge-border))",
@@ -168,6 +286,46 @@ export function GeneratedAssetsShelf({
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 py-4">
+                <div className="mb-3 grid grid-cols-[1fr_auto] gap-2">
+                    <label
+                        className="flex min-w-0 items-center gap-2 rounded-2xl border px-3 py-2 text-xs"
+                        style={{
+                            borderColor: "hsl(var(--forge-border))",
+                            backgroundColor: "hsl(var(--forge-surface-dim))",
+                            color: "hsl(var(--forge-text-muted))",
+                        }}
+                    >
+                        <Search className="h-3.5 w-3.5 shrink-0" />
+                        <input
+                            value={searchQuery}
+                            onChange={(event) => setSearchQuery(event.target.value)}
+                            placeholder="Search assets"
+                            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400"
+                        />
+                    </label>
+                    <label
+                        className="flex items-center gap-1.5 rounded-2xl border px-2 py-2 text-xs"
+                        style={{
+                            borderColor: "hsl(var(--forge-border))",
+                            backgroundColor: "hsl(var(--forge-surface-dim))",
+                            color: "hsl(var(--forge-text-muted))",
+                        }}
+                        title="Sort asset library"
+                    >
+                        <ArrowDownUp className="h-3.5 w-3.5 shrink-0" />
+                        <select
+                            value={sortMode}
+                            onChange={(event) => setSortMode(event.target.value as AssetSortMode)}
+                            className="max-w-[78px] bg-transparent text-xs font-semibold outline-none"
+                        >
+                            <option value="recent">Recent</option>
+                            <option value="pinned">Pinned</option>
+                            <option value="name">Name</option>
+                            <option value="largest">Largest</option>
+                            <option value="smallest">Smallest</option>
+                        </select>
+                    </label>
+                </div>
                 <div className="flex flex-wrap gap-2">
                     {assetLibrary.categories.map((category) => {
                         const isActive = category.id === effectiveCategoryId
@@ -199,6 +357,7 @@ export function GeneratedAssetsShelf({
                     <div className="grid grid-cols-2 gap-3">
                         <ImportAssetTile
                             disabled={importInFlight}
+                            dragActive={isDragActive}
                             onClick={() => importInputRef.current?.click()}
                         />
                         {sortedItems.map((asset, index) => (
@@ -226,7 +385,9 @@ export function GeneratedAssetsShelf({
                         >
                             {assets.length === 0
                                 ? "No project assets yet. Import a GLB, GLTF, FBX, OBJ, STL, or ZIP package and the result will appear here automatically."
-                                : "No assets match this category yet. Switch categories to inspect the rest of the library."}
+                                : query
+                                    ? "No assets match this search. Try another name, tag, provider, or category."
+                                    : "No assets match this category yet. Switch categories to inspect the rest of the library."}
                         </div>
                     )}
                 </div>
@@ -242,10 +403,22 @@ export function GeneratedAssetsShelf({
                     onChange={async (event) => {
                         const file = event.target.files?.[0]
                         if (!file) return
-                        await onImportAsset(file)
+                        await handleImportFiles([file])
                     }}
                 />
             </div>
+            {isDragActive && (
+                <div
+                    className="pointer-events-none absolute inset-3 z-30 flex items-center justify-center rounded-3xl border border-dashed text-center text-sm font-semibold"
+                    style={{
+                        borderColor: "hsl(var(--forge-accent))",
+                        backgroundColor: "rgba(13,148,136,0.12)",
+                        color: "hsl(var(--forge-accent))",
+                    }}
+                >
+                    Drop model to import
+                </div>
+            )}
         </aside>
         </>
     )
@@ -261,6 +434,7 @@ function AssetDetailsPanel({
     onSaveAsset,
     onUpdateAsset,
     onDeleteAsset,
+    onRetryThumbnail,
     useLivePreview,
 }: {
     asset: AssetLibraryItem
@@ -272,6 +446,7 @@ function AssetDetailsPanel({
     onSaveAsset: (asset: AssetLibraryItem) => Promise<void> | void
     onUpdateAsset: (asset: AssetLibraryItem, patch: AssetLibraryMetadataPatch) => Promise<void> | void
     onDeleteAsset: (asset: AssetLibraryItem) => Promise<void> | void
+    onRetryThumbnail: (asset: AssetLibraryItem) => void
     useLivePreview: boolean
 }) {
     const isSavedAsset = asset.id.startsWith("saved:")
@@ -280,6 +455,7 @@ function AssetDetailsPanel({
     const [categoryId, setCategoryId] = useState<EditableAssetCategoryId | "auto">(toEditableCategoryId(asset.libraryCategoryOverride))
     const [isSaving, setIsSaving] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
+    const [copied, setCopied] = useState(false)
 
     useEffect(() => {
         setLabel(asset.viewerLabel ?? asset.title)
@@ -322,6 +498,16 @@ function AssetDetailsPanel({
             await onDeleteAsset(asset)
         } finally {
             setIsDeleting(false)
+        }
+    }
+
+    const handleCopyViewerUrl = async () => {
+        try {
+            await navigator.clipboard.writeText(new URL(asset.viewerUrl, window.location.origin).toString())
+            setCopied(true)
+            window.setTimeout(() => setCopied(false), 1500)
+        } catch {
+            window.alert("Could not copy the viewer URL from this browser session.")
         }
     }
 
@@ -399,6 +585,21 @@ function AssetDetailsPanel({
                 </div>
 
                 <AssetStatsPills stats={asset.assetStats} className="mt-4 flex flex-wrap gap-2" />
+
+                <div
+                    className="mt-4 grid gap-2 rounded-2xl border px-3 py-3 text-xs"
+                    style={{
+                        borderColor: "hsl(var(--forge-border))",
+                        backgroundColor: "hsl(var(--forge-surface-dim))",
+                        color: "hsl(var(--forge-text-muted))",
+                    }}
+                >
+                    <MetadataRow label="Source" value={asset.librarySource === "saved" ? "Saved library asset" : asset.librarySource} />
+                    <MetadataRow label="Storage" value={isSavedAsset ? "Private Cloudflare R2 object" : "Session output"} />
+                    <MetadataRow label="Thumbnail" value={getThumbnailStatus(asset)} />
+                    <MetadataRow label="Created" value={formatAssetDate(asset.createdAt)} />
+                    <MetadataRow label="Updated" value={formatAssetDate(asset.updatedAt)} />
+                </div>
 
                 {!isSavedAsset && (
                     <div
@@ -554,6 +755,34 @@ function AssetDetailsPanel({
                     {isSavedAsset && (
                         <button
                             type="button"
+                            onClick={handleCopyViewerUrl}
+                            className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${ASSET_SHELF_BUTTON_MOTION}`}
+                            style={{
+                                borderColor: "hsl(var(--forge-border))",
+                                color: "hsl(var(--forge-text-muted))",
+                            }}
+                        >
+                            {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                            {copied ? "Copied" : "Copy URL"}
+                        </button>
+                    )}
+                    {isSavedAsset && asset.assetKind === "model" && (
+                        <button
+                            type="button"
+                            onClick={() => onRetryThumbnail(asset)}
+                            className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${ASSET_SHELF_BUTTON_MOTION}`}
+                            style={{
+                                borderColor: "hsl(var(--forge-border))",
+                                color: "hsl(var(--forge-text-muted))",
+                            }}
+                        >
+                            <RefreshCw className="h-3.5 w-3.5" />
+                            Retry thumbnail
+                        </button>
+                    )}
+                    {isSavedAsset && (
+                        <button
+                            type="button"
                             onClick={handleDelete}
                             disabled={isDeleting}
                             className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold disabled:opacity-50 ${ASSET_SHELF_BUTTON_MOTION}`}
@@ -589,6 +818,19 @@ function AssetDetailsPanel({
                     ))}
                 </div>
             </div>
+        </div>
+    )
+}
+
+function MetadataRow({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="flex items-center justify-between gap-3">
+            <span className="font-medium uppercase tracking-[0.13em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                {label}
+            </span>
+            <span className="truncate text-right font-semibold" style={{ color: "hsl(var(--forge-text-muted))" }}>
+                {value}
+            </span>
         </div>
     )
 }
@@ -700,9 +942,11 @@ function AssetLibraryGridCard({
 
 function ImportAssetTile({
     disabled,
+    dragActive,
     onClick,
 }: {
     disabled: boolean
+    dragActive: boolean
     onClick: () => void
 }) {
     return (
@@ -712,9 +956,9 @@ function ImportAssetTile({
             disabled={disabled}
             className={`flex aspect-square flex-col items-center justify-center gap-2 rounded-2xl border border-dashed p-3 text-center disabled:cursor-wait disabled:opacity-70 ${ASSET_SHELF_BUTTON_MOTION}`}
             style={{
-                borderColor: "hsl(var(--forge-border))",
-                backgroundColor: "hsl(var(--forge-surface-dim))",
-                color: "hsl(var(--forge-text-muted))",
+                borderColor: dragActive ? "hsl(var(--forge-accent))" : "hsl(var(--forge-border))",
+                backgroundColor: dragActive ? "hsl(var(--forge-accent-subtle))" : "hsl(var(--forge-surface-dim))",
+                color: dragActive ? "hsl(var(--forge-accent))" : "hsl(var(--forge-text-muted))",
             }}
             title="Import a GLB, GLTF, FBX, OBJ, STL, or packaged ZIP model into this project asset library"
         >
@@ -732,7 +976,7 @@ function ImportAssetTile({
                     {disabled ? "Importing…" : "Import Model"}
                 </p>
                 <p className="text-[11px] leading-relaxed">
-                    Add a reusable GLB, GLTF, FBX, OBJ, STL, or packaged ZIP model.
+                    Click or drop a reusable GLB, GLTF, FBX, OBJ, STL, or packaged ZIP model.
                 </p>
             </div>
         </button>

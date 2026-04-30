@@ -192,6 +192,8 @@ export function mapSavedAssetRecordToGeneratedAsset(
         nextSuggestions: [],
         librarySource: normalizeLibrarySource(record.librarySource),
         isPinned: record.isPinned,
+        createdAt: record.createdAt.toISOString(),
+        updatedAt: record.updatedAt.toISOString(),
     }
 }
 

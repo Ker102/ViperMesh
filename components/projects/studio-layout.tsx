@@ -182,6 +182,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
     } | null>(null)
     const [libraryImportInFlight, setLibraryImportInFlight] = useState(false)
     const [savedAssets, setSavedAssets] = useState<GeneratedAssetItem[]>([])
+    const [thumbnailRetryKey, setThumbnailRetryKey] = useState(0)
 
     // Keep ref in sync with state
     useEffect(() => {
@@ -883,6 +884,26 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         }
     }, [])
 
+    const handleRetryLibraryAssetThumbnail = useCallback((asset: GeneratedAssetItem) => {
+        const savedAssetId = getSavedAssetId(asset)
+        if (!savedAssetId) return
+
+        setSavedAssets((current) => current.map((item) => {
+            if (item.id !== asset.id) return item
+            return {
+                ...item,
+                previewImageUrl: undefined,
+                assetStats: item.assetStats
+                    ? {
+                        ...item.assetStats,
+                        thumbnailVersion: undefined,
+                    }
+                    : item.assetStats,
+            }
+        }))
+        setThumbnailRetryKey((key) => key + 1)
+    }, [])
+
     const handleToolRunNow = useCallback(
         (tool: ToolEntry, inputs: Record<string, string>) => {
             const stepId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
@@ -1083,11 +1104,13 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                     onUpdateAsset={handleUpdateLibraryAsset}
                     onDeleteAsset={handleDeleteLibraryAsset}
                     onTogglePinned={handleToggleLibraryAssetPinned}
+                    onRetryThumbnail={handleRetryLibraryAssetThumbnail}
                     selectionMode={librarySelectionMode}
                     importInFlight={libraryImportInFlight}
                 />
 
                 <SavedAssetThumbnailGenerator
+                    key={thumbnailRetryKey}
                     assets={savedAssets}
                     onThumbnailSaved={(asset) => {
                         setSavedAssets((current) => upsertAsset(current, asset))
