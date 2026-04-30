@@ -131,6 +131,12 @@ function normalizeAssetStats(
         sourceProvider: typeof candidate.sourceProvider === "string" ? candidate.sourceProvider : undefined,
         stageLabel: typeof candidate.stageLabel === "string" ? candidate.stageLabel : undefined,
         thumbnailVersion: typeof candidate.thumbnailVersion === "string" ? candidate.thumbnailVersion : undefined,
+        userTags: Array.isArray(candidate.userTags)
+            ? candidate.userTags.filter((tag): tag is string => typeof tag === "string")
+            : undefined,
+        libraryCategoryOverride: typeof candidate.libraryCategoryOverride === "string"
+            ? candidate.libraryCategoryOverride
+            : undefined,
     }
 
     if (!normalized.fileSizeBytes && fileSizeBytes) {

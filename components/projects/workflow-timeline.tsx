@@ -60,6 +60,8 @@ export interface AssetInspectionStats {
     sourceProvider?: string
     stageLabel?: string
     thumbnailVersion?: string
+    userTags?: string[]
+    libraryCategoryOverride?: string
 }
 
 export interface WorkflowTimelineNeuralState {

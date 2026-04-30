@@ -22,6 +22,8 @@ export interface AssetLibraryItem extends GeneratedAssetItem {
     assetKind: "model" | "image"
     densityBucket: "high-poly" | "low-poly" | "unknown"
     libraryCategoryIds: AssetLibraryCategoryId[]
+    userTags: string[]
+    libraryCategoryOverride?: AssetLibraryCategoryId | null
 }
 
 export interface ProjectAssetLibrary {
@@ -82,6 +84,7 @@ function classifyCategoryIds(asset: GeneratedAssetItem): AssetLibraryCategoryId[
     const stage = normalizeStageLabel(asset.stageLabel)
     const densityBucket = classifyDensity(asset)
     const kind = classifyKind(asset)
+    const override = normalizeCategoryOverride(asset.assetStats?.libraryCategoryOverride)
 
     const categories = new Set<AssetLibraryCategoryId>(["all"])
 
@@ -90,7 +93,9 @@ function classifyCategoryIds(asset: GeneratedAssetItem): AssetLibraryCategoryId[
         return [...categories]
     }
 
-    if (stage.includes("textur")) {
+    if (override === "textured" || override === "geometry" || override === "images") {
+        categories.add(override)
+    } else if (stage.includes("textur")) {
         categories.add("textured")
     } else {
         categories.add("geometry")
@@ -107,6 +112,22 @@ function classifyCategoryIds(asset: GeneratedAssetItem): AssetLibraryCategoryId[
     return [...categories]
 }
 
+function normalizeCategoryOverride(value?: string | null): AssetLibraryCategoryId | null {
+    if (
+        value === "textured" ||
+        value === "geometry" ||
+        value === "images"
+    ) {
+        return value
+    }
+    return null
+}
+
+function normalizeUserTags(value?: string[] | null): string[] {
+    if (!Array.isArray(value)) return []
+    return [...new Set(value.map((tag) => tag.trim()).filter(Boolean))].slice(0, 8)
+}
+
 export function buildProjectAssetLibrary(generatedAssets: GeneratedAssetItem[]): ProjectAssetLibrary {
     const items: AssetLibraryItem[] = generatedAssets.map((asset) => {
         const densityBucket = classifyDensity(asset)
@@ -117,6 +138,8 @@ export function buildProjectAssetLibrary(generatedAssets: GeneratedAssetItem[]):
             assetKind,
             densityBucket,
             libraryCategoryIds: classifyCategoryIds(asset),
+            userTags: normalizeUserTags(asset.assetStats?.userTags),
+            libraryCategoryOverride: normalizeCategoryOverride(asset.assetStats?.libraryCategoryOverride),
         }
     })
 

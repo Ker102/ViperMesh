@@ -7,7 +7,7 @@ import { StudioWorkspace } from "./studio-workspace"
 import { StudioAdvisor } from "./studio-advisor"
 import { WorkflowTimeline, type WorkflowTimelineStep, type StepMonitoringLog, type StepPlanData, type StepCommandResult } from "./workflow-timeline"
 import { StepSessionDrawer } from "./step-session-drawer"
-import { GeneratedAssetsShelf } from "./generated-assets-shelf"
+import { GeneratedAssetsShelf, type AssetLibraryMetadataPatch } from "./generated-assets-shelf"
 import { SavedAssetThumbnailGenerator } from "./saved-asset-thumbnail-generator"
 import { extractGeneratedAssets, type GeneratedAssetItem } from "./generated-assets"
 import type { ToolEntry } from "@/lib/orchestration/tool-catalog"
@@ -816,6 +816,53 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         }
     }, [handleSaveLibraryAsset])
 
+    const handleUpdateLibraryAsset = useCallback(async (asset: GeneratedAssetItem, patch: AssetLibraryMetadataPatch) => {
+        const savedAssetId = getSavedAssetId(asset)
+        if (!savedAssetId) {
+            window.alert("Save this asset to the library before editing metadata.")
+            return
+        }
+
+        try {
+            const response = await fetch(`/api/projects/assets/${savedAssetId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(patch),
+            })
+            const payload = await response.json().catch(() => null)
+            if (!response.ok || !payload?.asset) {
+                throw new Error(payload?.error ?? `Asset update failed with HTTP ${response.status}`)
+            }
+            setSavedAssets((current) => upsertAsset(current, payload.asset as GeneratedAssetItem))
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed to update asset metadata"
+            window.alert(message)
+            throw error
+        }
+    }, [])
+
+    const handleDeleteLibraryAsset = useCallback(async (asset: GeneratedAssetItem) => {
+        const savedAssetId = getSavedAssetId(asset)
+        if (!savedAssetId) {
+            return
+        }
+
+        try {
+            const response = await fetch(`/api/projects/assets/${savedAssetId}`, {
+                method: "DELETE",
+            })
+            const payload = await response.json().catch(() => null)
+            if (!response.ok) {
+                throw new Error(payload?.error ?? `Asset removal failed with HTTP ${response.status}`)
+            }
+            setSavedAssets((current) => current.filter((item) => item.id !== asset.id))
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed to remove asset"
+            window.alert(message)
+            throw error
+        }
+    }, [])
+
     const handleToolRunNow = useCallback(
         (tool: ToolEntry, inputs: Record<string, string>) => {
             const stepId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
@@ -1013,6 +1060,8 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                     onUseAsset={handleUseLibraryAsset}
                     onImportAsset={handleImportLibraryAsset}
                     onSaveAsset={handleSaveLibraryAsset}
+                    onUpdateAsset={handleUpdateLibraryAsset}
+                    onDeleteAsset={handleDeleteLibraryAsset}
                     onTogglePinned={handleToggleLibraryAssetPinned}
                     selectionMode={librarySelectionMode}
                     importInFlight={libraryImportInFlight}
