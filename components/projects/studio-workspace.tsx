@@ -1,7 +1,23 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Loader2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, RefreshCw, SlidersHorizontal, Square } from "lucide-react"
+import {
+    BarChart3,
+    Box,
+    Circle,
+    Cuboid,
+    Grid3X3,
+    Loader2,
+    Maximize2,
+    Minimize2,
+    Palette,
+    PanelLeftClose,
+    PanelLeftOpen,
+    RefreshCw,
+    SlidersHorizontal,
+    Sparkles,
+    Square,
+} from "lucide-react"
 import {
     HEAVY_ENVIRONMENT_PRESETS,
     HEAVY_ENVIRONMENT_PRESET_DEFAULTS,
@@ -18,7 +34,7 @@ import {
     type ToolEntry,
     type ToolInput,
 } from "@/lib/orchestration/tool-catalog"
-import { AssetPreviewTile, AssetStatsPanel, AssetStatsPills } from "./asset-inspection"
+import { AssetPreviewTile, AssetStatsPills, formatAssetFileSize } from "./asset-inspection"
 import {
     buildNextSuggestionsForAsset,
     isRenderablePreviewImage,
@@ -979,6 +995,52 @@ function buildToolLaunchInputs(tool: ToolEntry, meshUrl: string, referenceImage?
     return inputs
 }
 
+function formatViewerStatCount(value?: number) {
+    if (typeof value !== "number" || Number.isNaN(value) || value <= 0) return null
+    return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(value)
+}
+
+function ViewerStatsOverlay({ stats }: { stats?: AssetInspectionStats | null }) {
+    if (!stats) return null
+
+    const rows = [
+        { label: "Topology", value: "Triangle" },
+        { label: "Faces", value: formatViewerStatCount(stats.triangleCount) },
+        { label: "Materials", value: formatViewerStatCount(stats.materialCount) },
+        { label: "Textures", value: formatViewerStatCount(stats.textureCount) },
+        { label: "Meshes", value: formatViewerStatCount(stats.meshCount) },
+        { label: "Size", value: formatAssetFileSize(stats.fileSizeBytes) },
+    ].filter((row): row is { label: string; value: string } => Boolean(row.value))
+
+    if (rows.length === 0) return null
+
+    return (
+        <div
+            className="pointer-events-auto w-44 rounded-2xl border px-3 py-3 text-xs shadow-2xl backdrop-blur"
+            style={{
+                borderColor: "rgba(255,255,255,0.12)",
+                backgroundColor: "rgba(5, 9, 15, 0.72)",
+                color: "rgba(241,245,249,0.96)",
+            }}
+        >
+            <div className="flex items-center gap-2">
+                <BarChart3 className="h-3.5 w-3.5" style={{ color: "rgba(94,234,212,0.95)" }} />
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em]" style={{ color: "rgba(203,213,225,0.72)" }}>
+                    Statistics
+                </p>
+            </div>
+            <div className="mt-2 space-y-1.5">
+                {rows.map((row) => (
+                    <div key={row.label} className="flex items-center justify-between gap-3">
+                        <span style={{ color: "rgba(203,213,225,0.72)" }}>{row.label}</span>
+                        <span className="font-semibold tabular-nums">{row.value}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    )
+}
+
 function NeuralViewerStage({
     title,
     status,
@@ -998,7 +1060,7 @@ function NeuralViewerStage({
     generationTimeMs?: number
     assetStats?: AssetInspectionStats | null
 }) {
-    const [inspectionMode, setInspectionMode] = useState<"material" | "geometry" | "solid" | "toon" | "wireframe" | "stats">("material")
+    const [inspectionMode, setInspectionMode] = useState<"material" | "geometry" | "solid" | "toon" | "wireframe">("material")
     const [inspectionTint, setInspectionTint] = useState<"neutral" | "violet" | "cyan">("neutral")
     const [shadingMode, setShadingMode] = useState<"smooth" | "flat">("smooth")
     const [pbrEnabled, setPbrEnabled] = useState(true)
@@ -1012,6 +1074,7 @@ function NeuralViewerStage({
     const [environmentRotation, setEnvironmentRotation] = useState(HEAVY_ENVIRONMENT_PRESET_DEFAULTS.studio.rotation)
     const [environmentAutoRotate, setEnvironmentAutoRotate] = useState(false)
     const [floorGridEnabled, setFloorGridEnabled] = useState(false)
+    const [showStatsOverlay, setShowStatsOverlay] = useState(false)
     const [showViewSettings, setShowViewSettings] = useState(false)
     const handleEnvironmentPresetChange = useCallback((nextPreset: HeavyEnvironmentPreset) => {
         const defaults = HEAVY_ENVIRONMENT_PRESET_DEFAULTS[nextPreset]
@@ -1031,7 +1094,6 @@ function NeuralViewerStage({
         geometry: "Geometry",
         solid: "Solid",
         wireframe: "Wireframe",
-        stats: "Stats",
     }[inspectionMode]
     const supportsShadingControls =
         inspectionMode === "material" ||
@@ -1045,7 +1107,7 @@ function NeuralViewerStage({
         inspectionMode === "material" || inspectionMode === "solid" || inspectionMode === "toon"
     const shadingControlsEnabled = !(inspectionMode === "material" && unlitEnabled)
 
-    const viewSettingsOpen = showViewSettings && Boolean(viewerUrl) && inspectionMode !== "stats"
+    const viewSettingsOpen = showViewSettings && Boolean(viewerUrl)
 
     return (
         <div
@@ -1058,7 +1120,7 @@ function NeuralViewerStage({
                 <HeavyModelViewer
                     url={viewerUrl}
                     className="h-full min-h-0 rounded-none border-0"
-                    inspectionMode={inspectionMode === "stats" ? "material" : inspectionMode}
+                    inspectionMode={inspectionMode}
                     inspectionTint={inspectionTint}
                     shadingMode={shadingMode}
                     pbrEnabled={pbrEnabled}
@@ -1101,11 +1163,9 @@ function NeuralViewerStage({
                 </div>
             )}
 
-            {inspectionMode === "stats" && viewerUrl && (
-                <div className="pointer-events-none absolute inset-x-0 bottom-24 z-20 flex justify-center px-4">
-                    <div className="pointer-events-auto w-[min(340px,calc(100%-2rem))]">
-                        <AssetStatsPanel stats={assetStats} />
-                    </div>
+            {showStatsOverlay && viewerUrl && assetStats && (
+                <div className="pointer-events-none absolute right-4 top-24 z-20 flex justify-end sm:right-6">
+                    <ViewerStatsOverlay stats={assetStats} />
                 </div>
             )}
 
@@ -1426,18 +1486,39 @@ function NeuralViewerStage({
                                         <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(148,163,184,0.95)" }}>
                                             Display
                                         </p>
-                                        <button
-                                            type="button"
-                                            onClick={() => setFloorGridEnabled((current) => !current)}
-                                            className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
-                                            style={floorGridEnabled
-                                                ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
-                                                : { backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(226,232,240,0.84)" }}
-                                            title="Toggle the viewer floor grid"
-                                        >
-                                            <span>Grid</span>
-                                            <span>{floorGridEnabled ? "On" : "Off"}</span>
-                                        </button>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setFloorGridEnabled((current) => !current)}
+                                                className="flex items-center justify-between gap-2 rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                                style={floorGridEnabled
+                                                    ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
+                                                    : { backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(226,232,240,0.84)" }}
+                                                title="Toggle the viewer floor grid"
+                                            >
+                                                <span className="inline-flex items-center gap-2">
+                                                    <Grid3X3 className="h-3.5 w-3.5" />
+                                                    Grid
+                                                </span>
+                                                <span>{floorGridEnabled ? "On" : "Off"}</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowStatsOverlay((current) => !current)}
+                                                disabled={!assetStats}
+                                                className="flex items-center justify-between gap-2 rounded-2xl px-3 py-2 text-sm font-semibold transition disabled:opacity-40"
+                                                style={showStatsOverlay
+                                                    ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
+                                                    : { backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(226,232,240,0.84)" }}
+                                                title={assetStats ? "Toggle viewer statistics overlay" : "No asset statistics available"}
+                                            >
+                                                <span className="inline-flex items-center gap-2">
+                                                    <BarChart3 className="h-3.5 w-3.5" />
+                                                    Stats
+                                                </span>
+                                                <span>{showStatsOverlay ? "On" : "Off"}</span>
+                                            </button>
+                                        </div>
                                     </div>
                                     {inspectionMode === "toon" && (
                                         <div className="space-y-2">
@@ -1519,75 +1600,19 @@ function NeuralViewerStage({
                             }}
                         >
                         {[
-                            {
-                                id: "material",
-                                label: "Texture",
-                                icon: (
-                                    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                                        <path d="M4.5 11.8C3.4 10.6 3 9.55 3 8.25C3 5.35 5.35 3 8.25 3c1.2 0 2.22.34 3.36 1.28c1 .82 2.12 1.16 3.06 1.16c1.26 0 2.33.88 2.33 2.17c0 5.15-4.17 9.39-9.31 9.39c-2.06 0-3.69-1.3-3.69-3.05c0-.8.24-1.46.5-2.15Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                                        <circle cx="8" cy="7.2" r="1" fill="currentColor" />
-                                        <circle cx="11.4" cy="5.9" r=".9" fill="currentColor" />
-                                        <circle cx="12.7" cy="9" r=".9" fill="currentColor" />
-                                    </svg>
-                                ),
-                            },
-                            {
-                                id: "toon",
-                                label: "Toon",
-                                icon: (
-                                    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                                        <path d="M4 13.5c0-3.9 2.4-7 6-7s6 3.1 6 7c0 1.7-1.3 3-3 3H7c-1.7 0-3-1.3-3-3Z" stroke="currentColor" strokeWidth="1.6" />
-                                        <path d="M7 11.5h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                                        <path d="M8.25 8.5h3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                                    </svg>
-                                ),
-                            },
-                            {
-                                id: "geometry",
-                                label: "Geometry",
-                                icon: (
-                                    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                                        <path d="M10 3l6 3.5v7L10 17l-6-3.5v-7L10 3Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-                                        <path d="M4 6.5L10 10m6-3.5L10 10m0 0v7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                                    </svg>
-                                ),
-                            },
-                            {
-                                id: "solid",
-                                label: "Solid",
-                                icon: (
-                                    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                                        <path d="M10 3.5c3.58 0 6.5 2.92 6.5 6.5s-2.92 6.5-6.5 6.5S3.5 13.58 3.5 10 6.42 3.5 10 3.5Z" stroke="currentColor" strokeWidth="1.6" />
-                                        <path d="M10 3.5A6.5 6.5 0 0 1 16.5 10H10V3.5Z" fill="currentColor" fillOpacity=".28" />
-                                    </svg>
-                                ),
-                            },
-                            {
-                                id: "wireframe",
-                                label: "Wireframe",
-                                icon: (
-                                    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                                        <path d="M10 3l6 3.5v7L10 17l-6-3.5v-7L10 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                                        <path d="M4 6.5 10 10l6-3.5M10 10v7M4 13.5 10 10l6 3.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                                    </svg>
-                                ),
-                            },
-                            {
-                                id: "stats",
-                                label: "Stats",
-                                icon: (
-                                    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                                        <path d="M4 15.5V10m4 5.5V7.5m4 8V11m4 4.5V5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                                    </svg>
-                                ),
-                            },
+                            { id: "material", label: "Texture", icon: Palette },
+                            { id: "toon", label: "Toon", icon: Sparkles },
+                            { id: "geometry", label: "Geometry", icon: Cuboid },
+                            { id: "solid", label: "Solid", icon: Circle },
+                            { id: "wireframe", label: "Wireframe", icon: Box },
                         ].map((mode) => {
                             const active = inspectionMode === mode.id
+                            const Icon = mode.icon
                             return (
                                 <button
                                     key={mode.id}
                                     type="button"
-                                    onClick={() => setInspectionMode(mode.id as "material" | "geometry" | "solid" | "toon" | "wireframe" | "stats")}
+                                    onClick={() => setInspectionMode(mode.id as "material" | "geometry" | "solid" | "toon" | "wireframe")}
                                     className="rounded-full p-2.5 transition"
                                     aria-label={mode.label}
                                     title={mode.label}
@@ -1600,11 +1625,46 @@ function NeuralViewerStage({
                                             color: "rgba(226,232,240,0.86)",
                                         }}
                                 >
-                                    {mode.icon}
+                                    <Icon className="h-4 w-4" />
                                 </button>
                             )
                         })}
                         <span className="mx-1 h-6 w-px" style={{ backgroundColor: "rgba(255,255,255,0.12)" }} />
+                        <button
+                            type="button"
+                            onClick={() => setShowStatsOverlay((current) => !current)}
+                            disabled={!assetStats}
+                            className="rounded-full p-2.5 transition disabled:opacity-40"
+                            aria-label="Statistics overlay"
+                            title={assetStats ? "Statistics overlay" : "No asset statistics available"}
+                            style={showStatsOverlay
+                                ? {
+                                    backgroundColor: "rgba(255,255,255,0.18)",
+                                    color: "white",
+                                }
+                                : {
+                                    color: "rgba(226,232,240,0.86)",
+                                }}
+                        >
+                            <BarChart3 className="h-4 w-4" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setFloorGridEnabled((current) => !current)}
+                            className="rounded-full p-2.5 transition"
+                            aria-label="Floor grid"
+                            title="Floor grid"
+                            style={floorGridEnabled
+                                ? {
+                                    backgroundColor: "rgba(255,255,255,0.18)",
+                                    color: "white",
+                                }
+                                : {
+                                    color: "rgba(226,232,240,0.86)",
+                                }}
+                        >
+                            <Grid3X3 className="h-4 w-4" />
+                        </button>
                         <button
                             type="button"
                             onClick={() => setShowViewSettings((current) => !current)}
