@@ -1249,17 +1249,14 @@ function NeuralViewerStage({
                         )}
                         <NeuralRunStatusBadge status={status} />
                     </div>
-                    {(metadataSummary || (assetStats && !showStatsOverlay)) && (
+                    {metadataSummary && (
                         <div className="pointer-events-auto mt-3 max-w-[44rem] space-y-2">
-                            {metadataSummary && (
-                                <p
-                                    className="text-xs font-medium"
-                                    style={{ color: "hsl(var(--forge-text-muted))" }}
-                                >
-                                    {metadataSummary}
-                                </p>
-                            )}
-                            {!showStatsOverlay && <AssetStatsPills stats={assetStats} className="flex flex-wrap gap-2" />}
+                            <p
+                                className="text-xs font-medium"
+                                style={{ color: "hsl(var(--forge-text-muted))" }}
+                            >
+                                {metadataSummary}
+                            </p>
                         </div>
                     )}
                 </div>

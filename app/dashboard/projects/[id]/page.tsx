@@ -171,34 +171,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           localProvider={localProvider}
         />
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
-          <Card>
-            <CardHeader>
-              <CardTitle>Connect to Blender</CardTitle>
-              <CardDescription>
-                Use the desktop add-on for viewport awareness and direct MCP command execution.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-lg border p-4 space-y-2">
-                  <h3 className="font-semibold">Web experience</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Chat with ViperMesh directly in the browser. Great for planning scenes,
-                    drafting scripts, or reviewing AI suggestions on the go.
-                  </p>
-                </div>
-                <div className="rounded-lg border p-4 space-y-2 bg-muted/40">
-                  <h3 className="font-semibold">Blender integration (recommended)</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Install the ViperMesh desktop app and Blender MCP extension for real-time viewport
-                    snapshots and one-click command execution inside Blender.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
+        <div className="grid gap-6">
           <Card>
             <CardHeader>
               <CardTitle>Conversation History</CardTitle>

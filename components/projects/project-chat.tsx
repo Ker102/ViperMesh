@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState, useCallback, type ChangeEvent } from "react"
-import { Square } from "lucide-react"
+import { Maximize2, Square } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -126,6 +126,7 @@ export function ProjectChat({
   }))
   const [attachments, setAttachments] = useState<PendingAttachment[]>([])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const studioFrameRef = useRef<HTMLDivElement | null>(null)
   const [localReady, setLocalReady] = useState<boolean>(localProviderConfigured)
   const [agentEvents, setAgentEvents] = useState<AgentStreamEvent[]>([])
   const [agentActive, setAgentActive] = useState(false)
@@ -872,6 +873,17 @@ export function ProjectChat({
     }
   }
 
+  function focusStudioViewer() {
+    const element = studioFrameRef.current
+    if (!element) return
+
+    const targetTop = element.getBoundingClientRect().top + window.scrollY - 12
+    window.scrollTo({
+      top: Math.max(0, targetTop),
+      behavior: "smooth",
+    })
+  }
+
   // Suggestion cards for Autopilot empty state
   const SUGGESTIONS = [
     { icon: CastleIcon, label: "Medieval castle with stone walls and towers" },
@@ -889,7 +901,25 @@ export function ProjectChat({
 
       {/* ── STUDIO MODE ── (always mounted to preserve running agent state) */}
       <div style={{ display: workflowMode === "studio" ? undefined : "none" }}>
-        <StudioLayout projectId={projectId} />
+        <div className="mb-3 flex justify-end">
+          <button
+            type="button"
+            onClick={focusStudioViewer}
+            className="inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-[0.98] motion-reduce:transition-none"
+            style={{
+              borderColor: "hsl(var(--forge-border))",
+              backgroundColor: "hsl(var(--forge-surface))",
+              color: "hsl(var(--forge-text-muted))",
+            }}
+            title="Scroll the Studio viewer into frame"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+            Focus viewer
+          </button>
+        </div>
+        <div ref={studioFrameRef} className="scroll-mt-3">
+          <StudioLayout projectId={projectId} />
+        </div>
       </div>
 
       {/* ── AUTOPILOT MODE ── */}
