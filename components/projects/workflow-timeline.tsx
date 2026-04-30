@@ -129,11 +129,11 @@ export function WorkflowTimeline({
     onClearTimeline,
 }: WorkflowTimelineProps) {
     const visibleSteps = steps.filter((step) => !step.hiddenFromTimeline)
-    if (visibleSteps.length === 0) return null
+    const hasVisibleSteps = visibleSteps.length > 0
 
     return (
         <div
-            className="border-t px-6 py-3 flex items-center gap-3 overflow-x-auto"
+            className="border-t px-6 py-3 flex min-h-[58px] items-center gap-3 overflow-x-auto"
             style={{
                 borderColor: "hsl(var(--forge-border))",
                 backgroundColor: "hsl(var(--forge-surface))",
@@ -146,98 +146,111 @@ export function WorkflowTimeline({
                 Pipeline
             </span>
 
-            <div className="flex items-center gap-1.5 overflow-x-auto">
-                {visibleSteps.map((step, index) => {
-                    const isSelected = selectedStepId === step.id
-                    return (
-                        <div key={step.id} className="flex items-center gap-1.5 shrink-0">
-                            {/* Step pill — clickable */}
-                            <button
-                                onClick={() => onStepClick(step.id)}
-                                className={cn(
-                                    "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer",
-                                    "hover:brightness-110",
-                                    step.status === "done" && "opacity-60",
-                                    step.status === "running" && "animate-pulse",
-                                    isSelected && "ring-2 ring-offset-1",
-                                )}
-                                style={{
-                                    borderColor:
-                                        step.status === "running" || isSelected
-                                            ? "hsl(var(--forge-accent))"
-                                            : step.status === "failed"
-                                                ? "hsl(0 84% 60%)"
-                                                : "hsl(var(--forge-border))",
-                                    backgroundColor:
-                                        step.status === "running" || isSelected
-                                            ? "hsl(var(--forge-accent-subtle))"
-                                            : "hsl(var(--forge-surface))",
-                                    color:
-                                        step.status === "running" || isSelected
-                                            ? "hsl(var(--forge-accent))"
-                                            : step.status === "failed"
-                                                ? "hsl(0 84% 60%)"
-                                                : "hsl(var(--forge-text))",
-                                    ...(isSelected ? { ringColor: "hsl(var(--forge-accent))" } : {}),
-                                }}
-                            >
-                                {/* Status dot */}
-                                <span
+            {hasVisibleSteps ? (
+                <div className="flex items-center gap-1.5 overflow-x-auto">
+                    {visibleSteps.map((step, index) => {
+                        const isSelected = selectedStepId === step.id
+                        return (
+                            <div key={step.id} className="flex items-center gap-1.5 shrink-0">
+                                {/* Step pill — clickable */}
+                                <button
+                                    onClick={() => onStepClick(step.id)}
                                     className={cn(
-                                        "w-1.5 h-1.5 rounded-full shrink-0",
-                                        step.status === "running" && "animate-ping",
+                                        "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer",
+                                        "hover:brightness-110",
+                                        step.status === "done" && "opacity-60",
+                                        step.status === "running" && "animate-pulse",
+                                        isSelected && "ring-2 ring-offset-1",
                                     )}
                                     style={{
-                                        backgroundColor:
-                                            step.status === "done"
+                                        borderColor:
+                                            step.status === "running" || isSelected
                                                 ? "hsl(var(--forge-accent))"
                                                 : step.status === "failed"
                                                     ? "hsl(0 84% 60%)"
-                                                    : step.status === "running"
-                                                        ? "hsl(var(--forge-accent))"
-                                                        : "hsl(var(--forge-text-subtle))",
+                                                    : "hsl(var(--forge-border))",
+                                        backgroundColor:
+                                            step.status === "running" || isSelected
+                                                ? "hsl(var(--forge-accent-subtle))"
+                                                : "hsl(var(--forge-surface))",
+                                        color:
+                                            step.status === "running" || isSelected
+                                                ? "hsl(var(--forge-accent))"
+                                                : step.status === "failed"
+                                                    ? "hsl(0 84% 60%)"
+                                                    : "hsl(var(--forge-text))",
+                                        ...(isSelected ? { ringColor: "hsl(var(--forge-accent))" } : {}),
                                     }}
-                                />
-                                <span>
-                                    {index + 1}. {step.title}
-                                </span>
-                                {/* Remove button — stop propagation so click doesn't open drawer */}
-                                <span
-                                    role="button"
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        onRemoveStep(step.id)
-                                    }}
-                                    className="ml-1 opacity-50 hover:opacity-100 transition text-base leading-none"
-                                    style={{ color: "hsl(var(--forge-text-muted))" }}
                                 >
-                                    ×
-                                </span>
-                            </button>
+                                    {/* Status dot */}
+                                    <span
+                                        className={cn(
+                                            "w-1.5 h-1.5 rounded-full shrink-0",
+                                            step.status === "running" && "animate-ping",
+                                        )}
+                                        style={{
+                                            backgroundColor:
+                                                step.status === "done"
+                                                    ? "hsl(var(--forge-accent))"
+                                                    : step.status === "failed"
+                                                        ? "hsl(0 84% 60%)"
+                                                        : step.status === "running"
+                                                            ? "hsl(var(--forge-accent))"
+                                                            : "hsl(var(--forge-text-subtle))",
+                                        }}
+                                    />
+                                    <span>
+                                        {index + 1}. {step.title}
+                                    </span>
+                                    {/* Remove button — stop propagation so click doesn't open drawer */}
+                                    <span
+                                        role="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            onRemoveStep(step.id)
+                                        }}
+                                        className="ml-1 opacity-50 hover:opacity-100 transition text-base leading-none"
+                                        style={{ color: "hsl(var(--forge-text-muted))" }}
+                                    >
+                                        x
+                                    </span>
+                                </button>
 
-                            {/* Connector arrow */}
-                            {index < visibleSteps.length - 1 && (
-                                <svg
-                                    width="16"
-                                    height="16"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="hsl(var(--forge-text-subtle))"
-                                    strokeWidth="2"
-                                    className="shrink-0"
-                                >
-                                    <polyline points="9 18 15 12 9 6" />
-                                </svg>
-                            )}
-                        </div>
-                    )
-                })}
-            </div>
+                                {/* Connector arrow */}
+                                {index < visibleSteps.length - 1 && (
+                                    <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="hsl(var(--forge-text-subtle))"
+                                        strokeWidth="2"
+                                        className="shrink-0"
+                                    >
+                                        <polyline points="9 18 15 12 9 6" />
+                                    </svg>
+                                )}
+                            </div>
+                        )
+                    })}
+                </div>
+            ) : (
+                <div
+                    className="rounded-full border px-3 py-1.5 text-xs font-medium"
+                    style={{
+                        borderColor: "hsl(var(--forge-border))",
+                        color: "hsl(var(--forge-text-muted))",
+                        backgroundColor: "hsl(var(--forge-surface-dim))",
+                    }}
+                >
+                    Add an AI tool to build a visible pipeline. Imported assets stay in the library.
+                </div>
+            )}
 
             <div className="flex-1" />
 
             {/* Clear + Run all buttons */}
-            {onClearTimeline && (
+            {hasVisibleSteps && onClearTimeline && (
                 <button
                     onClick={onClearTimeline}
                     className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition hover:opacity-80"
@@ -249,13 +262,15 @@ export function WorkflowTimeline({
                     Clear
                 </button>
             )}
-            <button
-                onClick={onRunAll}
-                className="shrink-0 px-4 py-1.5 rounded-full text-xs font-semibold text-white transition hover:opacity-90"
-                style={{ backgroundColor: "hsl(var(--forge-accent))" }}
-            >
-                Run All
-            </button>
+            {hasVisibleSteps && (
+                <button
+                    onClick={onRunAll}
+                    className="shrink-0 px-4 py-1.5 rounded-full text-xs font-semibold text-white transition hover:opacity-90"
+                    style={{ backgroundColor: "hsl(var(--forge-accent))" }}
+                >
+                    Run All
+                </button>
+            )}
         </div>
     )
 }
