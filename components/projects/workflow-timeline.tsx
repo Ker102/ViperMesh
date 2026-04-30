@@ -59,6 +59,7 @@ export interface AssetInspectionStats {
     sourceToolLabel?: string
     sourceProvider?: string
     stageLabel?: string
+    thumbnailVersion?: string
 }
 
 export interface WorkflowTimelineNeuralState {

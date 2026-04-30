@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Loader2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, RefreshCw, SlidersHorizontal, Square } from "lucide-react"
 import {
     HEAVY_ENVIRONMENT_PRESETS,
+    HEAVY_ENVIRONMENT_PRESET_DEFAULTS,
     HeavyModelViewer,
     type HeavyEnvironmentPreset,
 } from "@/components/generation/HeavyModelViewer"
@@ -1007,11 +1008,18 @@ function NeuralViewerStage({
     const [previewMetalness, setPreviewMetalness] = useState(0.5)
     const [previewRoughness, setPreviewRoughness] = useState(0.55)
     const [environmentPreset, setEnvironmentPreset] = useState<HeavyEnvironmentPreset>("studio")
-    const [environmentStrength, setEnvironmentStrength] = useState(1)
-    const [environmentRotation, setEnvironmentRotation] = useState(0)
+    const [environmentStrength, setEnvironmentStrength] = useState(HEAVY_ENVIRONMENT_PRESET_DEFAULTS.studio.strength)
+    const [environmentRotation, setEnvironmentRotation] = useState(HEAVY_ENVIRONMENT_PRESET_DEFAULTS.studio.rotation)
     const [environmentAutoRotate, setEnvironmentAutoRotate] = useState(false)
     const [floorGridEnabled, setFloorGridEnabled] = useState(false)
     const [showViewSettings, setShowViewSettings] = useState(false)
+    const handleEnvironmentPresetChange = useCallback((nextPreset: HeavyEnvironmentPreset) => {
+        const defaults = HEAVY_ENVIRONMENT_PRESET_DEFAULTS[nextPreset]
+        setEnvironmentPreset(nextPreset)
+        setEnvironmentStrength(defaults.strength)
+        setEnvironmentRotation(defaults.rotation)
+        setEnvironmentAutoRotate(false)
+    }, [])
     const displayViewerLabel =
         viewerSource === "input" && viewerUrl
             ? getAssetDisplayLabel(viewerUrl)
@@ -1353,7 +1361,7 @@ function NeuralViewerStage({
                                                 </p>
                                                 <select
                                                     value={environmentPreset}
-                                                    onChange={(event) => setEnvironmentPreset(event.target.value as HeavyEnvironmentPreset)}
+                                                    onChange={(event) => handleEnvironmentPresetChange(event.target.value as HeavyEnvironmentPreset)}
                                                     className="h-8 max-w-40 rounded-xl border px-2 text-xs font-semibold outline-none"
                                                     style={{
                                                         borderColor: "rgba(255,255,255,0.12)",

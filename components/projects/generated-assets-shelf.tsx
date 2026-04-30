@@ -179,7 +179,7 @@ export function GeneratedAssetsShelf({
                                 attachToSelectionMode={Boolean(selectionMode)}
                                 onSelectInfo={setSelectedAssetId}
                                 onToggleFavorite={toggleFavorite}
-                                useLivePreview={open && index < 6}
+                                useLivePreview={open && index < 6 && !asset.id.startsWith("saved:")}
                             />
                         ))}
                     </div>

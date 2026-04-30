@@ -8,6 +8,7 @@ import { StudioAdvisor } from "./studio-advisor"
 import { WorkflowTimeline, type WorkflowTimelineStep, type StepMonitoringLog, type StepPlanData, type StepCommandResult } from "./workflow-timeline"
 import { StepSessionDrawer } from "./step-session-drawer"
 import { GeneratedAssetsShelf } from "./generated-assets-shelf"
+import { SavedAssetThumbnailGenerator } from "./saved-asset-thumbnail-generator"
 import { extractGeneratedAssets, type GeneratedAssetItem } from "./generated-assets"
 import type { ToolEntry } from "@/lib/orchestration/tool-catalog"
 import { getToolById } from "@/lib/orchestration/tool-catalog"
@@ -19,9 +20,28 @@ interface StudioLayoutProps {
 
 type NeuralStepPatch = Partial<Pick<WorkflowTimelineStep, "status" | "error" | "inputs" | "neuralState">>
 
-function isModelAssetUrl(viewerUrl?: string | null) {
+const MODEL_EXTENSION_PATTERN = /\.(glb|gltf|fbx|obj|stl)$/i
+
+function isModelAssetUrl(viewerUrl?: string | null, filenameHint?: string | null) {
     if (!viewerUrl) return false
-    return /\.(glb|gltf|fbx|obj|stl)(?:$|[?#])/i.test(viewerUrl)
+
+    try {
+        const baseUrl =
+            typeof window !== "undefined"
+                ? window.location.origin
+                : "http://127.0.0.1"
+        const parsed = new URL(viewerUrl, baseUrl)
+        const decodedPathname = decodeURIComponent(parsed.pathname)
+        const filename = parsed.searchParams.get("filename")
+
+        return (
+            MODEL_EXTENSION_PATTERN.test(decodedPathname) ||
+            MODEL_EXTENSION_PATTERN.test(filename ?? "") ||
+            MODEL_EXTENSION_PATTERN.test(filenameHint ?? "")
+        )
+    } catch {
+        return MODEL_EXTENSION_PATTERN.test(filenameHint ?? "")
+    }
 }
 
 function getToolInputKeyByType(toolId: string, type: "mesh" | "image"): string | null {
@@ -623,7 +643,11 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         if (tool) {
             setActiveCategory(tool.category)
         }
-        if (options?.attachToActiveTool && librarySelectionMode && isModelAssetUrl(asset.viewerUrl)) {
+        if (
+            options?.attachToActiveTool &&
+            librarySelectionMode &&
+            isModelAssetUrl(asset.viewerUrl, asset.viewerLabel ?? asset.title)
+        ) {
             setLibrarySelectionEvent({
                 token: librarySelectionMode.token,
                 asset,
@@ -992,6 +1016,13 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                     onTogglePinned={handleToggleLibraryAssetPinned}
                     selectionMode={librarySelectionMode}
                     importInFlight={libraryImportInFlight}
+                />
+
+                <SavedAssetThumbnailGenerator
+                    assets={savedAssets}
+                    onThumbnailSaved={(asset) => {
+                        setSavedAssets((current) => upsertAsset(current, asset))
+                    }}
                 />
 
                 <StudioAdvisor
