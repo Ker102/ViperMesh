@@ -11,6 +11,12 @@ import {
 } from "./asset-library"
 import type { GeneratedAssetItem } from "./generated-assets"
 
+const ASSET_SHELF_BUTTON_MOTION =
+    "transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-[0.98] disabled:hover:translate-y-0 disabled:hover:shadow-none motion-reduce:transition-none"
+const ASSET_SHELF_ICON_MOTION =
+    "transition-all duration-200 ease-out hover:-translate-y-0.5 hover:scale-105 hover:shadow-lg active:translate-y-0 active:scale-95 motion-reduce:transition-none"
+const ASSET_SHELF_DRAWER_MOTION = "transition-transform duration-300 ease-out motion-reduce:transition-none"
+
 interface GeneratedAssetsShelfProps {
     open: boolean
     assets: GeneratedAssetItem[]
@@ -72,7 +78,7 @@ export function GeneratedAssetsShelf({
         <aside
             aria-hidden={!open}
             inert={!open}
-            className="absolute inset-y-0 right-0 z-20 flex h-full w-[320px] flex-col border-l shadow-2xl transition-transform duration-300"
+            className={`absolute inset-y-0 right-0 z-20 flex h-full w-[320px] flex-col border-l shadow-2xl ${ASSET_SHELF_DRAWER_MOTION}`}
             style={{
                 borderColor: "hsl(var(--forge-border))",
                 backgroundColor: "hsl(var(--forge-surface))",
@@ -131,7 +137,7 @@ export function GeneratedAssetsShelf({
                                 key={category.id}
                                 type="button"
                                 onClick={() => setActiveCategoryId(category.id)}
-                                className="rounded-full border px-3 py-1.5 text-xs font-semibold transition hover:opacity-90"
+                                className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${ASSET_SHELF_BUTTON_MOTION}`}
                                 style={isActive
                                     ? {
                                         borderColor: "hsl(var(--forge-accent))",
@@ -287,7 +293,7 @@ function AssetDetailsPanel({
                 <button
                     type="button"
                     onClick={onClose}
-                    className="rounded-full border px-2 py-1 text-[11px] font-semibold transition hover:opacity-90"
+                    className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${ASSET_SHELF_BUTTON_MOTION}`}
                     style={{
                         borderColor: "hsl(var(--forge-border))",
                         color: "hsl(var(--forge-text-muted))",
@@ -304,7 +310,7 @@ function AssetDetailsPanel({
                     <button
                         type="button"
                         onClick={() => onSaveAsset(asset)}
-                        className="rounded-xl px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+                        className={`rounded-xl px-3 py-2 text-xs font-semibold ${ASSET_SHELF_BUTTON_MOTION}`}
                         style={{
                             backgroundColor: "hsl(var(--forge-accent))",
                             color: "white",
@@ -317,7 +323,7 @@ function AssetDetailsPanel({
                     <button
                         type="button"
                         onClick={() => onUseAsset(asset)}
-                        className="rounded-xl px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+                        className={`rounded-xl px-3 py-2 text-xs font-semibold ${ASSET_SHELF_BUTTON_MOTION}`}
                         style={{
                             backgroundColor: "hsl(var(--forge-accent))",
                             color: "white",
@@ -331,7 +337,7 @@ function AssetDetailsPanel({
                     onClick={() => onOpenAsset(asset, {
                         attachToActiveTool: Boolean(selectionMode && asset.assetKind === "model"),
                     })}
-                    className="rounded-xl border px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+                    className={`rounded-xl border px-3 py-2 text-xs font-semibold ${ASSET_SHELF_BUTTON_MOTION}`}
                     style={{
                         borderColor: "hsl(var(--forge-border))",
                         color: "hsl(var(--forge-text-muted))",
@@ -344,7 +350,7 @@ function AssetDetailsPanel({
                         key={suggestion.toolId}
                         type="button"
                         onClick={() => onContinueToTool(asset, suggestion.toolId)}
-                        className="rounded-xl px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+                        className={`rounded-xl px-3 py-2 text-xs font-semibold ${ASSET_SHELF_BUTTON_MOTION}`}
                         style={suggestion.variant === "primary"
                             ? {
                                 backgroundColor: "hsl(var(--forge-accent))",
@@ -386,7 +392,7 @@ function AssetLibraryGridCard({
 }) {
     return (
         <div
-            className="group relative aspect-square overflow-hidden rounded-2xl border transition-all duration-200 hover:shadow-lg"
+            className="group relative aspect-square overflow-hidden rounded-2xl border transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-xl active:translate-y-0 active:scale-[0.99] motion-reduce:transition-none"
             style={{
                 borderColor: isSelected ? "hsl(var(--forge-accent))" : "rgba(226,232,240,0.58)",
                 backgroundColor: "#10141b",
@@ -422,7 +428,7 @@ function AssetLibraryGridCard({
                     event.stopPropagation()
                     onToggleFavorite(asset)
                 }}
-                className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full transition hover:scale-105"
+                className={`absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full ${ASSET_SHELF_ICON_MOTION}`}
                 style={{
                     backgroundColor: "rgba(9,12,18,0.68)",
                     color: isFavorite ? "#facc15" : "rgba(255,255,255,0.9)",
@@ -439,7 +445,7 @@ function AssetLibraryGridCard({
                     event.stopPropagation()
                     onSelectInfo(asset.id)
                 }}
-                className="absolute bottom-2 left-2 inline-flex h-7 w-7 items-center justify-center rounded-full transition hover:scale-105"
+                className={`absolute bottom-2 left-2 inline-flex h-7 w-7 items-center justify-center rounded-full ${ASSET_SHELF_ICON_MOTION}`}
                 style={{
                     backgroundColor: "rgba(9,12,18,0.68)",
                     color: "rgba(255,255,255,0.9)",
@@ -456,7 +462,7 @@ function AssetLibraryGridCard({
                     event.stopPropagation()
                     onOpenAsset(asset, { attachToActiveTool: attachToSelectionMode && asset.assetKind === "model" })
                 }}
-                className="absolute bottom-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-full transition hover:scale-105"
+                className={`absolute bottom-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-full ${ASSET_SHELF_ICON_MOTION}`}
                 style={{
                     backgroundColor: "rgba(9,12,18,0.68)",
                     color: "rgba(255,255,255,0.9)",
@@ -482,7 +488,7 @@ function ImportAssetTile({
             type="button"
             onClick={onClick}
             disabled={disabled}
-            className="flex aspect-square flex-col items-center justify-center gap-2 rounded-2xl border border-dashed p-3 text-center transition hover:opacity-90 disabled:cursor-wait disabled:opacity-70"
+            className={`flex aspect-square flex-col items-center justify-center gap-2 rounded-2xl border border-dashed p-3 text-center disabled:cursor-wait disabled:opacity-70 ${ASSET_SHELF_BUTTON_MOTION}`}
             style={{
                 borderColor: "hsl(var(--forge-border))",
                 backgroundColor: "hsl(var(--forge-surface-dim))",

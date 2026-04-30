@@ -69,6 +69,14 @@ type NeuralDockMode = "docked" | "collapsed" | "focus"
 type NeuralRunStatus = "running" | "ready" | "failed" | "stopped"
 type NeuralViewerSource = "generated" | "demo" | "input"
 
+const STUDIO_BUTTON_MOTION =
+    "transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-[0.98] disabled:hover:translate-y-0 disabled:hover:shadow-none motion-reduce:transition-none"
+const STUDIO_ICON_BUTTON_MOTION =
+    "transition-all duration-200 ease-out hover:-translate-y-0.5 hover:scale-105 hover:shadow-lg active:translate-y-0 active:scale-95 disabled:hover:translate-y-0 disabled:hover:scale-100 disabled:hover:shadow-none motion-reduce:transition-none"
+const STUDIO_HANDLE_MOTION =
+    "transition-all duration-300 ease-out hover:scale-105 hover:shadow-xl active:scale-95 motion-reduce:transition-none"
+const STUDIO_DRAWER_MOTION = "transition-all duration-300 ease-out motion-reduce:transition-none"
+
 interface ActiveNeuralRun {
     stepId: string
     tool: ToolEntry
@@ -310,7 +318,7 @@ function MeshAttachmentCard({
                     <button
                         type="button"
                         onClick={onChooseModel}
-                        className="rounded-xl border px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+                        className={cn("rounded-xl border px-3 py-2 text-xs font-semibold", STUDIO_BUTTON_MOTION)}
                         style={{
                             borderColor: "hsl(var(--forge-border))",
                             color: "hsl(var(--forge-text-muted))",
@@ -369,7 +377,7 @@ function MeshAttachmentCard({
                         <button
                             type="button"
                             onClick={onChooseModel}
-                            className="mt-3 rounded-xl border px-3 py-2 text-xs font-semibold transition hover:opacity-90"
+                            className={cn("mt-3 rounded-xl border px-3 py-2 text-xs font-semibold", STUDIO_BUTTON_MOTION)}
                             style={{
                                 borderColor: "hsl(var(--forge-border))",
                                 color: "hsl(var(--forge-text-muted))",
@@ -444,7 +452,7 @@ function ToolCardCompact({
     return (
         <button
             onClick={onOpen}
-            className="text-left rounded-2xl border transition-all duration-200 hover:shadow-md p-5 group"
+            className="text-left rounded-2xl border p-5 group transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-lg active:translate-y-0 active:scale-[0.99] motion-reduce:transition-none"
             style={{
                 backgroundColor: "var(--forge-glass)",
                 borderColor: "hsl(var(--forge-border))",
@@ -554,7 +562,7 @@ function ToolDetailView({
             {/* Back button */}
             <button
                 onClick={onBack}
-                className="flex items-center gap-2 mb-6 text-sm font-medium transition-colors hover:opacity-80"
+                className={cn("flex items-center gap-2 mb-6 text-sm font-medium", STUDIO_BUTTON_MOTION)}
                 style={{ color: "hsl(var(--forge-accent))" }}
             >
                 <svg
@@ -744,7 +752,7 @@ function ToolDetailView({
                                         onChange={(e) => onInputChange(input.key, e.target.value)}
                                         placeholder={input.placeholder}
                                         rows={4}
-                                        className="w-full rounded-xl border px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 transition"
+                                        className="w-full rounded-xl border px-4 py-3 text-sm resize-none transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:shadow-lg motion-reduce:transition-none"
                                         style={{
                                             borderColor: "hsl(var(--forge-border))",
                                             backgroundColor: "hsl(var(--forge-surface-dim))",
@@ -760,7 +768,7 @@ function ToolDetailView({
                                             (input.defaultValue?.toString() ?? "")
                                         }
                                         onChange={(e) => onInputChange(input.key, e.target.value)}
-                                        className="w-full rounded-xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 transition"
+                                        className="w-full rounded-xl border px-4 py-3 text-sm transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:shadow-lg motion-reduce:transition-none"
                                         style={{
                                             borderColor: "hsl(var(--forge-border))",
                                             backgroundColor: "hsl(var(--forge-surface-dim))",
@@ -913,7 +921,7 @@ function ToolDetailView({
                             <div className="flex gap-3">
                             <button
                                 onClick={handleRunNow}
-                                className="flex-1 py-3 rounded-xl text-sm font-semibold text-white transition-all duration-200 hover:opacity-90"
+                                className={cn("flex-1 py-3 rounded-xl text-sm font-semibold text-white", STUDIO_BUTTON_MOTION)}
                                 style={{
                                     backgroundColor: "hsl(var(--forge-accent))",
                                     boxShadow:
@@ -924,7 +932,7 @@ function ToolDetailView({
                             </button>
                             <button
                                 onClick={handleSubmit}
-                                className="flex-1 py-3 rounded-xl text-sm font-semibold transition-all duration-200 hover:opacity-90 border"
+                                className={cn("flex-1 py-3 rounded-xl text-sm font-semibold border", STUDIO_BUTTON_MOTION)}
                                 style={{
                                     backgroundColor: "transparent",
                                     borderColor: "hsl(var(--forge-border))",
@@ -1016,7 +1024,7 @@ function ViewerStatsOverlay({ stats }: { stats?: AssetInspectionStats | null }) 
 
     return (
         <div
-            className="pointer-events-auto w-44 rounded-2xl border px-3 py-3 text-xs shadow-2xl backdrop-blur"
+            className={cn("pointer-events-auto w-44 rounded-2xl border px-3 py-3 text-xs shadow-2xl backdrop-blur", STUDIO_DRAWER_MOTION)}
             style={{
                 borderColor: "rgba(255,255,255,0.12)",
                 backgroundColor: "rgba(5, 9, 15, 0.72)",
@@ -1241,7 +1249,7 @@ function NeuralViewerStage({
                         )}
                         <NeuralRunStatusBadge status={status} />
                     </div>
-                    {(metadataSummary || assetStats) && (
+                    {(metadataSummary || (assetStats && !showStatsOverlay)) && (
                         <div className="pointer-events-auto mt-3 max-w-[44rem] space-y-2">
                             {metadataSummary && (
                                 <p
@@ -1251,7 +1259,7 @@ function NeuralViewerStage({
                                     {metadataSummary}
                                 </p>
                             )}
-                            <AssetStatsPills stats={assetStats} className="flex flex-wrap gap-2" />
+                            {!showStatsOverlay && <AssetStatsPills stats={assetStats} className="flex flex-wrap gap-2" />}
                         </div>
                     )}
                 </div>
@@ -1262,7 +1270,7 @@ function NeuralViewerStage({
                     <div className="pointer-events-auto flex flex-col items-center gap-2">
                         {viewSettingsOpen && (
                             <div
-                                className="max-h-[min(76vh,680px)] w-[min(380px,calc(100vw-3rem))] overflow-y-auto rounded-3xl border px-4 py-4 text-[11px] font-medium shadow-2xl backdrop-blur"
+                                className={cn("max-h-[min(76vh,680px)] w-[min(380px,calc(100vw-3rem))] overflow-y-auto rounded-3xl border px-4 py-4 text-[11px] font-medium shadow-2xl backdrop-blur", STUDIO_DRAWER_MOTION)}
                                 style={{
                                     borderColor: "rgba(255,255,255,0.14)",
                                     backgroundColor: "rgba(15, 23, 42, 0.84)",
@@ -1279,7 +1287,7 @@ function NeuralViewerStage({
                                     <button
                                         type="button"
                                         onClick={() => setShowViewSettings(false)}
-                                        className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] transition"
+                                        className={cn("rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]", STUDIO_BUTTON_MOTION)}
                                         style={{
                                             border: "1px solid rgba(255,255,255,0.12)",
                                             color: "rgba(226,232,240,0.82)",
@@ -1306,7 +1314,7 @@ function NeuralViewerStage({
                                                             type="button"
                                                             onClick={() => setShadingMode(option.id as "smooth" | "flat")}
                                                             disabled={!shadingControlsEnabled}
-                                                            className="rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                                            className={cn("rounded-2xl px-3 py-2 text-sm font-semibold", STUDIO_BUTTON_MOTION)}
                                                             style={active
                                                                 ? {
                                                                     backgroundColor: "rgba(96,165,250,0.24)",
@@ -1338,7 +1346,7 @@ function NeuralViewerStage({
                                                         <button
                                                             type="button"
                                                             onClick={() => setPbrEnabled((current) => !current)}
-                                                            className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                                            className={cn("flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold", STUDIO_BUTTON_MOTION)}
                                                             style={pbrEnabled
                                                                 ? {
                                                                     backgroundColor: "rgba(45,212,191,0.2)",
@@ -1362,7 +1370,7 @@ function NeuralViewerStage({
                                                     <button
                                                         type="button"
                                                         onClick={() => setUnlitEnabled((current) => !current)}
-                                                        className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                                        className={cn("flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold", STUDIO_BUTTON_MOTION)}
                                                         style={unlitEnabled
                                                             ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
                                                             : { backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(226,232,240,0.84)" }}
@@ -1471,7 +1479,7 @@ function NeuralViewerStage({
                                             <button
                                                 type="button"
                                                 onClick={() => setEnvironmentAutoRotate((current) => !current)}
-                                                className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                                className={cn("flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold", STUDIO_BUTTON_MOTION)}
                                                 style={environmentAutoRotate
                                                     ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
                                                     : { backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(226,232,240,0.84)" }}
@@ -1490,7 +1498,7 @@ function NeuralViewerStage({
                                             <button
                                                 type="button"
                                                 onClick={() => setFloorGridEnabled((current) => !current)}
-                                                className="flex items-center justify-between gap-2 rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                                className={cn("flex items-center justify-between gap-2 rounded-2xl px-3 py-2 text-sm font-semibold", STUDIO_BUTTON_MOTION)}
                                                 style={floorGridEnabled
                                                     ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
                                                     : { backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(226,232,240,0.84)" }}
@@ -1506,7 +1514,7 @@ function NeuralViewerStage({
                                                 type="button"
                                                 onClick={() => setShowStatsOverlay((current) => !current)}
                                                 disabled={!assetStats}
-                                                className="flex items-center justify-between gap-2 rounded-2xl px-3 py-2 text-sm font-semibold transition disabled:opacity-40"
+                                                className={cn("flex items-center justify-between gap-2 rounded-2xl px-3 py-2 text-sm font-semibold disabled:opacity-40", STUDIO_BUTTON_MOTION)}
                                                 style={showStatsOverlay
                                                     ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
                                                     : { backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(226,232,240,0.84)" }}
@@ -1528,7 +1536,7 @@ function NeuralViewerStage({
                                             <button
                                                 type="button"
                                                 onClick={() => setToonEdgesEnabled((current) => !current)}
-                                                className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                                className={cn("flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold", STUDIO_BUTTON_MOTION)}
                                                 style={toonEdgesEnabled
                                                     ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
                                                     : { backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(226,232,240,0.84)" }}
@@ -1547,7 +1555,7 @@ function NeuralViewerStage({
                                             <button
                                                 type="button"
                                                 onClick={() => setMeshEdgesEnabled((current) => !current)}
-                                                className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold transition"
+                                                className={cn("flex w-full items-center justify-between rounded-2xl px-3 py-2 text-sm font-semibold", STUDIO_BUTTON_MOTION)}
                                                 style={meshEdgesEnabled
                                                     ? { backgroundColor: "rgba(147,197,253,0.22)", color: "white" }
                                                     : { backgroundColor: "rgba(255,255,255,0.05)", color: "rgba(226,232,240,0.84)" }}
@@ -1575,7 +1583,7 @@ function NeuralViewerStage({
                                                             key={tint.id}
                                                             type="button"
                                                             onClick={() => setInspectionTint(tint.id as "neutral" | "violet" | "cyan")}
-                                                            className="h-8 w-8 rounded-full border transition"
+                                                            className={cn("h-8 w-8 rounded-full border", STUDIO_ICON_BUTTON_MOTION)}
                                                             aria-label={tint.label}
                                                             title={tint.label}
                                                             style={{
@@ -1613,7 +1621,7 @@ function NeuralViewerStage({
                                     key={mode.id}
                                     type="button"
                                     onClick={() => setInspectionMode(mode.id as "material" | "geometry" | "solid" | "toon" | "wireframe")}
-                                    className="rounded-full p-2.5 transition"
+                                    className={cn("rounded-full p-2.5", STUDIO_ICON_BUTTON_MOTION)}
                                     aria-label={mode.label}
                                     title={mode.label}
                                     style={active
@@ -1634,7 +1642,7 @@ function NeuralViewerStage({
                             type="button"
                             onClick={() => setShowStatsOverlay((current) => !current)}
                             disabled={!assetStats}
-                            className="rounded-full p-2.5 transition disabled:opacity-40"
+                            className={cn("rounded-full p-2.5 disabled:opacity-40", STUDIO_ICON_BUTTON_MOTION)}
                             aria-label="Statistics overlay"
                             title={assetStats ? "Statistics overlay" : "No asset statistics available"}
                             style={showStatsOverlay
@@ -1651,7 +1659,7 @@ function NeuralViewerStage({
                         <button
                             type="button"
                             onClick={() => setFloorGridEnabled((current) => !current)}
-                            className="rounded-full p-2.5 transition"
+                            className={cn("rounded-full p-2.5", STUDIO_ICON_BUTTON_MOTION)}
                             aria-label="Floor grid"
                             title="Floor grid"
                             style={floorGridEnabled
@@ -1668,7 +1676,7 @@ function NeuralViewerStage({
                         <button
                             type="button"
                             onClick={() => setShowViewSettings((current) => !current)}
-                            className="rounded-full p-2.5 transition"
+                            className={cn("rounded-full p-2.5", STUDIO_ICON_BUTTON_MOTION)}
                             aria-label="View settings"
                             title="View settings"
                             style={showViewSettings
@@ -1721,7 +1729,7 @@ function NeuralRerunFields({
                             onChange={(event) => onChange(input.key, event.target.value)}
                             placeholder={input.placeholder}
                             rows={4}
-                            className="w-full rounded-2xl border px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 transition"
+                            className="w-full rounded-2xl border px-4 py-3 text-sm resize-none transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:shadow-lg motion-reduce:transition-none"
                             style={{
                                 borderColor: "hsl(var(--forge-border))",
                                 backgroundColor: "hsl(var(--forge-surface-dim))",
@@ -1734,7 +1742,7 @@ function NeuralRerunFields({
                         <select
                             value={inputs[input.key] ?? (input.defaultValue?.toString() ?? "")}
                             onChange={(event) => onChange(input.key, event.target.value)}
-                            className="w-full rounded-2xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 transition"
+                            className="w-full rounded-2xl border px-4 py-3 text-sm transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:shadow-lg motion-reduce:transition-none"
                             style={{
                                 borderColor: "hsl(var(--forge-border))",
                                 backgroundColor: "hsl(var(--forge-surface-dim))",
@@ -1804,7 +1812,7 @@ function NeuralRerunFields({
                                     <button
                                         type="button"
                                         onClick={() => onChange(input.key, "")}
-                                        className="absolute -right-2 -top-2 h-6 w-6 rounded-full text-xs font-bold text-white shadow-md"
+                                        className={cn("absolute -right-2 -top-2 h-6 w-6 rounded-full text-xs font-bold text-white shadow-md", STUDIO_ICON_BUTTON_MOTION)}
                                         style={{ backgroundColor: "hsl(0 84% 60%)" }}
                                         aria-label={`Remove ${input.label}`}
                                     >
@@ -1813,7 +1821,7 @@ function NeuralRerunFields({
                                 </div>
                             ) : (
                                 <label
-                                    className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed p-5 text-center transition hover:border-[hsl(var(--forge-accent))]"
+                                    className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed p-5 text-center transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-[hsl(var(--forge-accent))] hover:shadow-lg active:translate-y-0 active:scale-[0.99] motion-reduce:transition-none"
                                     style={{
                                         borderColor: "hsl(var(--forge-border))",
                                         backgroundColor: "hsl(var(--forge-surface-dim))",
@@ -1907,7 +1915,8 @@ function NeuralRunOverlay({
     return (
         <aside
             className={cn(
-                "absolute inset-y-5 left-5 z-20 flex flex-col overflow-hidden rounded-[26px] border shadow-[0_28px_80px_rgba(15,23,42,0.18)] backdrop-blur-xl transition-all duration-300",
+                "absolute inset-y-5 left-5 z-20 flex flex-col overflow-hidden rounded-[26px] border shadow-[0_28px_80px_rgba(15,23,42,0.18)] backdrop-blur-xl",
+                STUDIO_DRAWER_MOTION,
                 isFocus
                     ? "w-[min(760px,calc(100%-2.5rem))]"
                     : "w-[min(440px,calc(100%-2.5rem))]"
@@ -1936,7 +1945,7 @@ function NeuralRunOverlay({
                     <button
                         type="button"
                         onClick={onToggleFocus}
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border transition hover:opacity-85"
+                        className={cn("inline-flex h-10 w-10 items-center justify-center rounded-xl border", STUDIO_ICON_BUTTON_MOTION)}
                         style={{
                             borderColor: "hsl(var(--forge-border))",
                             color: "hsl(var(--forge-text-muted))",
@@ -1949,7 +1958,7 @@ function NeuralRunOverlay({
                     <button
                         type="button"
                         onClick={onCollapse}
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border transition hover:opacity-85"
+                        className={cn("inline-flex h-10 w-10 items-center justify-center rounded-xl border", STUDIO_ICON_BUTTON_MOTION)}
                         style={{
                             borderColor: "hsl(var(--forge-border))",
                             color: "hsl(var(--forge-text-muted))",
@@ -2170,7 +2179,7 @@ function NeuralRunOverlay({
                                     key={suggestion.toolId}
                                     type="button"
                                     onClick={() => onContinueToSuggestedTool(suggestion.toolId)}
-                                    className="rounded-xl px-4 py-3 text-sm font-semibold transition hover:opacity-90"
+                                    className={cn("rounded-xl px-4 py-3 text-sm font-semibold", STUDIO_BUTTON_MOTION)}
                                     style={suggestion.variant === "primary"
                                         ? {
                                             backgroundColor: "hsl(var(--forge-accent))",
@@ -2198,7 +2207,7 @@ function NeuralRunOverlay({
                         <button
                             type="button"
                             onClick={onStop}
-                            className="flex-1 rounded-xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
+                            className={cn("flex-1 rounded-xl px-4 py-3 text-sm font-semibold text-white", STUDIO_BUTTON_MOTION)}
                             style={{ backgroundColor: "hsl(0 84% 60%)" }}
                         >
                             <span className="inline-flex items-center gap-2">
@@ -2210,7 +2219,7 @@ function NeuralRunOverlay({
                         <button
                             type="button"
                             onClick={onRunAgain}
-                            className="flex-1 rounded-xl px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
+                            className={cn("flex-1 rounded-xl px-4 py-3 text-sm font-semibold text-white", STUDIO_BUTTON_MOTION)}
                             style={{ backgroundColor: "hsl(var(--forge-accent))" }}
                         >
                             <span className="inline-flex items-center gap-2">
@@ -2687,7 +2696,7 @@ export function StudioWorkspace({
                     <button
                         type="button"
                         onClick={handleRestoreNeuralPanel}
-                        className="absolute left-4 top-1/2 z-30 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-2xl border shadow-lg transition hover:opacity-90"
+                        className={cn("absolute left-4 top-1/2 z-30 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-2xl border shadow-lg", STUDIO_HANDLE_MOTION)}
                         style={{
                             borderColor: "hsl(var(--forge-border))",
                             backgroundColor: "rgba(255,255,255,0.96)",

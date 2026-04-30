@@ -5,6 +5,10 @@ import { cn } from "@/lib/utils"
 import { CATEGORY_ICONS, AssistantIcon } from "./studio-icons"
 import { CATEGORIES, type CategoryMeta, type StudioCategory } from "@/lib/orchestration/tool-catalog"
 
+const SIDEBAR_BUTTON_MOTION =
+    "transition-all duration-200 ease-out hover:-translate-y-0.5 hover:scale-105 hover:shadow-lg active:translate-y-0 active:scale-95 motion-reduce:transition-none"
+const SIDEBAR_TOOLTIP_MOTION = "transition-all duration-150 ease-out motion-reduce:transition-none"
+
 interface StudioSidebarProps {
     activeCategory: string
     onCategoryChange: (category: string) => void
@@ -40,7 +44,8 @@ export function StudioSidebar({
                             onMouseEnter={() => setHoveredCategory(cat.id)}
                             onMouseLeave={() => setHoveredCategory(null)}
                             className={cn(
-                                "flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200",
+                                "flex items-center justify-center w-10 h-10 rounded-xl",
+                                SIDEBAR_BUTTON_MOTION,
                                 isActive
                                     ? "text-white"
                                     : "text-[hsl(var(--forge-text-muted))] hover:text-[hsl(var(--forge-text))] hover:bg-[hsl(var(--forge-accent-subtle))]"
@@ -57,7 +62,7 @@ export function StudioSidebar({
 
                         {hoveredCategory === cat.id && (
                             <div
-                                className="absolute left-14 top-1/2 -translate-y-1/2 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap z-50 pointer-events-none"
+                                className={cn("absolute left-14 top-1/2 -translate-y-1/2 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap z-50 pointer-events-none", SIDEBAR_TOOLTIP_MOTION)}
                                 style={{
                                     backgroundColor: "hsl(var(--forge-text))",
                                     color: "hsl(var(--forge-surface))",
@@ -75,7 +80,8 @@ export function StudioSidebar({
             <button
                 onClick={onAssistantToggle}
                 className={cn(
-                    "flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 relative",
+                    "flex items-center justify-center w-10 h-10 rounded-xl relative",
+                    SIDEBAR_BUTTON_MOTION,
                     assistantOpen
                         ? "text-white"
                         : "text-[hsl(var(--forge-text-muted))] hover:text-[hsl(var(--forge-text))] hover:bg-[hsl(var(--forge-accent-subtle))]"

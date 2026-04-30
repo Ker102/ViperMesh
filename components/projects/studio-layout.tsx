@@ -980,7 +980,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                         setGeneratedAssetsOpen((open) => !open)
                         setAssistantOpen(false)
                     }}
-                    className="absolute bottom-1/2 right-0 z-30 inline-flex h-16 w-7 translate-x-0 translate-y-1/2 items-center justify-center rounded-l-2xl border border-r-0 transition-all duration-300 hover:opacity-90"
+                    className="absolute bottom-1/2 right-0 z-30 inline-flex h-16 w-7 translate-x-0 translate-y-1/2 items-center justify-center rounded-l-2xl border border-r-0 transition-all duration-300 ease-out hover:w-8 hover:shadow-xl active:scale-95 motion-reduce:transition-none"
                     style={{
                         right: generatedAssetsOpen ? "320px" : "0px",
                         borderColor: "hsl(var(--forge-border))",
