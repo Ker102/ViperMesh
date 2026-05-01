@@ -848,9 +848,9 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         } finally {
             if (libraryImportControllerRef.current === controller) {
                 libraryImportControllerRef.current = null
+                setLibraryImportInFlight(false)
+                setLibraryImportStatus(null)
             }
-            setLibraryImportInFlight(false)
-            setLibraryImportStatus(null)
         }
     }, [librarySelectionMode, projectId])
 

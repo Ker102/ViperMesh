@@ -158,6 +158,11 @@ function getBulkTags(tagsText: string) {
         .slice(0, 8)
 }
 
+function getBulkTagValidationError(tagsText: string) {
+    const longTag = getBulkTags(tagsText).find((tag) => tag.length > 32)
+    return longTag ? `Tags must be 32 characters or fewer. Shorten "${longTag}".` : null
+}
+
 export function GeneratedAssetsShelf({
     open,
     assets,
@@ -246,6 +251,10 @@ export function GeneratedAssetsShelf({
         setBulkActionInFlight(label)
         try {
             await action()
+        } catch (error) {
+            const message = error instanceof Error ? error.message : `${label} failed.`
+            console.error(`[GeneratedAssetsShelf] Bulk action failed: ${label}`, error)
+            window.alert(message)
         } finally {
             setBulkActionInFlight(null)
         }
@@ -496,6 +505,11 @@ export function GeneratedAssetsShelf({
                                 .forEach((asset) => onRetryThumbnail(asset))
                         }}
                         onApplyMetadata={() => runBulkAction("Applying", async () => {
+                            const validationError = getBulkTagValidationError(bulkTagsText)
+                            if (validationError) {
+                                window.alert(validationError)
+                                return
+                            }
                             const tags = getBulkTags(bulkTagsText)
                             const categoryId = bulkCategoryId === "auto" ? null : bulkCategoryId
                             await Promise.all(savedBulkSelectedAssets.map((asset) => {
@@ -790,9 +804,9 @@ function AssetDetailsPanel({
                     </div>
                 )}
 
-                {asset.assetStats?.importWarnings?.map((warning) => (
+                {asset.assetStats?.importWarnings?.map((warning, index) => (
                     <div
-                        key={warning}
+                        key={`${index}-${warning}`}
                         className="mt-3 rounded-2xl border px-3 py-2 text-xs leading-relaxed"
                         style={{
                             borderColor: "rgba(245,158,11,0.3)",
