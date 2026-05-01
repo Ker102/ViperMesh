@@ -53,6 +53,15 @@ function normalizePackagePath(packagePath: string): string {
         .join("/")
 }
 
+function getObjectKeyFilename(objectKey: string): string | null {
+    const filename = objectKey.split("/").filter(Boolean).at(-1)
+    return filename && filename.includes(".") ? decodeURIComponent(filename) : null
+}
+
+function getPathExtension(candidate?: string | null): string {
+    return candidate?.match(/\.[^.\\/]+$/)?.[0] ?? ""
+}
+
 export function buildSavedAssetObjectKey({
     userId,
     projectId,
@@ -99,7 +108,17 @@ export function buildSavedAssetViewerUrlForObjectKey(assetId: string, objectKey:
     const packagePrefix = getSavedAssetPackagePrefix(objectKey)
     if (!packagePrefix) {
         const viewerUrl = buildSavedAssetViewerUrl(assetId)
-        return filename ? `${viewerUrl}?${new URLSearchParams({ filename }).toString()}` : viewerUrl
+        const objectKeyFilename = getObjectKeyFilename(objectKey)
+        const objectExtension = getPathExtension(objectKeyFilename)
+        const trimmedFilename = filename?.trim()
+        const filenameHint = trimmedFilename
+            ? getPathExtension(trimmedFilename)
+                ? trimmedFilename
+                : objectExtension
+                    ? `${trimmedFilename}${objectExtension}`
+                    : trimmedFilename
+            : objectKeyFilename
+        return filenameHint ? `${viewerUrl}?${new URLSearchParams({ filename: filenameHint }).toString()}` : viewerUrl
     }
 
     return `/api/projects/assets/${assetId}/files/${objectKey.slice(packagePrefix.length)}`
@@ -125,6 +144,12 @@ function normalizeAssetStats(
         sourceProvider: typeof candidate.sourceProvider === "string" ? candidate.sourceProvider : undefined,
         stageLabel: typeof candidate.stageLabel === "string" ? candidate.stageLabel : undefined,
         thumbnailVersion: typeof candidate.thumbnailVersion === "string" ? candidate.thumbnailVersion : undefined,
+        userTags: Array.isArray(candidate.userTags)
+            ? candidate.userTags.filter((tag): tag is string => typeof tag === "string")
+            : undefined,
+        libraryCategoryOverride: typeof candidate.libraryCategoryOverride === "string"
+            ? candidate.libraryCategoryOverride
+            : undefined,
     }
 
     if (!normalized.fileSizeBytes && fileSizeBytes) {
@@ -154,7 +179,7 @@ export function mapSavedAssetRecordToGeneratedAsset(
         title: record.label,
         toolName: sourceToolId,
         toolLabel: sourceToolLabel,
-        viewerUrl: options?.viewerUrl ?? record.viewerUrl ?? buildSavedAssetViewerUrl(record.id),
+        viewerUrl: options?.viewerUrl ?? buildSavedAssetViewerUrlForObjectKey(record.id, record.objectKey, record.label),
         viewerLabel: record.label,
         providerLabel: sourceProvider,
         stageLabel,
@@ -180,6 +205,8 @@ export function mapSavedAssetRecordToGeneratedAsset(
         nextSuggestions: [],
         librarySource: normalizeLibrarySource(record.librarySource),
         isPinned: record.isPinned,
+        createdAt: record.createdAt.toISOString(),
+        updatedAt: record.updatedAt.toISOString(),
     }
 }
 

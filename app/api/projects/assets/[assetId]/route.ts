@@ -10,9 +10,22 @@ import {
 } from "@/lib/projects/saved-assets"
 
 const updateAssetSchema = z.object({
-    label: z.string().min(1).max(255).optional(),
+    label: z.string().trim().min(1).max(255).optional(),
     isPinned: z.boolean().optional(),
+    tags: z.array(z.string().trim().min(1).max(32)).max(8).optional(),
+    categoryId: z.enum(["textured", "geometry", "images"]).nullable().optional(),
 })
+
+function normalizeExistingStats(stats: Prisma.JsonValue | null): Record<string, unknown> {
+    if (!stats || typeof stats !== "object" || Array.isArray(stats)) {
+        return {}
+    }
+    return { ...(stats as Record<string, unknown>) }
+}
+
+function normalizeTags(tags: string[]): string[] {
+    return [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))].slice(0, 8)
+}
 
 export async function PATCH(
     request: Request,
@@ -38,7 +51,7 @@ export async function PATCH(
 
     const existing = await prisma.savedAsset.findFirst({
         where: { id: assetId, userId: session.user.id },
-        select: { id: true },
+        select: { id: true, assetStats: true },
     })
 
     if (!existing) {
@@ -46,8 +59,22 @@ export async function PATCH(
     }
 
     const data: Prisma.SavedAssetUpdateInput = {}
-    if (parsed.data.label !== undefined) data.label = parsed.data.label
+    if (parsed.data.label !== undefined) data.label = parsed.data.label.trim()
     if (parsed.data.isPinned !== undefined) data.isPinned = parsed.data.isPinned
+    if (parsed.data.tags !== undefined || parsed.data.categoryId !== undefined) {
+        const assetStats = normalizeExistingStats(existing.assetStats)
+        if (parsed.data.tags !== undefined) {
+            assetStats.userTags = normalizeTags(parsed.data.tags)
+        }
+        if (parsed.data.categoryId !== undefined) {
+            if (parsed.data.categoryId) {
+                assetStats.libraryCategoryOverride = parsed.data.categoryId
+            } else {
+                delete assetStats.libraryCategoryOverride
+            }
+        }
+        data.assetStats = assetStats as Prisma.InputJsonValue
+    }
 
     const savedAsset = await prisma.savedAsset.update({
         where: { id: assetId },
@@ -56,7 +83,7 @@ export async function PATCH(
 
     return NextResponse.json({
         asset: mapSavedAssetRecordToGeneratedAsset(savedAsset, {
-            viewerUrl: buildSavedAssetViewerUrlForObjectKey(savedAsset.id, savedAsset.objectKey),
+            viewerUrl: buildSavedAssetViewerUrlForObjectKey(savedAsset.id, savedAsset.objectKey, savedAsset.label),
         }),
     })
 }

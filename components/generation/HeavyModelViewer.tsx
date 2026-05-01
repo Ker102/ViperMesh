@@ -85,15 +85,15 @@ const clearColorByMode: Record<HeavyInspectionMode, string> = {
 
 const frameBackgroundByMode: Record<HeavyInspectionMode, string> = {
     material:
-        "radial-gradient(circle at 50% 45%, rgba(104, 116, 130, 0.44), rgba(51, 59, 70, 0.9) 42%, rgba(24, 29, 37, 0.98) 78%, #11151c 100%)",
+        "radial-gradient(circle at 50% 50%, rgba(104, 116, 130, 0.44), rgba(51, 59, 70, 0.9) 42%, rgba(24, 29, 37, 0.98) 78%, #11151c 100%)",
     geometry:
-        "radial-gradient(circle at 50% 45%, rgba(92, 106, 124, 0.4), rgba(43, 51, 63, 0.92) 44%, rgba(18, 23, 31, 0.98) 82%, #0f131a 100%)",
+        "radial-gradient(circle at 50% 50%, rgba(92, 106, 124, 0.4), rgba(43, 51, 63, 0.92) 44%, rgba(18, 23, 31, 0.98) 82%, #0f131a 100%)",
     solid:
-        "radial-gradient(circle at 50% 44%, rgba(112, 122, 135, 0.42), rgba(49, 57, 68, 0.92) 42%, rgba(19, 24, 32, 0.98) 80%, #0f131a 100%)",
+        "radial-gradient(circle at 50% 50%, rgba(112, 122, 135, 0.42), rgba(49, 57, 68, 0.92) 42%, rgba(19, 24, 32, 0.98) 80%, #0f131a 100%)",
     toon:
-        "radial-gradient(circle at 50% 45%, rgba(99, 108, 128, 0.42), rgba(45, 53, 66, 0.92) 42%, rgba(19, 24, 33, 0.98) 80%, #0f131a 100%)",
+        "radial-gradient(circle at 50% 50%, rgba(99, 108, 128, 0.42), rgba(45, 53, 66, 0.92) 42%, rgba(19, 24, 33, 0.98) 80%, #0f131a 100%)",
     wireframe:
-        "radial-gradient(circle at 50% 45%, rgba(58, 74, 92, 0.38), rgba(27, 37, 50, 0.96) 44%, rgba(9, 14, 22, 0.99) 82%, #070c13 100%)",
+        "radial-gradient(circle at 50% 50%, rgba(58, 74, 92, 0.38), rgba(27, 37, 50, 0.96) 44%, rgba(9, 14, 22, 0.99) 82%, #070c13 100%)",
 };
 
 const toneMappingExposureByMode: Record<HeavyInspectionMode, number> = {
@@ -158,7 +158,7 @@ const environmentPresetDefinitions: Record<HeavyEnvironmentPreset, {
         coolColor: "#bae6fd",
         rimColor: "#ffffff",
         background:
-            "radial-gradient(circle at 46% 38%, rgba(138, 174, 190, 0.46), rgba(55, 68, 78, 0.88) 43%, rgba(20, 26, 32, 0.98) 80%, #101419 100%)",
+            "radial-gradient(circle at 50% 50%, rgba(138, 174, 190, 0.46), rgba(55, 68, 78, 0.88) 43%, rgba(20, 26, 32, 0.98) 80%, #101419 100%)",
     },
     desert: {
         environmentIntensity: 1.08,
@@ -176,7 +176,7 @@ const environmentPresetDefinitions: Record<HeavyEnvironmentPreset, {
         coolColor: "#dbeafe",
         rimColor: "#fff7ed",
         background:
-            "radial-gradient(circle at 47% 38%, rgba(148, 118, 85, 0.42), rgba(62, 56, 48, 0.9) 43%, rgba(24, 23, 22, 0.98) 80%, #121212 100%)",
+            "radial-gradient(circle at 50% 50%, rgba(148, 118, 85, 0.42), rgba(62, 56, 48, 0.9) 43%, rgba(24, 23, 22, 0.98) 80%, #121212 100%)",
     },
     forest: {
         environmentIntensity: 0.82,
@@ -194,7 +194,7 @@ const environmentPresetDefinitions: Record<HeavyEnvironmentPreset, {
         coolColor: "#bfdbfe",
         rimColor: "#ecfccb",
         background:
-            "radial-gradient(circle at 46% 38%, rgba(82, 116, 94, 0.44), rgba(39, 55, 49, 0.92) 43%, rgba(17, 25, 25, 0.98) 80%, #0d1213 100%)",
+            "radial-gradient(circle at 50% 50%, rgba(82, 116, 94, 0.44), rgba(39, 55, 49, 0.92) 43%, rgba(17, 25, 25, 0.98) 80%, #0d1213 100%)",
     },
     interior: {
         environmentIntensity: 0.74,
@@ -212,7 +212,7 @@ const environmentPresetDefinitions: Record<HeavyEnvironmentPreset, {
         coolColor: "#c7d2fe",
         rimColor: "#fef9c3",
         background:
-            "radial-gradient(circle at 48% 39%, rgba(127, 118, 108, 0.38), rgba(55, 55, 57, 0.92) 42%, rgba(21, 23, 27, 0.98) 80%, #101216 100%)",
+            "radial-gradient(circle at 50% 50%, rgba(127, 118, 108, 0.38), rgba(55, 55, 57, 0.92) 42%, rgba(21, 23, 27, 0.98) 80%, #101216 100%)",
     },
     night: {
         environmentIntensity: 0.44,
@@ -230,7 +230,7 @@ const environmentPresetDefinitions: Record<HeavyEnvironmentPreset, {
         coolColor: "#60a5fa",
         rimColor: "#e0f2fe",
         background:
-            "radial-gradient(circle at 48% 39%, rgba(58, 78, 116, 0.36), rgba(24, 35, 57, 0.94) 42%, rgba(8, 13, 24, 0.99) 80%, #050914 100%)",
+            "radial-gradient(circle at 50% 50%, rgba(58, 78, 116, 0.36), rgba(24, 35, 57, 0.94) 42%, rgba(8, 13, 24, 0.99) 80%, #050914 100%)",
     },
     studio: {
         environmentIntensity: 1,
@@ -248,7 +248,7 @@ const environmentPresetDefinitions: Record<HeavyEnvironmentPreset, {
         coolColor: "#dbeafe",
         rimColor: "#ffffff",
         background:
-            "radial-gradient(circle at 48% 38%, rgba(112, 123, 137, 0.5), rgba(48, 57, 68, 0.92) 42%, rgba(18, 23, 31, 0.99) 79%, #0f131a 100%)",
+            "radial-gradient(circle at 50% 50%, rgba(112, 123, 137, 0.5), rgba(48, 57, 68, 0.92) 42%, rgba(18, 23, 31, 0.99) 79%, #0f131a 100%)",
     },
 };
 
@@ -257,6 +257,7 @@ function getEnvironmentPresetDefinition(preset: HeavyEnvironmentPreset) {
 }
 
 const SUPPORTED_VIEWER_EXTENSIONS = new Set([".glb", ".gltf", ".fbx", ".obj", ".stl"]);
+const SUPPORTED_VIEWER_FORMAT_LABEL = "GLB, GLTF, FBX, OBJ, or STL";
 const NORMAL_MERGE_TOLERANCE_RATIO = 0.005;
 const MIN_NORMAL_MERGE_TOLERANCE = 0.0001;
 
@@ -471,6 +472,45 @@ function inferModelExtension(safeUrl: string): string | null {
     } catch {
         return null;
     }
+}
+
+function getModelUrlFilenameHint(safeUrl: string): string | null {
+    try {
+        const parsed = new URL(
+            safeUrl,
+            typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1",
+        );
+        const queryPath = parsed.searchParams.get("filename") ?? parsed.searchParams.get("path");
+        const candidate = queryPath
+            ? decodeURIComponent(queryPath)
+            : parsed.pathname.split("/").map((segment) => decodeURIComponent(segment)).join("/");
+        return candidate.split(/[\\/]/).filter(Boolean).at(-1) ?? null;
+    } catch {
+        return safeUrl.split(/[\\/]/).filter(Boolean).at(-1) ?? null;
+    }
+}
+
+function formatUnsupportedModelMessage(safeUrl: string) {
+    const filename = getModelUrlFilenameHint(safeUrl);
+    return filename
+        ? `Unsupported model format for "${filename}". Use ${SUPPORTED_VIEWER_FORMAT_LABEL}, or upload a ZIP that contains one of those formats.`
+        : `Unsupported model format. Use ${SUPPORTED_VIEWER_FORMAT_LABEL}, or upload a ZIP that contains one of those formats.`;
+}
+
+function formatViewerLoadError(error: Error, safeUrl: string) {
+    const filename = getModelUrlFilenameHint(safeUrl);
+    const prefix = filename ? `Failed to load "${filename}".` : "Failed to load 3D model.";
+    const message = error.message || "";
+
+    if (/networkerror|failed to fetch|fetch resource|load failed/i.test(message)) {
+        return `${prefix} The model file could not be fetched. Refresh the asset or reopen it from the library to request a fresh signed URL.`;
+    }
+
+    if (/unsupported model format/i.test(message)) {
+        return formatUnsupportedModelMessage(safeUrl);
+    }
+
+    return `${prefix} ${message}`;
 }
 
 function collectMaterialTextures(material: THREE.Material, textureSet: Set<THREE.Texture>) {
@@ -1907,8 +1947,8 @@ function HeavyModelViewerInner({
     const handleAssetError = React.useCallback((error: Error) => {
         console.error("HeavyModelViewer: asset load failure", error);
         setStatus("error");
-        setErrorMessage(`Failed to load 3D model (${error.message})`);
-    }, []);
+        setErrorMessage(formatViewerLoadError(error, safeUrl));
+    }, [safeUrl]);
     const useMaterialView = inspectionMode === "material";
     const usePresentationLighting =
         inspectionMode === "material" || inspectionMode === "solid" || inspectionMode === "toon";
@@ -2019,7 +2059,7 @@ function HeavyModelViewerInner({
 
     useEffect(() => {
         setStatus(modelExtension ? "loading" : "error");
-        setErrorMessage(modelExtension ? null : "Unsupported model format");
+        setErrorMessage(modelExtension ? null : formatUnsupportedModelMessage(safeUrl));
         setModelBounds(null);
     }, [modelExtension, safeUrl]);
 
@@ -2174,7 +2214,7 @@ function HeavyModelViewerInner({
                     onError={(error) => {
                         console.error("HeavyModelViewer: model load failure", error);
                         setStatus("error");
-                        setErrorMessage(`Failed to load 3D model (${error.message})`);
+                        setErrorMessage(formatViewerLoadError(error, safeUrl));
                     }}
                 >
                     <OrbitControls

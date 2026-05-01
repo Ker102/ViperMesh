@@ -7,7 +7,7 @@ import { StudioWorkspace } from "./studio-workspace"
 import { StudioAdvisor } from "./studio-advisor"
 import { WorkflowTimeline, type WorkflowTimelineStep, type StepMonitoringLog, type StepPlanData, type StepCommandResult } from "./workflow-timeline"
 import { StepSessionDrawer } from "./step-session-drawer"
-import { GeneratedAssetsShelf } from "./generated-assets-shelf"
+import { GeneratedAssetsShelf, type AssetLibraryMetadataPatch } from "./generated-assets-shelf"
 import { SavedAssetThumbnailGenerator } from "./saved-asset-thumbnail-generator"
 import { extractGeneratedAssets, type GeneratedAssetItem } from "./generated-assets"
 import type { ToolEntry } from "@/lib/orchestration/tool-catalog"
@@ -50,21 +50,34 @@ function getToolInputKeyByType(toolId: string, type: "mesh" | "image"): string |
 }
 
 // ── API persistence helpers (replaces localStorage) ─────────────
-async function fetchPersistedSteps(projectId: string): Promise<WorkflowTimelineStep[]> {
+type PersistedStepsLoadResult =
+    | { ok: true; steps: WorkflowTimelineStep[] }
+    | { ok: false; steps: WorkflowTimelineStep[]; error: unknown }
+
+async function fetchPersistedSteps(projectId: string): Promise<PersistedStepsLoadResult> {
     try {
         const res = await fetch(`/api/projects/studio-session?projectId=${projectId}`)
-        if (!res.ok) return []
+        if (!res.ok) {
+            return {
+                ok: false,
+                steps: [],
+                error: new Error(`Failed to load studio session: HTTP ${res.status}`),
+            }
+        }
         const data = await res.json()
         const steps = data.steps as WorkflowTimelineStep[] | undefined
-        if (!Array.isArray(steps)) return []
+        if (!Array.isArray(steps)) return { ok: true, steps: [] }
         // Steps that were "running" when the page closed can't be resumed — mark as failed
-        return steps.map((step) =>
-            step.status === "running"
-                ? { ...step, status: "failed" as const, error: step.error ?? "Session interrupted" }
-                : step
-        )
-    } catch {
-        return []
+        return {
+            ok: true,
+            steps: steps.map((step) =>
+                step.status === "running"
+                    ? { ...step, status: "failed" as const, error: step.error ?? "Session interrupted" }
+                    : step
+            ),
+        }
+    } catch (error) {
+        return { ok: false, steps: [], error }
     }
 }
 
@@ -169,6 +182,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
     } | null>(null)
     const [libraryImportInFlight, setLibraryImportInFlight] = useState(false)
     const [savedAssets, setSavedAssets] = useState<GeneratedAssetItem[]>([])
+    const [thumbnailRetryKey, setThumbnailRetryKey] = useState(0)
 
     // Keep ref in sync with state
     useEffect(() => {
@@ -178,8 +192,15 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
     // ── Load steps from API on mount ─────────────────────────────
     useEffect(() => {
         let cancelled = false
-        fetchPersistedSteps(projectId).then((steps) => {
+        fetchPersistedSteps(projectId).then((result) => {
             if (!cancelled) {
+                if (!result.ok) {
+                    console.warn("[StudioLayout] Failed to load persisted steps; skipping session autosave to avoid overwriting existing pipeline.", result.error)
+                    setStepsLoading(false)
+                    return
+                }
+
+                const steps = result.steps
                 setWorkflowSteps(steps)
                 if (typeof window !== "undefined") {
                     const restoredSelectedStepId = window.sessionStorage.getItem(selectedStepStorageKey)
@@ -816,6 +837,73 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         }
     }, [handleSaveLibraryAsset])
 
+    const handleUpdateLibraryAsset = useCallback(async (asset: GeneratedAssetItem, patch: AssetLibraryMetadataPatch) => {
+        const savedAssetId = getSavedAssetId(asset)
+        if (!savedAssetId) {
+            window.alert("Save this asset to the library before editing metadata.")
+            return
+        }
+
+        try {
+            const response = await fetch(`/api/projects/assets/${savedAssetId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(patch),
+            })
+            const payload = await response.json().catch(() => null)
+            if (!response.ok || !payload?.asset) {
+                throw new Error(payload?.error ?? `Asset update failed with HTTP ${response.status}`)
+            }
+            setSavedAssets((current) => upsertAsset(current, payload.asset as GeneratedAssetItem))
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed to update asset metadata"
+            window.alert(message)
+            throw error
+        }
+    }, [])
+
+    const handleDeleteLibraryAsset = useCallback(async (asset: GeneratedAssetItem) => {
+        const savedAssetId = getSavedAssetId(asset)
+        if (!savedAssetId) {
+            return
+        }
+
+        try {
+            const response = await fetch(`/api/projects/assets/${savedAssetId}`, {
+                method: "DELETE",
+            })
+            const payload = await response.json().catch(() => null)
+            if (!response.ok) {
+                throw new Error(payload?.error ?? `Asset removal failed with HTTP ${response.status}`)
+            }
+            setSavedAssets((current) => current.filter((item) => item.id !== asset.id))
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed to remove asset"
+            window.alert(message)
+            throw error
+        }
+    }, [])
+
+    const handleRetryLibraryAssetThumbnail = useCallback((asset: GeneratedAssetItem) => {
+        const savedAssetId = getSavedAssetId(asset)
+        if (!savedAssetId) return
+
+        setSavedAssets((current) => current.map((item) => {
+            if (item.id !== asset.id) return item
+            return {
+                ...item,
+                previewImageUrl: undefined,
+                assetStats: item.assetStats
+                    ? {
+                        ...item.assetStats,
+                        thumbnailVersion: undefined,
+                    }
+                    : item.assetStats,
+            }
+        }))
+        setThumbnailRetryKey((key) => key + 1)
+    }, [])
+
     const handleToolRunNow = useCallback(
         (tool: ToolEntry, inputs: Record<string, string>) => {
             const stepId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
@@ -980,7 +1068,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                         setGeneratedAssetsOpen((open) => !open)
                         setAssistantOpen(false)
                     }}
-                    className="absolute bottom-1/2 right-0 z-30 inline-flex h-16 w-7 translate-x-0 translate-y-1/2 items-center justify-center rounded-l-2xl border border-r-0 transition-all duration-300 hover:opacity-90"
+                    className="absolute bottom-1/2 right-0 z-30 inline-flex h-16 w-7 translate-x-0 translate-y-1/2 items-center justify-center rounded-l-2xl border border-r-0 transition-all duration-300 ease-out hover:w-8 hover:shadow-xl active:scale-95 motion-reduce:transition-none"
                     style={{
                         right: generatedAssetsOpen ? "320px" : "0px",
                         borderColor: "hsl(var(--forge-border))",
@@ -1013,12 +1101,16 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                     onUseAsset={handleUseLibraryAsset}
                     onImportAsset={handleImportLibraryAsset}
                     onSaveAsset={handleSaveLibraryAsset}
+                    onUpdateAsset={handleUpdateLibraryAsset}
+                    onDeleteAsset={handleDeleteLibraryAsset}
                     onTogglePinned={handleToggleLibraryAssetPinned}
+                    onRetryThumbnail={handleRetryLibraryAssetThumbnail}
                     selectionMode={librarySelectionMode}
                     importInFlight={libraryImportInFlight}
                 />
 
                 <SavedAssetThumbnailGenerator
+                    key={thumbnailRetryKey}
                     assets={savedAssets}
                     onThumbnailSaved={(asset) => {
                         setSavedAssets((current) => upsertAsset(current, asset))
