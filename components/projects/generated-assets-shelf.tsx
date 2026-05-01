@@ -85,7 +85,7 @@ function getAssetSearchText(asset: AssetLibraryItem) {
 }
 
 function getAssetTimestamp(asset: AssetLibraryItem) {
-    const timestamp = asset.createdAt ?? asset.updatedAt
+    const timestamp = asset.updatedAt ?? asset.createdAt
     return timestamp ? Date.parse(timestamp) || 0 : 0
 }
 
@@ -297,6 +297,7 @@ export function GeneratedAssetsShelf({
                     >
                         <Search className="h-3.5 w-3.5 shrink-0" />
                         <input
+                            aria-label="Search assets"
                             value={searchQuery}
                             onChange={(event) => setSearchQuery(event.target.value)}
                             placeholder="Search assets"
@@ -314,6 +315,7 @@ export function GeneratedAssetsShelf({
                     >
                         <ArrowDownUp className="h-3.5 w-3.5 shrink-0" />
                         <select
+                            aria-label="Sort assets"
                             value={sortMode}
                             onChange={(event) => setSortMode(event.target.value as AssetSortMode)}
                             className="max-w-[78px] bg-transparent text-xs font-semibold outline-none"
@@ -456,11 +458,13 @@ function AssetDetailsPanel({
     const [isSaving, setIsSaving] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
     const [copied, setCopied] = useState(false)
+    const [validationError, setValidationError] = useState<string | null>(null)
 
     useEffect(() => {
         setLabel(asset.viewerLabel ?? asset.title)
         setTagsText(asset.userTags.join(", "))
         setCategoryId(toEditableCategoryId(asset.libraryCategoryOverride))
+        setValidationError(null)
     }, [asset])
 
     const parsedTags = tagsText
@@ -472,9 +476,22 @@ function AssetDetailsPanel({
     const handleSaveMetadata = async () => {
         if (!isSavedAsset) return
         const nextLabel = label.trim()
-        if (!nextLabel) return
+        if (!nextLabel) {
+            setValidationError("Name is required.")
+            return
+        }
+        if (nextLabel.length > 255) {
+            setValidationError("Name must be 255 characters or fewer.")
+            return
+        }
+        const longTag = parsedTags.find((tag) => tag.length > 32)
+        if (longTag) {
+            setValidationError(`Tags must be 32 characters or fewer. Shorten "${longTag}".`)
+            return
+        }
 
         setIsSaving(true)
+        setValidationError(null)
         try {
             await onUpdateAsset(asset, {
                 label: nextLabel,
@@ -653,6 +670,20 @@ function AssetDetailsPanel({
                             Comma-separated, up to 8 tags.
                         </p>
                     </label>
+
+                    {validationError && (
+                        <div
+                            className="rounded-2xl border px-3 py-2 text-xs font-medium"
+                            style={{
+                                borderColor: "rgba(239,68,68,0.28)",
+                                backgroundColor: "rgba(254,226,226,0.6)",
+                                color: "rgb(185,28,28)",
+                            }}
+                            role="alert"
+                        >
+                            {validationError}
+                        </div>
+                    )}
 
                     <label className="block">
                         <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>

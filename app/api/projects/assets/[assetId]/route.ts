@@ -10,9 +10,9 @@ import {
 } from "@/lib/projects/saved-assets"
 
 const updateAssetSchema = z.object({
-    label: z.string().min(1).max(255).optional(),
+    label: z.string().trim().min(1).max(255).optional(),
     isPinned: z.boolean().optional(),
-    tags: z.array(z.string().min(1).max(32)).max(8).optional(),
+    tags: z.array(z.string().trim().min(1).max(32)).max(8).optional(),
     categoryId: z.enum(["textured", "geometry", "images"]).nullable().optional(),
 })
 

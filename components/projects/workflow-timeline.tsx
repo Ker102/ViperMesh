@@ -154,6 +154,7 @@ export function WorkflowTimeline({
                             <div key={step.id} className="flex items-center gap-1.5 shrink-0">
                                 {/* Step pill — clickable */}
                                 <button
+                                    type="button"
                                     onClick={() => onStepClick(step.id)}
                                     className={cn(
                                         "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer",
@@ -202,18 +203,19 @@ export function WorkflowTimeline({
                                     <span>
                                         {index + 1}. {step.title}
                                     </span>
-                                    {/* Remove button — stop propagation so click doesn't open drawer */}
-                                    <span
-                                        role="button"
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            onRemoveStep(step.id)
-                                        }}
-                                        className="ml-1 opacity-50 hover:opacity-100 transition text-base leading-none"
-                                        style={{ color: "hsl(var(--forge-text-muted))" }}
-                                    >
-                                        x
-                                    </span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        onRemoveStep(step.id)
+                                    }}
+                                    className="ml-1 opacity-50 hover:opacity-100 transition text-base leading-none"
+                                    style={{ color: "hsl(var(--forge-text-muted))" }}
+                                    aria-label={`Remove ${step.title} from pipeline`}
+                                    title="Remove step"
+                                >
+                                    x
                                 </button>
 
                                 {/* Connector arrow */}

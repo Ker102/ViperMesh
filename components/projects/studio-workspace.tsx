@@ -1011,6 +1011,16 @@ function formatViewerStatCount(value?: number) {
 function ViewerStatsOverlay({ stats }: { stats?: AssetInspectionStats | null }) {
     if (!stats) return null
 
+    const hasInspectionStats = [
+        stats.triangleCount,
+        stats.materialCount,
+        stats.textureCount,
+        stats.meshCount,
+        stats.fileSizeBytes,
+    ].some((value) => typeof value === "number" && !Number.isNaN(value) && value > 0)
+
+    if (!hasInspectionStats) return null
+
     const rows = [
         { label: "Topology", value: "Triangle" },
         { label: "Faces", value: formatViewerStatCount(stats.triangleCount) },

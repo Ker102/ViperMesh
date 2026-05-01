@@ -46,6 +46,10 @@ function testObjectKeyUsesStableUserProjectAssetPath() {
         "/api/projects/assets/asset-789/file?filename=dragon.glb",
     )
     assert.equal(
+        buildSavedAssetViewerUrlForObjectKey("asset-789", key, "dragon"),
+        "/api/projects/assets/asset-789/file?filename=dragon.glb",
+    )
+    assert.equal(
         buildSavedAssetPreviewObjectKey({
             userId: "user-123",
             projectId: "project-456",
@@ -111,7 +115,7 @@ function testSavedAssetMapsToGeneratedAssetItem() {
             id: "asset-versioned",
             projectId: "project-456",
             sourceStepId: null,
-            label: "versioned.glb",
+            label: "versioned",
             objectKey: "users/user-123/projects/project-456/assets/asset-versioned/original.glb",
             viewerUrl: "/api/projects/assets/asset-versioned/file",
             previewObjectKey: "users/user-123/projects/project-456/assets/asset-versioned/preview.png",
@@ -141,7 +145,7 @@ function testSavedAssetMapsToGeneratedAssetItem() {
             id: "asset-inferred",
             projectId: "project-456",
             sourceStepId: null,
-            label: "inferred.glb",
+            label: "inferred",
             objectKey: "users/user-123/projects/project-456/assets/asset-inferred/original.glb",
             viewerUrl: null,
             previewObjectKey: null,

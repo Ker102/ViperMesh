@@ -58,6 +58,10 @@ function getObjectKeyFilename(objectKey: string): string | null {
     return filename && filename.includes(".") ? decodeURIComponent(filename) : null
 }
 
+function getPathExtension(candidate?: string | null): string {
+    return candidate?.match(/\.[^.\\/]+$/)?.[0] ?? ""
+}
+
 export function buildSavedAssetObjectKey({
     userId,
     projectId,
@@ -104,7 +108,16 @@ export function buildSavedAssetViewerUrlForObjectKey(assetId: string, objectKey:
     const packagePrefix = getSavedAssetPackagePrefix(objectKey)
     if (!packagePrefix) {
         const viewerUrl = buildSavedAssetViewerUrl(assetId)
-        const filenameHint = filename ?? getObjectKeyFilename(objectKey)
+        const objectKeyFilename = getObjectKeyFilename(objectKey)
+        const objectExtension = getPathExtension(objectKeyFilename)
+        const trimmedFilename = filename?.trim()
+        const filenameHint = trimmedFilename
+            ? getPathExtension(trimmedFilename)
+                ? trimmedFilename
+                : objectExtension
+                    ? `${trimmedFilename}${objectExtension}`
+                    : trimmedFilename
+            : objectKeyFilename
         return filenameHint ? `${viewerUrl}?${new URLSearchParams({ filename: filenameHint }).toString()}` : viewerUrl
     }
 
