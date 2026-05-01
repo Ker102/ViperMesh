@@ -88,6 +88,9 @@ function testSavedAssetMapsToGeneratedAssetItem() {
                 sourceToolLabel: "Hunyuan3D Shape 2.1",
                 sourceProvider: "Cloudflare R2",
                 stageLabel: "Geometry",
+                thumbnailStatus: "failed",
+                thumbnailError: "Preview render timed out",
+                importWarnings: ["Import the OBJ as a ZIP when materials are missing."],
             },
             librarySource: "generated",
             isPinned: true,
@@ -109,6 +112,9 @@ function testSavedAssetMapsToGeneratedAssetItem() {
     assert.equal(item.librarySource, "saved")
     assert.equal(item.isPinned, true)
     assert.equal(item.assetStats?.fileSizeBytes, 2048)
+    assert.equal(item.assetStats?.thumbnailStatus, "failed")
+    assert.equal(item.assetStats?.thumbnailError, "Preview render timed out")
+    assert.deepEqual(item.assetStats?.importWarnings, ["Import the OBJ as a ZIP when materials are missing."])
 
     const versionedItem = mapSavedAssetRecordToGeneratedAsset(
         {

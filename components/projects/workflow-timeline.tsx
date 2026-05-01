@@ -60,6 +60,9 @@ export interface AssetInspectionStats {
     sourceProvider?: string
     stageLabel?: string
     thumbnailVersion?: string
+    thumbnailStatus?: "queued" | "rendering" | "ready" | "failed"
+    thumbnailError?: string
+    importWarnings?: string[]
     userTags?: string[]
     libraryCategoryOverride?: string
 }

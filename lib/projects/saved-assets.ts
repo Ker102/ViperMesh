@@ -144,6 +144,17 @@ function normalizeAssetStats(
         sourceProvider: typeof candidate.sourceProvider === "string" ? candidate.sourceProvider : undefined,
         stageLabel: typeof candidate.stageLabel === "string" ? candidate.stageLabel : undefined,
         thumbnailVersion: typeof candidate.thumbnailVersion === "string" ? candidate.thumbnailVersion : undefined,
+        thumbnailStatus:
+            candidate.thumbnailStatus === "queued" ||
+            candidate.thumbnailStatus === "rendering" ||
+            candidate.thumbnailStatus === "ready" ||
+            candidate.thumbnailStatus === "failed"
+                ? candidate.thumbnailStatus
+                : undefined,
+        thumbnailError: typeof candidate.thumbnailError === "string" ? candidate.thumbnailError : undefined,
+        importWarnings: Array.isArray(candidate.importWarnings)
+            ? candidate.importWarnings.filter((warning): warning is string => typeof warning === "string")
+            : undefined,
         userTags: Array.isArray(candidate.userTags)
             ? candidate.userTags.filter((tag): tag is string => typeof tag === "string")
             : undefined,

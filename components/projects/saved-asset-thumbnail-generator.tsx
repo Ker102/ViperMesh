@@ -146,9 +146,15 @@ function ThumbnailScene({
 export function SavedAssetThumbnailGenerator({
     assets,
     onThumbnailSaved,
+    onThumbnailStatusChange,
 }: {
     assets: GeneratedAssetItem[]
     onThumbnailSaved: (asset: GeneratedAssetItem) => void
+    onThumbnailStatusChange?: (
+        asset: GeneratedAssetItem,
+        status: "queued" | "rendering" | "ready" | "failed",
+        error?: string,
+    ) => void
 }) {
     const attemptedAssetIdsRef = useRef(new Set<string>())
     const [activeAsset, setActiveAsset] = useState<GeneratedAssetItem | null>(null)
@@ -167,8 +173,9 @@ export function SavedAssetThumbnailGenerator({
         if (!nextAsset) return
 
         attemptedAssetIdsRef.current.add(nextAsset.id)
+        onThumbnailStatusChange?.(nextAsset, "rendering")
         setActiveAsset(nextAsset)
-    }, [activeAsset, pendingAssets])
+    }, [activeAsset, onThumbnailStatusChange, pendingAssets])
 
     const handleComplete = useCallback(() => {
         setActiveAsset(null)
@@ -197,7 +204,10 @@ export function SavedAssetThumbnailGenerator({
                 throw new Error(payload?.error ?? `Thumbnail save failed with HTTP ${response.status}`)
             }
             onThumbnailSaved(payload.asset as GeneratedAssetItem)
+            onThumbnailStatusChange?.(activeAsset, "ready")
         } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed to save asset thumbnail"
+            onThumbnailStatusChange?.(activeAsset, "failed", message)
             console.warn("[SavedAssetThumbnailGenerator] Failed to save asset thumbnail", {
                 assetId: activeAsset.id,
                 error,
@@ -206,17 +216,19 @@ export function SavedAssetThumbnailGenerator({
             window.clearTimeout(timeoutId)
             handleComplete()
         }
-    }, [activeAsset, handleComplete, onThumbnailSaved])
+    }, [activeAsset, handleComplete, onThumbnailSaved, onThumbnailStatusChange])
 
     const handleRenderError = useCallback((error: unknown) => {
         if (activeAsset) {
+            const message = error instanceof Error ? error.message : "Failed to render asset thumbnail"
+            onThumbnailStatusChange?.(activeAsset, "failed", message)
             console.warn("[SavedAssetThumbnailGenerator] Failed to render asset thumbnail", {
                 assetId: activeAsset.id,
                 error,
             })
         }
         handleComplete()
-    }, [activeAsset, handleComplete])
+    }, [activeAsset, handleComplete, onThumbnailStatusChange])
 
     const source = activeAsset
         ? getModelPreviewSource(activeAsset.viewerUrl, activeAsset.viewerLabel ?? activeAsset.title)
