@@ -17,7 +17,7 @@ import {
     Trash2,
     X,
 } from "lucide-react"
-import { AssetPreviewTile, AssetStatsPills } from "./asset-inspection"
+import { AssetPreviewTile, AssetStatsPills, formatAssetFileSize } from "./asset-inspection"
 import {
     buildProjectAssetLibrary,
     filterProjectAssetLibraryItems,
@@ -50,11 +50,14 @@ interface GeneratedAssetsShelfProps {
     onUpdateAsset: (asset: GeneratedAssetItem, patch: AssetLibraryMetadataPatch) => Promise<void> | void
     onDeleteAsset: (asset: GeneratedAssetItem) => Promise<void> | void
     onTogglePinned: (asset: GeneratedAssetItem) => Promise<void> | void
+    onSetPinned: (asset: GeneratedAssetItem, isPinned: boolean) => Promise<void> | void
     onRetryThumbnail: (asset: GeneratedAssetItem) => void
     selectionMode?: {
         label: string
     } | null
     importInFlight?: boolean
+    importStatus?: AssetImportStatus | null
+    onCancelImport?: () => void
 }
 
 export interface AssetLibraryMetadataPatch {
@@ -65,6 +68,13 @@ export interface AssetLibraryMetadataPatch {
 
 type EditableAssetCategoryId = "textured" | "geometry" | "images"
 type AssetSortMode = "recent" | "name" | "pinned" | "largest" | "smallest"
+type ThumbnailStatus = "queued" | "rendering" | "ready" | "failed"
+export interface AssetImportStatus {
+    fileName: string
+    loadedBytes: number
+    totalBytes: number
+    phase: "uploading" | "processing"
+}
 
 function isSupportedImportFile(file: File) {
     return SUPPORTED_MODEL_IMPORT_PATTERN.test(file.name)
@@ -123,9 +133,34 @@ function formatAssetDate(timestamp?: string) {
 }
 
 function getThumbnailStatus(asset: AssetLibraryItem) {
+    const status = asset.assetStats?.thumbnailStatus
+    if (status === "queued") return "Queued"
+    if (status === "rendering") return "Rendering"
+    if (status === "ready") return "Ready"
+    if (status === "failed") return "Failed"
     if (asset.previewImageUrl) return "Ready"
     if (asset.id.startsWith("saved:") && asset.assetKind === "model") return "Pending"
     return "Not generated"
+}
+
+function getThumbnailStatusTone(status?: ThumbnailStatus) {
+    if (status === "ready") return "hsl(var(--forge-accent))"
+    if (status === "failed") return "rgb(185,28,28)"
+    if (status === "queued" || status === "rendering") return "#2563eb"
+    return "hsl(var(--forge-text-muted))"
+}
+
+function getBulkTags(tagsText: string) {
+    return tagsText
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean)
+        .slice(0, 8)
+}
+
+function getBulkTagValidationError(tagsText: string) {
+    const longTag = getBulkTags(tagsText).find((tag) => tag.length > 32)
+    return longTag ? `Tags must be 32 characters or fewer. Shorten "${longTag}".` : null
 }
 
 export function GeneratedAssetsShelf({
@@ -139,9 +174,12 @@ export function GeneratedAssetsShelf({
     onUpdateAsset,
     onDeleteAsset,
     onTogglePinned,
+    onSetPinned,
     onRetryThumbnail,
     selectionMode,
     importInFlight = false,
+    importStatus = null,
+    onCancelImport,
 }: GeneratedAssetsShelfProps) {
     const assetLibrary = useMemo(() => buildProjectAssetLibrary(assets), [assets])
     const [activeCategoryId, setActiveCategoryId] = useState<AssetLibraryCategoryId>("all")
@@ -150,6 +188,11 @@ export function GeneratedAssetsShelf({
     const [searchQuery, setSearchQuery] = useState("")
     const [sortMode, setSortMode] = useState<AssetSortMode>("recent")
     const [isDragActive, setIsDragActive] = useState(false)
+    const [bulkMode, setBulkMode] = useState(false)
+    const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(new Set())
+    const [bulkTagsText, setBulkTagsText] = useState("")
+    const [bulkCategoryId, setBulkCategoryId] = useState<EditableAssetCategoryId | "auto">("auto")
+    const [bulkActionInFlight, setBulkActionInFlight] = useState<string | null>(null)
     const importInputRef = useRef<HTMLInputElement | null>(null)
 
     const effectiveCategoryId = assetLibrary.categories.some((category) => category.id === activeCategoryId)
@@ -166,6 +209,16 @@ export function GeneratedAssetsShelf({
     const selectedAsset = selectedAssetId
         ? assetLibrary.items.find((asset) => asset.id === selectedAssetId) ?? null
         : null
+    const bulkSelectedAssets = sortedItems.filter((asset) => selectedAssetIds.has(asset.id))
+    const savedBulkSelectedAssets = bulkSelectedAssets.filter((asset) => asset.id.startsWith("saved:"))
+
+    useEffect(() => {
+        setSelectedAssetIds((current) => {
+            const availableIds = new Set(assetLibrary.items.map((asset) => asset.id))
+            const next = new Set(Array.from(current).filter((assetId) => availableIds.has(assetId)))
+            return next.size === current.size ? current : next
+        })
+    }, [assetLibrary.items])
 
     const toggleFavorite = (asset: GeneratedAssetItem) => {
         void onTogglePinned(asset)
@@ -174,6 +227,37 @@ export function GeneratedAssetsShelf({
     const handleOpenAsset = (asset: GeneratedAssetItem, options?: { attachToActiveTool?: boolean }) => {
         setActiveAssetId(asset.id)
         onOpenAsset(asset, options)
+    }
+
+    const toggleBulkSelection = (assetId: string) => {
+        setSelectedAssetIds((current) => {
+            const next = new Set(current)
+            if (next.has(assetId)) {
+                next.delete(assetId)
+            } else {
+                next.add(assetId)
+            }
+            return next
+        })
+    }
+
+    const clearBulkSelection = () => {
+        setSelectedAssetIds(new Set())
+        setBulkTagsText("")
+        setBulkCategoryId("auto")
+    }
+
+    const runBulkAction = async (label: string, action: () => Promise<void>) => {
+        setBulkActionInFlight(label)
+        try {
+            await action()
+        } catch (error) {
+            const message = error instanceof Error ? error.message : `${label} failed.`
+            console.error(`[GeneratedAssetsShelf] Bulk action failed: ${label}`, error)
+            window.alert(message)
+        } finally {
+            setBulkActionInFlight(null)
+        }
     }
 
     const handleImportFiles = async (files: FileList | File[]) => {
@@ -328,6 +412,43 @@ export function GeneratedAssetsShelf({
                         </select>
                     </label>
                 </div>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setBulkMode((current) => !current)
+                            if (bulkMode) clearBulkSelection()
+                        }}
+                        className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${ASSET_SHELF_BUTTON_MOTION}`}
+                        style={{
+                            borderColor: bulkMode ? "hsl(var(--forge-accent))" : "hsl(var(--forge-border))",
+                            backgroundColor: bulkMode ? "hsl(var(--forge-accent-subtle))" : "transparent",
+                            color: bulkMode ? "hsl(var(--forge-accent))" : "hsl(var(--forge-text-muted))",
+                        }}
+                    >
+                        {bulkMode ? "Done selecting" : "Select"}
+                    </button>
+                    {bulkMode && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const visibleIds = sortedItems.map((asset) => asset.id)
+                                setSelectedAssetIds((current) => {
+                                    const allVisibleSelected = visibleIds.every((assetId) => current.has(assetId))
+                                    if (allVisibleSelected) return new Set()
+                                    return new Set(visibleIds)
+                                })
+                            }}
+                            className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${ASSET_SHELF_BUTTON_MOTION}`}
+                            style={{
+                                borderColor: "hsl(var(--forge-border))",
+                                color: "hsl(var(--forge-text-muted))",
+                            }}
+                        >
+                            {sortedItems.length > 0 && sortedItems.every((asset) => selectedAssetIds.has(asset.id)) ? "Clear" : "Select all"}
+                        </button>
+                    )}
+                </div>
                 <div className="flex flex-wrap gap-2">
                     {assetLibrary.categories.map((category) => {
                         const isActive = category.id === effectiveCategoryId
@@ -355,6 +476,60 @@ export function GeneratedAssetsShelf({
                     })}
                 </div>
 
+                {importStatus && (
+                    <ImportProgressPanel
+                        status={importStatus}
+                        onCancel={onCancelImport}
+                    />
+                )}
+
+                {bulkMode && (
+                    <BulkActionsBar
+                        selectedCount={bulkSelectedAssets.length}
+                        savedCount={savedBulkSelectedAssets.length}
+                        tagsText={bulkTagsText}
+                        categoryId={bulkCategoryId}
+                        busyLabel={bulkActionInFlight}
+                        onTagsChange={setBulkTagsText}
+                        onCategoryChange={setBulkCategoryId}
+                        onClear={clearBulkSelection}
+                        onPin={() => runBulkAction("Pinning", async () => {
+                            await Promise.all(bulkSelectedAssets.map((asset) => Promise.resolve(onSetPinned(asset, true))))
+                        })}
+                        onUnpin={() => runBulkAction("Unpinning", async () => {
+                            await Promise.all(savedBulkSelectedAssets.map((asset) => Promise.resolve(onSetPinned(asset, false))))
+                        })}
+                        onRetryThumbnails={() => {
+                            savedBulkSelectedAssets
+                                .filter((asset) => asset.assetKind === "model")
+                                .forEach((asset) => onRetryThumbnail(asset))
+                        }}
+                        onApplyMetadata={() => runBulkAction("Applying", async () => {
+                            const validationError = getBulkTagValidationError(bulkTagsText)
+                            if (validationError) {
+                                window.alert(validationError)
+                                return
+                            }
+                            const tags = getBulkTags(bulkTagsText)
+                            const categoryId = bulkCategoryId === "auto" ? null : bulkCategoryId
+                            await Promise.all(savedBulkSelectedAssets.map((asset) => {
+                                const mergedTags = Array.from(new Set([...asset.userTags, ...tags])).slice(0, 8)
+                                return Promise.resolve(onUpdateAsset(asset, {
+                                    tags: mergedTags,
+                                    categoryId,
+                                }))
+                            }))
+                        })}
+                        onUnsave={() => runBulkAction("Removing", async () => {
+                            if (savedBulkSelectedAssets.length === 0) return
+                            const confirmed = window.confirm(`Remove ${savedBulkSelectedAssets.length} saved asset${savedBulkSelectedAssets.length === 1 ? "" : "s"} from this project library?`)
+                            if (!confirmed) return
+                            await Promise.all(savedBulkSelectedAssets.map((asset) => Promise.resolve(onDeleteAsset(asset))))
+                            clearBulkSelection()
+                        })}
+                    />
+                )}
+
                 <div className="mt-4">
                     <div className="grid grid-cols-2 gap-3">
                         <ImportAssetTile
@@ -372,6 +547,9 @@ export function GeneratedAssetsShelf({
                                 attachToSelectionMode={Boolean(selectionMode)}
                                 onSelectInfo={setSelectedAssetId}
                                 onToggleFavorite={toggleFavorite}
+                                bulkMode={bulkMode}
+                                isBulkSelected={selectedAssetIds.has(asset.id)}
+                                onToggleBulkSelected={toggleBulkSelection}
                                 useLivePreview={open && index < 6 && !asset.id.startsWith("saved:")}
                             />
                         ))}
@@ -562,11 +740,11 @@ function AssetDetailsPanel({
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-                <div className="flex items-start gap-3">
-                    <div
-                        className="h-24 w-24 shrink-0 overflow-hidden rounded-2xl border"
-                        style={{ borderColor: "hsl(var(--forge-border))" }}
-                    >
+                <div
+                    className="overflow-hidden rounded-2xl border"
+                    style={{ borderColor: "hsl(var(--forge-border))" }}
+                >
+                    <div className="h-44 w-full">
                         <AssetPreviewTile
                             imageUrl={asset.previewImageUrl}
                             modelUrl={asset.assetKind === "model" ? asset.viewerUrl : undefined}
@@ -577,29 +755,68 @@ function AssetDetailsPanel({
                             useLivePreview={useLivePreview}
                         />
                     </div>
-                    <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
-                            {asset.viewerLabel ?? asset.title}
-                        </p>
-                        <p className="mt-1 text-xs" style={{ color: "hsl(var(--forge-text-muted))" }}>
-                            From {asset.toolLabel}
-                            {asset.stageLabel ? ` • ${asset.stageLabel}` : ""}
-                            {asset.providerLabel ? ` • ${asset.providerLabel}` : ""}
-                        </p>
-                        <p
-                            className="mt-2 text-[11px] font-medium uppercase tracking-[0.14em]"
-                            style={{ color: "hsl(var(--forge-text-subtle))" }}
-                        >
-                            {asset.assetKind === "image"
-                                ? "Image asset"
-                                : asset.densityBucket === "high-poly"
-                                    ? "High poly model"
-                                    : asset.densityBucket === "low-poly"
-                                        ? "Low poly model"
-                                        : "Model asset"}
-                        </p>
-                    </div>
                 </div>
+                <div className="mt-4">
+                    <p className="truncate text-sm font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
+                        {asset.viewerLabel ?? asset.title}
+                    </p>
+                    <p className="mt-1 text-xs" style={{ color: "hsl(var(--forge-text-muted))" }}>
+                        From {asset.toolLabel}
+                        {asset.stageLabel ? ` • ${asset.stageLabel}` : ""}
+                        {asset.providerLabel ? ` • ${asset.providerLabel}` : ""}
+                    </p>
+                    <p
+                        className="mt-2 text-[11px] font-medium uppercase tracking-[0.14em]"
+                        style={{ color: "hsl(var(--forge-text-subtle))" }}
+                    >
+                        {asset.assetKind === "image"
+                            ? "Image asset"
+                            : asset.densityBucket === "high-poly"
+                                ? "High poly model"
+                                : asset.densityBucket === "low-poly"
+                                    ? "Low poly model"
+                                    : "Model asset"}
+                    </p>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border px-3 py-2 text-xs" style={{
+                    borderColor: "hsl(var(--forge-border))",
+                    backgroundColor: "hsl(var(--forge-surface-dim))",
+                }}>
+                    <span className="font-semibold uppercase tracking-[0.13em]" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                        Thumbnail
+                    </span>
+                    <span className="font-semibold" style={{ color: getThumbnailStatusTone(asset.assetStats?.thumbnailStatus) }}>
+                        {getThumbnailStatus(asset)}
+                    </span>
+                </div>
+
+                {asset.assetStats?.thumbnailError && (
+                    <div
+                        className="mt-3 rounded-2xl border px-3 py-2 text-xs leading-relaxed"
+                        style={{
+                            borderColor: "rgba(239,68,68,0.24)",
+                            backgroundColor: "rgba(254,226,226,0.55)",
+                            color: "rgb(185,28,28)",
+                        }}
+                    >
+                        {asset.assetStats.thumbnailError}
+                    </div>
+                )}
+
+                {asset.assetStats?.importWarnings?.map((warning, index) => (
+                    <div
+                        key={`${index}-${warning}`}
+                        className="mt-3 rounded-2xl border px-3 py-2 text-xs leading-relaxed"
+                        style={{
+                            borderColor: "rgba(245,158,11,0.3)",
+                            backgroundColor: "rgba(254,243,199,0.55)",
+                            color: "rgb(146,64,14)",
+                        }}
+                    >
+                        {warning}
+                    </div>
+                ))}
 
                 <AssetStatsPills stats={asset.assetStats} className="mt-4 flex flex-wrap gap-2" />
 
@@ -613,7 +830,7 @@ function AssetDetailsPanel({
                 >
                     <MetadataRow label="Source" value={asset.librarySource === "saved" ? "Saved library asset" : asset.librarySource} />
                     <MetadataRow label="Storage" value={isSavedAsset ? "Private Cloudflare R2 object" : "Session output"} />
-                    <MetadataRow label="Thumbnail" value={getThumbnailStatus(asset)} />
+                    <MetadataRow label="Original" value={asset.title} />
                     <MetadataRow label="Created" value={formatAssetDate(asset.createdAt)} />
                     <MetadataRow label="Updated" value={formatAssetDate(asset.updatedAt)} />
                 </div>
@@ -866,6 +1083,204 @@ function MetadataRow({ label, value }: { label: string; value: string }) {
     )
 }
 
+function ImportProgressPanel({
+    status,
+    onCancel,
+}: {
+    status: AssetImportStatus
+    onCancel?: () => void
+}) {
+    const totalBytes = status.totalBytes > 0 ? status.totalBytes : status.loadedBytes
+    const percent = totalBytes > 0 ? Math.min(100, Math.round((status.loadedBytes / totalBytes) * 100)) : 0
+    return (
+        <div
+            className="mt-3 rounded-2xl border px-3 py-3 text-xs"
+            style={{
+                borderColor: "hsl(var(--forge-border))",
+                backgroundColor: "hsl(var(--forge-surface-dim))",
+                color: "hsl(var(--forge-text-muted))",
+            }}
+        >
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <p className="truncate font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
+                        {status.fileName}
+                    </p>
+                    <p className="mt-1">
+                        {status.phase === "processing" ? "Processing package" : "Uploading"} · {formatAssetFileSize(status.loadedBytes) ?? "0 B"}
+                        {totalBytes > 0 ? ` of ${formatAssetFileSize(totalBytes)}` : ""}
+                    </p>
+                </div>
+                {onCancel && (
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${ASSET_SHELF_BUTTON_MOTION}`}
+                        style={{
+                            borderColor: "rgba(239,68,68,0.24)",
+                            color: "rgb(185,28,28)",
+                        }}
+                    >
+                        Cancel
+                    </button>
+                )}
+            </div>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200">
+                <div
+                    className="h-full rounded-full transition-[width] duration-200 ease-out"
+                    style={{
+                        width: `${percent}%`,
+                        backgroundColor: "hsl(var(--forge-accent))",
+                    }}
+                />
+            </div>
+        </div>
+    )
+}
+
+function BulkActionsBar({
+    selectedCount,
+    savedCount,
+    tagsText,
+    categoryId,
+    busyLabel,
+    onTagsChange,
+    onCategoryChange,
+    onClear,
+    onPin,
+    onUnpin,
+    onRetryThumbnails,
+    onApplyMetadata,
+    onUnsave,
+}: {
+    selectedCount: number
+    savedCount: number
+    tagsText: string
+    categoryId: EditableAssetCategoryId | "auto"
+    busyLabel: string | null
+    onTagsChange: (value: string) => void
+    onCategoryChange: (value: EditableAssetCategoryId | "auto") => void
+    onClear: () => void
+    onPin: () => void
+    onUnpin: () => void
+    onRetryThumbnails: () => void
+    onApplyMetadata: () => void
+    onUnsave: () => void
+}) {
+    const disabled = selectedCount === 0 || Boolean(busyLabel)
+    const savedDisabled = savedCount === 0 || Boolean(busyLabel)
+
+    return (
+        <div
+            className="mt-3 rounded-2xl border px-3 py-3 text-xs"
+            style={{
+                borderColor: "hsl(var(--forge-border))",
+                backgroundColor: "hsl(var(--forge-surface-dim))",
+                color: "hsl(var(--forge-text-muted))",
+            }}
+        >
+            <div className="flex items-center justify-between gap-2">
+                <p className="font-semibold" style={{ color: "hsl(var(--forge-text))" }}>
+                    {selectedCount} selected
+                </p>
+                <button
+                    type="button"
+                    onClick={onClear}
+                    disabled={selectedCount === 0 || Boolean(busyLabel)}
+                    className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold disabled:opacity-50 ${ASSET_SHELF_BUTTON_MOTION}`}
+                    style={{
+                        borderColor: "hsl(var(--forge-border))",
+                        color: "hsl(var(--forge-text-muted))",
+                    }}
+                >
+                    Clear
+                </button>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                    type="button"
+                    onClick={onPin}
+                    disabled={disabled}
+                    className={`rounded-xl px-3 py-2 font-semibold disabled:opacity-50 ${ASSET_SHELF_BUTTON_MOTION}`}
+                    style={{ backgroundColor: "hsl(var(--forge-accent))", color: "white" }}
+                >
+                    Pin
+                </button>
+                <button
+                    type="button"
+                    onClick={onUnpin}
+                    disabled={savedDisabled}
+                    className={`rounded-xl border px-3 py-2 font-semibold disabled:opacity-50 ${ASSET_SHELF_BUTTON_MOTION}`}
+                    style={{ borderColor: "hsl(var(--forge-border))", color: "hsl(var(--forge-text-muted))" }}
+                >
+                    Unpin
+                </button>
+                <button
+                    type="button"
+                    onClick={onRetryThumbnails}
+                    disabled={savedDisabled}
+                    className={`rounded-xl border px-3 py-2 font-semibold disabled:opacity-50 ${ASSET_SHELF_BUTTON_MOTION}`}
+                    style={{ borderColor: "hsl(var(--forge-border))", color: "hsl(var(--forge-text-muted))" }}
+                >
+                    Retry previews
+                </button>
+                <button
+                    type="button"
+                    onClick={onUnsave}
+                    disabled={savedDisabled}
+                    className={`rounded-xl border px-3 py-2 font-semibold disabled:opacity-50 ${ASSET_SHELF_BUTTON_MOTION}`}
+                    style={{ borderColor: "rgba(239,68,68,0.24)", color: "rgb(185,28,28)" }}
+                >
+                    Unsave
+                </button>
+            </div>
+
+            <div className="mt-3 space-y-2">
+                <input
+                    value={tagsText}
+                    onChange={(event) => onTagsChange(event.target.value)}
+                    disabled={savedDisabled}
+                    placeholder="Add tags to saved assets"
+                    className="w-full rounded-xl border px-3 py-2 text-xs outline-none transition-all duration-200 ease-out focus:ring-2 disabled:opacity-50"
+                    style={{
+                        borderColor: "hsl(var(--forge-border))",
+                        backgroundColor: "hsl(var(--forge-surface))",
+                        color: "hsl(var(--forge-text))",
+                    }}
+                />
+                <div className="grid grid-cols-[1fr_auto] gap-2">
+                    <select
+                        value={categoryId}
+                        onChange={(event) => onCategoryChange(event.target.value as EditableAssetCategoryId | "auto")}
+                        disabled={savedDisabled}
+                        className="rounded-xl border px-3 py-2 text-xs outline-none transition-all duration-200 ease-out focus:ring-2 disabled:opacity-50"
+                        style={{
+                            borderColor: "hsl(var(--forge-border))",
+                            backgroundColor: "hsl(var(--forge-surface))",
+                            color: "hsl(var(--forge-text))",
+                        }}
+                    >
+                        <option value="auto">Auto category</option>
+                        <option value="textured">Textured</option>
+                        <option value="geometry">Geometry</option>
+                        <option value="images">Images</option>
+                    </select>
+                    <button
+                        type="button"
+                        onClick={onApplyMetadata}
+                        disabled={savedDisabled}
+                        className={`rounded-xl border px-3 py-2 font-semibold disabled:opacity-50 ${ASSET_SHELF_BUTTON_MOTION}`}
+                        style={{ borderColor: "hsl(var(--forge-border))", color: "hsl(var(--forge-text-muted))" }}
+                    >
+                        {busyLabel ?? "Apply"}
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
 function AssetLibraryGridCard({
     asset,
     isFavorite,
@@ -874,6 +1289,9 @@ function AssetLibraryGridCard({
     attachToSelectionMode,
     onSelectInfo,
     onToggleFavorite,
+    bulkMode,
+    isBulkSelected,
+    onToggleBulkSelected,
     useLivePreview,
 }: {
     asset: AssetLibraryItem
@@ -883,24 +1301,33 @@ function AssetLibraryGridCard({
     attachToSelectionMode: boolean
     onSelectInfo: (assetId: string) => void
     onToggleFavorite: (asset: AssetLibraryItem) => void
+    bulkMode: boolean
+    isBulkSelected: boolean
+    onToggleBulkSelected: (assetId: string) => void
     useLivePreview: boolean
 }) {
     return (
         <div
             className="group relative aspect-square overflow-hidden rounded-2xl border transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-xl active:translate-y-0 active:scale-[0.99] motion-reduce:transition-none"
             style={{
-                borderColor: isSelected ? "hsl(var(--forge-accent))" : "rgba(226,232,240,0.58)",
+                borderColor: isSelected || isBulkSelected ? "hsl(var(--forge-accent))" : "rgba(226,232,240,0.58)",
                 backgroundColor: "#10141b",
-                boxShadow: isSelected
+                boxShadow: isSelected || isBulkSelected
                     ? "0 0 0 1px hsl(var(--forge-accent)) inset, 0 0 0 3px hsl(var(--forge-accent-subtle)), 0 14px 30px rgba(15,23,42,0.16)"
                     : "0 10px 24px rgba(15,23,42,0.08)",
             }}
         >
             <button
                 type="button"
-                onClick={() => onOpenAsset(asset, { attachToActiveTool: attachToSelectionMode && asset.assetKind === "model" })}
+                onClick={() => {
+                    if (bulkMode) {
+                        onToggleBulkSelected(asset.id)
+                        return
+                    }
+                    onOpenAsset(asset, { attachToActiveTool: attachToSelectionMode && asset.assetKind === "model" })
+                }}
                 className="group block h-full w-full text-left"
-                title="Open in viewer"
+                title={bulkMode ? "Select asset" : "Open in viewer"}
             >
                 <div className="relative h-full w-full overflow-hidden">
                     <AssetPreviewTile
@@ -916,6 +1343,26 @@ function AssetLibraryGridCard({
                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/28 via-transparent to-black/8 opacity-80" />
                 </div>
             </button>
+
+            {bulkMode && (
+                <button
+                    type="button"
+                    onClick={(event) => {
+                        event.stopPropagation()
+                        onToggleBulkSelected(asset.id)
+                    }}
+                    className={`absolute left-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full border ${ASSET_SHELF_ICON_MOTION}`}
+                    style={{
+                        borderColor: isBulkSelected ? "hsl(var(--forge-accent))" : "rgba(255,255,255,0.35)",
+                        backgroundColor: isBulkSelected ? "hsl(var(--forge-accent))" : "rgba(9,12,18,0.68)",
+                        color: "white",
+                    }}
+                    aria-label={isBulkSelected ? "Deselect asset" : "Select asset"}
+                    title={isBulkSelected ? "Selected" : "Select"}
+                >
+                    {isBulkSelected ? <Check className="h-3.5 w-3.5" /> : null}
+                </button>
+            )}
 
             <button
                 type="button"

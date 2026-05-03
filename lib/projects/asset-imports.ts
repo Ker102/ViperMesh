@@ -34,6 +34,16 @@ export interface ExtractedAssetPackageFile {
     absolutePath: string
 }
 
+export class AssetImportError extends Error {
+    status: number
+
+    constructor(message: string, status = 400) {
+        super(message)
+        this.name = "AssetImportError"
+        this.status = status
+    }
+}
+
 function normalizeArchiveEntryPath(entryName: string): string | null {
     const normalized = path.posix.normalize(entryName.replace(/\\/g, "/"))
     if (!normalized || normalized === "." || normalized.endsWith("/")) {
@@ -102,16 +112,16 @@ export async function extractZipAssetPackage(
 
             extractedEntryCount += 1
             if (extractedEntryCount > limits.maxEntries) {
-                throw new Error(`ZIP package contains too many supported files. Limit is ${limits.maxEntries}.`)
+                throw new AssetImportError(`ZIP package contains too many supported files. Limit is ${limits.maxEntries}.`)
             }
 
             if (limits.maxFileBytes && entry.originalSize > limits.maxFileBytes) {
-                throw new Error(`ZIP entry ${entryPath} is larger than the per-file import limit.`)
+                throw new AssetImportError(`ZIP entry ${entryPath} is larger than the per-file import limit.`)
             }
 
             totalUncompressedBytes += entry.originalSize
             if (totalUncompressedBytes > limits.maxUncompressedBytes) {
-                throw new Error("ZIP package exceeds the maximum uncompressed import size.")
+                throw new AssetImportError("ZIP package exceeds the maximum uncompressed import size.")
             }
 
             normalizedEntryPaths.set(entry.name, entryPath)
@@ -125,7 +135,7 @@ export async function extractZipAssetPackage(
 
     const rootModelPath = pickRootModelPath(entryPaths, uploadFilename)
     if (!rootModelPath) {
-        throw new Error("ZIP package must contain a .glb, .gltf, .fbx, .obj, or .stl root model file")
+        throw new AssetImportError("ZIP package must contain a .glb, .gltf, .fbx, .obj, or .stl root model file.")
     }
 
     await mkdir(outputDirectory, { recursive: true })

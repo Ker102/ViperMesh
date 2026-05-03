@@ -19,6 +19,12 @@ interface StudioLayoutProps {
 }
 
 type NeuralStepPatch = Partial<Pick<WorkflowTimelineStep, "status" | "error" | "inputs" | "neuralState">>
+type LibraryImportStatus = {
+    fileName: string
+    loadedBytes: number
+    totalBytes: number
+    phase: "uploading" | "processing"
+} | null
 
 const MODEL_EXTENSION_PATTERN = /\.(glb|gltf|fbx|obj|stl)$/i
 
@@ -155,6 +161,56 @@ function getSavedAssetId(asset: GeneratedAssetItem): string | null {
     return asset.id.startsWith("saved:") ? asset.id.slice("saved:".length) : null
 }
 
+function uploadLibraryAssetWithProgress({
+    projectId,
+    file,
+    signal,
+    onProgress,
+}: {
+    projectId: string
+    file: File
+    signal: AbortSignal
+    onProgress: (loadedBytes: number, totalBytes: number) => void
+}): Promise<GeneratedAssetItem> {
+    return new Promise((resolve, reject) => {
+        const formData = new FormData()
+        formData.append("projectId", projectId)
+        formData.append("file", file)
+
+        const request = new XMLHttpRequest()
+        request.open("POST", "/api/projects/assets/import")
+
+        request.upload.onprogress = (event) => {
+            onProgress(event.loaded, event.lengthComputable ? event.total : file.size)
+        }
+
+        request.onload = () => {
+            let payload: { asset?: GeneratedAssetItem; error?: string } | null = null
+            try {
+                payload = request.responseText ? JSON.parse(request.responseText) as { asset?: GeneratedAssetItem; error?: string } : null
+            } catch {
+                payload = null
+            }
+
+            if (request.status >= 200 && request.status < 300 && payload?.asset) {
+                resolve(payload.asset)
+                return
+            }
+
+            reject(new Error(payload?.error ?? `Import failed with HTTP ${request.status}`))
+        }
+
+        request.onerror = () => reject(new Error("Import upload failed. Check the connection and try again."))
+        request.onabort = () => reject(new Error("Import cancelled."))
+
+        const abortUpload = () => request.abort()
+        signal.addEventListener("abort", abortUpload, { once: true })
+        request.onloadend = () => signal.removeEventListener("abort", abortUpload)
+
+        request.send(formData)
+    })
+}
+
 export function StudioLayout({ projectId }: StudioLayoutProps) {
     const [activeCategory, setActiveCategory] = useState("shape")
     const [generatedAssetsOpen, setGeneratedAssetsOpen] = useState(false)
@@ -181,8 +237,10 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         asset: GeneratedAssetItem
     } | null>(null)
     const [libraryImportInFlight, setLibraryImportInFlight] = useState(false)
+    const [libraryImportStatus, setLibraryImportStatus] = useState<LibraryImportStatus>(null)
     const [savedAssets, setSavedAssets] = useState<GeneratedAssetItem[]>([])
     const [thumbnailRetryKey, setThumbnailRetryKey] = useState(0)
+    const libraryImportControllerRef = useRef<AbortController | null>(null)
 
     // Keep ref in sync with state
     useEffect(() => {
@@ -730,23 +788,30 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
     }, [])
 
     const handleImportLibraryAsset = useCallback(async (file: File) => {
+        libraryImportControllerRef.current?.abort()
+        const controller = new AbortController()
+        libraryImportControllerRef.current = controller
         setLibraryImportInFlight(true)
+        setLibraryImportStatus({
+            fileName: file.name,
+            loadedBytes: 0,
+            totalBytes: file.size,
+            phase: "uploading",
+        })
         try {
-            const formData = new FormData()
-            formData.append("projectId", projectId)
-            formData.append("file", file)
-
-            const response = await fetch("/api/projects/assets/import", {
-                method: "POST",
-                body: formData,
+            const asset = await uploadLibraryAssetWithProgress({
+                projectId,
+                file,
+                signal: controller.signal,
+                onProgress: (loadedBytes, totalBytes) => {
+                    setLibraryImportStatus({
+                        fileName: file.name,
+                        loadedBytes,
+                        totalBytes,
+                        phase: totalBytes > 0 && loadedBytes >= totalBytes ? "processing" : "uploading",
+                    })
+                },
             })
-
-            const payload = await response.json().catch(() => null)
-            if (!response.ok || !payload?.asset) {
-                throw new Error(payload?.error ?? `Import failed with HTTP ${response.status}`)
-            }
-
-            const asset = payload.asset as GeneratedAssetItem
             setSavedAssets((current) => upsertAsset(current, asset))
             const importedStep: WorkflowTimelineStep = {
                 id: asset.stepId,
@@ -777,11 +842,21 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
             }
         } catch (error) {
             const message = error instanceof Error ? error.message : "Failed to import model"
-            window.alert(message)
+            if (message !== "Import cancelled.") {
+                window.alert(message)
+            }
         } finally {
-            setLibraryImportInFlight(false)
+            if (libraryImportControllerRef.current === controller) {
+                libraryImportControllerRef.current = null
+                setLibraryImportInFlight(false)
+                setLibraryImportStatus(null)
+            }
         }
     }, [librarySelectionMode, projectId])
+
+    const handleCancelLibraryImport = useCallback(() => {
+        libraryImportControllerRef.current?.abort()
+    }, [])
 
     const handleSaveLibraryAsset = useCallback(async (asset: GeneratedAssetItem) => {
         const savedAssetId = getSavedAssetId(asset)
@@ -813,10 +888,12 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
         }
     }, [projectId])
 
-    const handleToggleLibraryAssetPinned = useCallback(async (asset: GeneratedAssetItem) => {
+    const handleSetLibraryAssetPinned = useCallback(async (asset: GeneratedAssetItem, isPinned: boolean) => {
         const savedAssetId = getSavedAssetId(asset)
         if (!savedAssetId) {
-            await handleSaveLibraryAsset(asset)
+            if (isPinned) {
+                await handleSaveLibraryAsset(asset)
+            }
             return
         }
 
@@ -824,7 +901,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
             const response = await fetch(`/api/projects/assets/${savedAssetId}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ isPinned: !asset.isPinned }),
+                body: JSON.stringify({ isPinned }),
             })
             const payload = await response.json().catch(() => null)
             if (!response.ok || !payload?.asset) {
@@ -836,6 +913,10 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
             window.alert(message)
         }
     }, [handleSaveLibraryAsset])
+
+    const handleToggleLibraryAssetPinned = useCallback(async (asset: GeneratedAssetItem) => {
+        await handleSetLibraryAssetPinned(asset, !asset.isPinned)
+    }, [handleSetLibraryAssetPinned])
 
     const handleUpdateLibraryAsset = useCallback(async (asset: GeneratedAssetItem, patch: AssetLibraryMetadataPatch) => {
         const savedAssetId = getSavedAssetId(asset)
@@ -893,15 +974,33 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
             return {
                 ...item,
                 previewImageUrl: undefined,
-                assetStats: item.assetStats
-                    ? {
-                        ...item.assetStats,
-                        thumbnailVersion: undefined,
-                    }
-                    : item.assetStats,
+                assetStats: {
+                    ...(item.assetStats ?? {}),
+                    thumbnailVersion: undefined,
+                    thumbnailStatus: "queued",
+                    thumbnailError: undefined,
+                },
             }
         }))
         setThumbnailRetryKey((key) => key + 1)
+    }, [])
+
+    const handleThumbnailStatusChange = useCallback((
+        asset: GeneratedAssetItem,
+        status: "queued" | "rendering" | "ready" | "failed",
+        error?: string,
+    ) => {
+        setSavedAssets((current) => current.map((item) => {
+            if (item.id !== asset.id) return item
+            return {
+                ...item,
+                assetStats: {
+                    ...(item.assetStats ?? {}),
+                    thumbnailStatus: status,
+                    thumbnailError: status === "failed" ? error : undefined,
+                },
+            }
+        }))
     }, [])
 
     const handleToolRunNow = useCallback(
@@ -1104,9 +1203,12 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                     onUpdateAsset={handleUpdateLibraryAsset}
                     onDeleteAsset={handleDeleteLibraryAsset}
                     onTogglePinned={handleToggleLibraryAssetPinned}
+                    onSetPinned={handleSetLibraryAssetPinned}
                     onRetryThumbnail={handleRetryLibraryAssetThumbnail}
                     selectionMode={librarySelectionMode}
                     importInFlight={libraryImportInFlight}
+                    importStatus={libraryImportStatus}
+                    onCancelImport={handleCancelLibraryImport}
                 />
 
                 <SavedAssetThumbnailGenerator
@@ -1115,6 +1217,7 @@ export function StudioLayout({ projectId }: StudioLayoutProps) {
                     onThumbnailSaved={(asset) => {
                         setSavedAssets((current) => upsertAsset(current, asset))
                     }}
+                    onThumbnailStatusChange={handleThumbnailStatusChange}
                 />
 
                 <StudioAdvisor

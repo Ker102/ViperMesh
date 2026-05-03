@@ -7,7 +7,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { getNeuralOutputRoot } from "@/lib/neural/output-files"
 import { readModelStats } from "@/lib/neural/model-stats"
-import { extractZipAssetPackage } from "@/lib/projects/asset-imports"
+import { AssetImportError, extractZipAssetPackage } from "@/lib/projects/asset-imports"
 import { deleteAssetObject, getModelContentType, uploadAssetObject } from "@/lib/projects/asset-storage"
 import {
     buildSavedAssetObjectKey,
@@ -18,6 +18,7 @@ import {
 
 const MAX_IMPORT_SIZE_BYTES = 150 * 1024 * 1024
 const MAX_IMPORT_PACKAGE_FILES = 256
+const DIRECT_RESOURCE_DEPENDENT_EXTENSIONS = new Set([".gltf", ".obj"])
 
 function sanitizeBasename(filename: string): string {
     return filename
@@ -31,6 +32,32 @@ function sanitizeBasename(filename: string): string {
 function buildViewerUrlWithFilename(viewerUrl: string, filename: string): string {
     const params = new URLSearchParams({ filename })
     return `${viewerUrl}?${params.toString()}`
+}
+
+function getImportWarnings(extension: string, rootEntryPath?: string | null): string[] {
+    if (rootEntryPath) return []
+    if (DIRECT_RESOURCE_DEPENDENT_EXTENSIONS.has(extension)) {
+        return [
+            `${extension.toUpperCase().slice(1)} files often reference external textures or buffers. If this model renders with missing materials, import it as a ZIP package with its resource files.`,
+        ]
+    }
+    return []
+}
+
+function getImportFailureResponse(error: unknown) {
+    if (error instanceof AssetImportError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+
+    const message = error instanceof Error ? error.message : "Failed to import model"
+    if (/json|glb|gltf|only|unsupported|too small|missing/i.test(message)) {
+        return NextResponse.json({
+            error: `The selected model could not be read. ${message}`,
+        }, { status: 400 })
+    }
+
+    console.error("Failed to import model", { error })
+    return NextResponse.json({ error: "Failed to import model. Check the file and try again." }, { status: 500 })
 }
 
 async function rollbackUploadedObjects(objectKeys: string[]): Promise<void> {
@@ -157,6 +184,7 @@ export async function POST(request: Request) {
         }
 
         const stats = await readModelStats(absoluteViewerPath)
+        const importWarnings = getImportWarnings(path.extname(absoluteViewerPath).toLowerCase(), rootEntryPath)
         const title = extension === ".zip" && rootEntryPath
             ? path.basename(rootEntryPath)
             : file.name
@@ -166,6 +194,8 @@ export async function POST(request: Request) {
             sourceToolLabel: "Imported asset",
             sourceProvider: "Cloudflare R2",
             stageLabel: "Imported",
+            importWarnings,
+            thumbnailStatus: "queued",
         }
         const savedAsset = await prisma.savedAsset.create({
             data: {
@@ -190,7 +220,6 @@ export async function POST(request: Request) {
         if (!savedAssetCreated && uploadedObjectKeys.length > 0) {
             await rollbackUploadedObjects(uploadedObjectKeys)
         }
-        const message = error instanceof Error ? error.message : "Failed to import model"
-        return NextResponse.json({ error: message }, { status: 500 })
+        return getImportFailureResponse(error)
     }
 }

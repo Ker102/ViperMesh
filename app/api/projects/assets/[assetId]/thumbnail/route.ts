@@ -153,6 +153,8 @@ export async function POST(
                                 : {}
                         ),
                         thumbnailVersion: SAVED_ASSET_THUMBNAIL_VERSION,
+                        thumbnailStatus: "ready",
+                        thumbnailError: undefined,
                     } as Prisma.InputJsonValue,
                 },
             })
