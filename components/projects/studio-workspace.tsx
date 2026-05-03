@@ -159,6 +159,20 @@ function getMeshInputKey(tool: ToolEntry): string | undefined {
     return tool.inputs.find((input) => input.type === "mesh")?.key
 }
 
+function getResolvedMultiViewPrimaryInputKey(tool: ToolEntry): string | undefined {
+    const multiView = tool.multiView
+    if (!multiView?.enabled) return undefined
+
+    if (
+        multiView.primaryInputKey &&
+        tool.inputs.some((input) => input.key === multiView.primaryInputKey && input.type === "image")
+    ) {
+        return multiView.primaryInputKey
+    }
+
+    return getImageInputKey(tool)
+}
+
 function getMultiViewPrimaryImage(tool: ToolEntry, inputs: Record<string, string>): string | undefined {
     const multiView = tool.multiView
     if (!multiView?.enabled) return undefined
@@ -458,6 +472,7 @@ function MultiViewReferenceFields({
     const multiView = tool.multiView
     if (!multiView?.enabled) return null
 
+    const primaryInputKey = getResolvedMultiViewPrimaryInputKey(tool)
     const requiredRoles = new Set<MultiViewRole>(multiView.requiredRoles)
     const readyImages = normalizeMultiViewImages(
         multiView.roles.map((role) => ({
@@ -479,8 +494,8 @@ function MultiViewReferenceFields({
         try {
             const value = await fileToDataUrl(file)
             onChange(getMultiViewInputKey(role), value)
-            if (role === "front" && multiView.primaryInputKey && !inputs[multiView.primaryInputKey]) {
-                onChange(multiView.primaryInputKey, value)
+            if (role === "front" && primaryInputKey && !inputs[primaryInputKey]) {
+                onChange(primaryInputKey, value)
             }
         } catch (error) {
             console.error(error)
@@ -489,8 +504,8 @@ function MultiViewReferenceFields({
 
     const handleRemove = (role: MultiViewRole, value: string) => {
         onChange(getMultiViewInputKey(role), "")
-        if (role === "front" && multiView.primaryInputKey && inputs[multiView.primaryInputKey] === value) {
-            onChange(multiView.primaryInputKey, "")
+        if (role === "front" && primaryInputKey && inputs[primaryInputKey] === value) {
+            onChange(primaryInputKey, "")
         }
     }
 
@@ -525,6 +540,7 @@ function MultiViewReferenceFields({
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {multiView.roles.map((role) => {
                     const inputKey = getMultiViewInputKey(role)
+                    const inputId = `${tool.id}-${inputKey}`.replace(/[^a-zA-Z0-9_-]/g, "-")
                     const value = inputs[inputKey]
                     const required = requiredRoles.has(role)
 
@@ -559,6 +575,14 @@ function MultiViewReferenceFields({
                                 </div>
                             ) : (
                                 <label
+                                    htmlFor={inputId}
+                                    role="button"
+                                    tabIndex={0}
+                                    onKeyDown={(event) => {
+                                        if (event.key !== "Enter" && event.key !== " ") return
+                                        event.preventDefault()
+                                        document.getElementById(inputId)?.click()
+                                    }}
                                     className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed p-3 text-center transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-[hsl(var(--forge-accent))] hover:shadow-lg active:translate-y-0 active:scale-[0.99] motion-reduce:transition-none"
                                     style={{
                                         borderColor: "hsl(var(--forge-border))",
@@ -569,9 +593,11 @@ function MultiViewReferenceFields({
                                     <span className="text-lg">+</span>
                                     <span className="text-xs font-medium">Upload</span>
                                     <input
+                                        id={inputId}
                                         type="file"
                                         accept="image/*"
-                                        className="hidden"
+                                        className="sr-only"
+                                        aria-label={`Upload ${getMultiViewRoleLabel(role)} reference`}
                                         onClick={(event) => {
                                             (event.target as HTMLInputElement).value = ""
                                         }}
@@ -1068,7 +1094,7 @@ function ToolDetailView({
                                                 />
                                             </label>
                                         )}
-                                        {tool.multiView?.enabled && tool.multiView.primaryInputKey === input.key && (
+                                        {tool.multiView?.enabled && getResolvedMultiViewPrimaryInputKey(tool) === input.key && (
                                             <MultiViewReferenceFields
                                                 tool={tool}
                                                 inputs={inputs}
@@ -2070,7 +2096,7 @@ function NeuralRerunFields({
                                     />
                                 </label>
                             )}
-                            {tool.multiView?.enabled && tool.multiView.primaryInputKey === input.key && (
+                            {tool.multiView?.enabled && getResolvedMultiViewPrimaryInputKey(tool) === input.key && (
                                 <MultiViewReferenceFields
                                     tool={tool}
                                     inputs={inputs}
@@ -2607,7 +2633,8 @@ export function StudioWorkspace({
         const stepId = onNeuralRunStart(tool, inputs, existingStepId)
         const imageInputKey = getImageInputKey(tool)
         const meshInputKey = getMeshInputKey(tool)
-        const imageDataUrl = imageInputKey ? inputs[imageInputKey] : undefined
+        const primaryImage = (imageInputKey ? inputs[imageInputKey] : "") || getMultiViewPrimaryImage(tool, inputs)
+        const imageDataUrl = primaryImage || undefined
         const multiViewImages = collectReadyMultiViewImages(tool, inputs)
         const resolutionValue = inputs.resolution ? Number(inputs.resolution) : undefined
         const targetFacesValue = inputs.targetFaces ? Number(inputs.targetFaces) : undefined
@@ -2880,8 +2907,8 @@ export function StudioWorkspace({
 
         const sourceImageInputKey = getImageInputKey(neuralRun.tool)
         const carriedReference =
-            (sourceImageInputKey ? neuralRun.inputs[sourceImageInputKey] : undefined) ??
-            getMultiViewPrimaryImage(neuralRun.tool, neuralRun.inputs) ??
+            (sourceImageInputKey ? neuralRun.inputs[sourceImageInputKey] : "") ||
+            getMultiViewPrimaryImage(neuralRun.tool, neuralRun.inputs) ||
             neuralRun.inputs.referenceImage
         const draft = buildToolLaunchInputs(targetTool, neuralRun.viewerUrl, carriedReference)
 
@@ -2903,7 +2930,7 @@ export function StudioWorkspace({
     if (neuralRun) {
         const referenceImageKey = getImageInputKey(neuralRun.tool)
         const referenceImage =
-            (referenceImageKey ? neuralRun.inputs[referenceImageKey] : undefined) ??
+            (referenceImageKey ? neuralRun.inputs[referenceImageKey] : "") ||
             getMultiViewPrimaryImage(neuralRun.tool, neuralRun.inputs)
 
         return (

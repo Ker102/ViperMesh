@@ -63,10 +63,9 @@ function validateRequest(
         case "trellis":
             return payload.imageDataUrl ? null : "TRELLIS requires a reference image"
         case "hunyuan-shape":
-            if (multiViewImages.length > 0 && !hasRequiredMultiViewRoles(multiViewImages, HUNYUAN_MULTI_VIEW_REQUIRED_ROLES)) {
-                return "Hunyuan multi-view requires front, left, and back reference images"
-            }
-            return payload.prompt || payload.imageDataUrl || multiViewImages.length > 0
+            return payload.prompt ||
+                payload.imageDataUrl ||
+                hasRequiredMultiViewRoles(multiViewImages, HUNYUAN_MULTI_VIEW_REQUIRED_ROLES)
                 ? null
                 : "A prompt, reference image, or complete multi-view set is required"
         case "hunyuan-paint":

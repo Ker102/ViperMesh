@@ -214,10 +214,11 @@ export function extractGeneratedAssets(steps: WorkflowTimelineStep[]): Generated
             const multiViewReference = MULTI_VIEW_ROLES
                 .map((role) => step.inputs?.[getMultiViewInputKey(role)])
                 .find((value) => isRenderablePreviewImage(value))
-            const referenceCandidate = step.inputs?.imageUrl ?? step.inputs?.referenceImage ?? multiViewReference
-            const referenceImage = isRenderablePreviewImage(referenceCandidate)
-                ? referenceCandidate
-                : undefined
+            const referenceImage = [
+                step.inputs?.imageUrl,
+                step.inputs?.referenceImage,
+                multiViewReference,
+            ].find((value): value is string => isRenderablePreviewImage(value))
             const nextSuggestions =
                 assetOrigin === "generated"
                     ? buildNextSuggestionsForAsset(step.toolName, step.inputs)
