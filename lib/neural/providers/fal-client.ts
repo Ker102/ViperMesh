@@ -22,6 +22,11 @@ import type {
     ProviderSlug,
 } from "../types"
 import { PROVIDERS } from "../registry"
+import {
+    HUNYUAN_MULTI_VIEW_REQUIRED_ROLES,
+    hasRequiredMultiViewRoles,
+    normalizeMultiViewImages,
+} from "../multiview"
 
 // ---------------------------------------------------------------------------
 // fal.ai model endpoint mapping
@@ -29,6 +34,7 @@ import { PROVIDERS } from "../registry"
 
 const FAL_ENDPOINTS: Record<string, string> = {
     "hunyuan-shape": "fal-ai/hunyuan3d-v21",
+    "hunyuan-shape-multiview": "fal-ai/hunyuan3d/v2/multi-view",
     trellis: "fal-ai/trellis-2",
 }
 
@@ -98,10 +104,19 @@ export class FalClient extends Neural3DClient {
 
             // Build input payload based on provider
             const input: Record<string, unknown> = {}
+            let endpoint = this.falEndpoint
 
             if (this.slug === "hunyuan-shape") {
+                const multiViewImages = normalizeMultiViewImages(request.multiViewImages)
+                const hasMultiView = hasRequiredMultiViewRoles(multiViewImages, HUNYUAN_MULTI_VIEW_REQUIRED_ROLES)
                 // Hunyuan3D 2.1 on fal.ai: input field is "input_image_url" (not "image_url")
-                if (request.imageUrl) {
+                if (hasMultiView) {
+                    const byRole = new Map(multiViewImages.map((image) => [image.role, image.imageUrl]))
+                    input.front_image_url = byRole.get("front")
+                    input.back_image_url = byRole.get("back")
+                    input.left_image_url = byRole.get("left")
+                    endpoint = FAL_ENDPOINTS["hunyuan-shape-multiview"]
+                } else if (request.imageUrl) {
                     input.input_image_url = request.imageUrl
                 } else {
                     return {
@@ -136,9 +151,9 @@ export class FalClient extends Neural3DClient {
             }
 
             // Call fal.ai with queue-based subscription
-            console.log(`[fal.ai] Submitting ${this.falEndpoint} request...`)
+            console.log(`[fal.ai] Submitting ${endpoint} request...`)
 
-            const result = await fal.subscribe(this.falEndpoint, {
+            const result = await fal.subscribe(endpoint, {
                 input,
                 logs: true,
                 onQueueUpdate: (update) => {
@@ -155,11 +170,13 @@ export class FalClient extends Neural3DClient {
 
             // Extract GLB URL from result
             // Hunyuan: model_glb_pbr (PBR) or model_glb (white mesh)
+            // Hunyuan multi-view: model_mesh
             // TRELLIS: model_glb
             const data = result.data as Record<string, unknown>
             const modelGlbPbr = data.model_glb_pbr as { url?: string } | undefined
             const modelGlb = data.model_glb as { url?: string } | undefined
-            const glbUrl = modelGlbPbr?.url ?? modelGlb?.url
+            const modelMesh = data.model_mesh as { url?: string } | undefined
+            const glbUrl = modelGlbPbr?.url ?? modelGlb?.url ?? modelMesh?.url
 
             console.log(`[fal.ai] Response keys: ${Object.keys(data).join(", ")}`)
             if (modelGlbPbr?.url) console.log(`[fal.ai] PBR model available`)

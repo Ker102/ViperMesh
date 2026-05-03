@@ -1,6 +1,7 @@
 "use client"
 
 import { getToolById } from "@/lib/orchestration/tool-catalog"
+import { getMultiViewInputKey, MULTI_VIEW_ROLES } from "@/lib/neural/multiview"
 import type { WorkflowTimelineStep, AssetInspectionStats } from "./workflow-timeline"
 
 export interface GeneratedAssetSuggestion {
@@ -210,9 +211,14 @@ export function extractGeneratedAssets(steps: WorkflowTimelineStep[]): Generated
             }
 
             const tool = getToolById(step.toolName)
-            const referenceImage = isRenderablePreviewImage(step.inputs?.imageUrl ?? step.inputs?.referenceImage)
-                ? step.inputs?.imageUrl ?? step.inputs?.referenceImage
-                : undefined
+            const multiViewReference = MULTI_VIEW_ROLES
+                .map((role) => step.inputs?.[getMultiViewInputKey(role)])
+                .find((value) => isRenderablePreviewImage(value))
+            const referenceImage = [
+                step.inputs?.imageUrl,
+                step.inputs?.referenceImage,
+                multiViewReference,
+            ].find((value): value is string => isRenderablePreviewImage(value))
             const nextSuggestions =
                 assetOrigin === "generated"
                     ? buildNextSuggestionsForAsset(step.toolName, step.inputs)

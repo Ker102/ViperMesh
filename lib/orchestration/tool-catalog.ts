@@ -6,6 +6,11 @@
  */
 
 import type { ProviderSlug } from "@/lib/neural/types"
+import {
+    HUNYUAN_MULTI_VIEW_REQUIRED_ROLES,
+    MULTI_VIEW_ROLES,
+    type MultiViewRole,
+} from "@/lib/neural/multiview"
 
 // ---------------------------------------------------------------------------
 // Input definitions
@@ -64,6 +69,13 @@ export interface ToolEntry {
     cost?: string
     /** Neural provider slug (when type === "neural") */
     provider?: ProviderSlug
+    /** Optional multi-view image input surface for providers that can use it */
+    multiView?: {
+        enabled: boolean
+        roles: MultiViewRole[]
+        requiredRoles: MultiViewRole[]
+        primaryInputKey?: string
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -162,6 +174,12 @@ export const TOOLS: Record<string, ToolEntry> = {
         notFor: ["Precise dimensions", "Architecture", "Mechanical parts"],
         difficulty: "beginner",
         provider: "hunyuan-shape",
+        multiView: {
+            enabled: true,
+            roles: [...MULTI_VIEW_ROLES],
+            requiredRoles: [...HUNYUAN_MULTI_VIEW_REQUIRED_ROLES],
+            primaryInputKey: "imageUrl",
+        },
         inputs: [
             {
                 key: "prompt",
