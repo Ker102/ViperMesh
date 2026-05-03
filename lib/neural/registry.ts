@@ -8,6 +8,7 @@
 
 import type { Neural3DProviderMeta, PipelineStage, ProviderSlug } from "./types"
 import type { Neural3DClient } from "./base-client"
+import { HUNYUAN_MULTI_VIEW_REQUIRED_ROLES, MULTI_VIEW_ROLES } from "./multiview"
 
 // ---------------------------------------------------------------------------
 // Provider metadata catalogue
@@ -23,6 +24,12 @@ export const PROVIDERS: Record<ProviderSlug, Neural3DProviderMeta> = {
         outputFormats: ["glb", "obj"],
         estimatedTime: { min: 10, max: 60 },
         vramGb: 10,
+        imageInputs: {
+            maxImages: 4,
+            multiView: true,
+            requiredRoles: [...HUNYUAN_MULTI_VIEW_REQUIRED_ROLES],
+            roles: [...MULTI_VIEW_ROLES],
+        },
     },
     "hunyuan-paint": {
         slug: "hunyuan-paint",
@@ -52,6 +59,10 @@ export const PROVIDERS: Record<ProviderSlug, Neural3DProviderMeta> = {
         outputFormats: ["glb"],
         estimatedTime: { min: 3, max: 60 },
         vramGb: 24,
+        imageInputs: {
+            maxImages: 1,
+            multiView: false,
+        },
     },
     yvo3d: {
         slug: "yvo3d",
@@ -61,6 +72,10 @@ export const PROVIDERS: Record<ProviderSlug, Neural3DProviderMeta> = {
         selfHosted: false,
         outputFormats: ["glb", "obj"],
         estimatedTime: { min: 10, max: 120 },
+        imageInputs: {
+            maxImages: 1,
+            multiView: false,
+        },
     },
     unirig: {
         slug: "unirig",

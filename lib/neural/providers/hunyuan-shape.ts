@@ -22,6 +22,13 @@ import type {
     ProviderSlug,
 } from "../types"
 import { PROVIDERS } from "../registry"
+import {
+    HUNYUAN_MULTI_VIEW_REQUIRED_ROLES,
+    getPrimaryImageFromMultiView,
+    hasRequiredMultiViewRoles,
+    normalizeMultiViewImages,
+    type MultiViewImageInput,
+} from "../multiview"
 
 export class HunyuanShapeClient extends Neural3DClient {
     readonly name = "Hunyuan3D Shape 2.1"
@@ -49,6 +56,25 @@ export class HunyuanShapeClient extends Neural3DClient {
             headers.Authorization = `Bearer ${this.apiToken}`
         }
         return headers
+    }
+
+    private async resolveImagePayload(imageUrl: string): Promise<string> {
+        if (imageUrl.startsWith("data:")) {
+            return imageUrl
+        }
+        if (imageUrl.startsWith("http")) {
+            const imgRes = await fetch(imageUrl)
+            const buf = Buffer.from(await imgRes.arrayBuffer())
+            return `data:image/png;base64,${buf.toString("base64")}`
+        }
+        return this.imageToBase64(imageUrl)
+    }
+
+    private async resolveMultiViewPayload(images: MultiViewImageInput[]) {
+        const entries = await Promise.all(
+            images.map(async (image) => [image.role, await this.resolveImagePayload(image.imageUrl)] as const),
+        )
+        return Object.fromEntries(entries)
     }
 
     // -------------------------------------------------------------------------
@@ -91,19 +117,18 @@ export class HunyuanShapeClient extends Neural3DClient {
                 output_format: request.outputFormat ?? "glb",
             }
 
-            if (request.imageUrl) {
-                // If it's already base64, use directly; otherwise read from path
-                if (request.imageUrl.startsWith("data:")) {
-                    payload.image = request.imageUrl
-                } else if (request.imageUrl.startsWith("http")) {
-                    // Download and convert to base64
-                    const imgRes = await fetch(request.imageUrl)
-                    const buf = Buffer.from(await imgRes.arrayBuffer())
-                    payload.image = `data:image/png;base64,${buf.toString("base64")}`
-                } else {
-                    // Local file path
-                    payload.image = await this.imageToBase64(request.imageUrl)
+            const multiViewImages = normalizeMultiViewImages(request.multiViewImages)
+            if (hasRequiredMultiViewRoles(multiViewImages, HUNYUAN_MULTI_VIEW_REQUIRED_ROLES)) {
+                const multiViewPayload = await this.resolveMultiViewPayload(multiViewImages)
+                payload.multi_view_images = multiViewPayload
+                payload.view_images = multiViewPayload
+                payload.images = HUNYUAN_MULTI_VIEW_REQUIRED_ROLES.map((role) => multiViewPayload[role])
+                const primaryImage = getPrimaryImageFromMultiView(multiViewImages)
+                if (primaryImage) {
+                    payload.image = await this.resolveImagePayload(primaryImage)
                 }
+            } else if (request.imageUrl) {
+                payload.image = await this.resolveImagePayload(request.imageUrl)
             }
 
             if (request.prompt) {

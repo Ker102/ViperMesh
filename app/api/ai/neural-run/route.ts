@@ -4,6 +4,14 @@ import { auth } from "@/lib/auth"
 import { createNeuralClient } from "@/lib/neural/registry"
 import type { GenerationMode, GenerationResult, ProviderSlug } from "@/lib/neural/types"
 import { buildNeuralOutputUrl, resolveNeuralOutputPath } from "@/lib/neural/output-files"
+import {
+    HUNYUAN_MULTI_VIEW_REQUIRED_ROLES,
+    getPrimaryImageFromMultiView,
+    hasRequiredMultiViewRoles,
+    isMultiViewRole,
+    normalizeMultiViewImages,
+    type MultiViewImageInput,
+} from "@/lib/neural/multiview"
 
 const ProviderSchema = z.enum([
     "hunyuan-shape",
@@ -19,23 +27,48 @@ const RequestSchema = z.object({
     provider: ProviderSchema,
     prompt: z.string().trim().max(1000).optional(),
     imageDataUrl: z.string().trim().optional(),
+    multiViewImages: z.array(z.object({
+        role: z.string().trim(),
+        imageDataUrl: z.string().trim(),
+    })).max(4).optional(),
     meshUrl: z.string().trim().optional(),
     resolution: z.number().int().min(1).optional(),
     textureResolution: z.string().trim().optional(),
     targetFaces: z.number().int().min(100).max(1600).optional(),
 })
 
+function normalizeRequestMultiViewImages(
+    images?: z.infer<typeof RequestSchema>["multiViewImages"],
+): MultiViewImageInput[] {
+    return normalizeMultiViewImages(
+        images
+            ?.filter((image) => isMultiViewRole(image.role))
+            .map((image) => ({
+                role: image.role,
+                imageUrl: image.imageDataUrl,
+            })),
+    )
+}
+
 function validateRequest(
     provider: z.infer<typeof ProviderSchema>,
     payload: z.infer<typeof RequestSchema>,
+    multiViewImages: MultiViewImageInput[],
 ): string | null {
+    if (multiViewImages.length > 0 && provider !== "hunyuan-shape") {
+        return "Multi-view reference images are only supported by Hunyuan3D Shape right now"
+    }
+
     switch (provider) {
         case "trellis":
             return payload.imageDataUrl ? null : "TRELLIS requires a reference image"
         case "hunyuan-shape":
-            return payload.prompt || payload.imageDataUrl
+            if (multiViewImages.length > 0 && !hasRequiredMultiViewRoles(multiViewImages, HUNYUAN_MULTI_VIEW_REQUIRED_ROLES)) {
+                return "Hunyuan multi-view requires front, left, and back reference images"
+            }
+            return payload.prompt || payload.imageDataUrl || multiViewImages.length > 0
                 ? null
-                : "A prompt or reference image is required"
+                : "A prompt, reference image, or complete multi-view set is required"
         case "hunyuan-paint":
         case "hunyuan-part":
         case "unirig":
@@ -53,12 +86,13 @@ function validateRequest(
 function resolveMode(
     provider: z.infer<typeof ProviderSchema>,
     payload: z.infer<typeof RequestSchema>,
+    multiViewImages: MultiViewImageInput[],
 ): GenerationMode {
     switch (provider) {
         case "trellis":
             return "image_to_3d"
         case "hunyuan-shape":
-            return payload.imageDataUrl ? "image_to_3d" : "text_to_3d"
+            return payload.imageDataUrl || multiViewImages.length > 0 ? "image_to_3d" : "text_to_3d"
         case "hunyuan-paint":
         case "yvo3d":
             return payload.meshUrl ? "mesh_to_texture" : "image_to_3d"
@@ -119,18 +153,21 @@ export async function POST(request: Request) {
     }
 
     const { provider, prompt, imageDataUrl, meshUrl, resolution, textureResolution, targetFaces } = parsed.data
+    const multiViewImages = normalizeRequestMultiViewImages(parsed.data.multiViewImages)
+    const primaryMultiViewImage = getPrimaryImageFromMultiView(multiViewImages)
     const resolvedMeshUrl = resolveMeshInput(meshUrl)
     const normalizedPayload = {
         ...parsed.data,
+        imageDataUrl: imageDataUrl ?? primaryMultiViewImage,
         meshUrl: resolvedMeshUrl,
     }
 
-    const validationError = validateRequest(provider, normalizedPayload)
+    const validationError = validateRequest(provider, normalizedPayload, multiViewImages)
     if (validationError) {
         return NextResponse.json({ error: validationError }, { status: 400 })
     }
 
-    const mode = resolveMode(provider, normalizedPayload)
+    const mode = resolveMode(provider, normalizedPayload, multiViewImages)
 
     try {
         const client = await createNeuralClient(provider as ProviderSlug)
@@ -138,7 +175,8 @@ export async function POST(request: Request) {
             provider: provider as ProviderSlug,
             mode,
             prompt,
-            imageUrl: imageDataUrl,
+            imageUrl: normalizedPayload.imageDataUrl,
+            multiViewImages: multiViewImages.length > 0 ? multiViewImages : undefined,
             meshUrl: resolvedMeshUrl,
             resolution,
             textureResolution,

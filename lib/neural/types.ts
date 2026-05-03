@@ -5,6 +5,8 @@
  * interfaces used by all neural provider clients.
  */
 
+import type { MultiViewImageInput } from "./multiview"
+
 // ---------------------------------------------------------------------------
 // Provider & Pipeline Enums
 // ---------------------------------------------------------------------------
@@ -60,6 +62,13 @@ export interface Neural3DProviderMeta {
     estimatedTime: { min: number; max: number }
     /** Approximate VRAM requirement in GB (self-hosted only) */
     vramGb?: number
+    /** Reference-image input limits and multi-view support, when available */
+    imageInputs?: {
+        maxImages: number
+        multiView: boolean
+        requiredRoles?: MultiViewImageInput["role"][]
+        roles?: MultiViewImageInput["role"][]
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -71,6 +80,8 @@ export interface GenerationRequest {
     prompt?: string
     /** Reference image — base64-encoded data URI or public URL */
     imageUrl?: string
+    /** Optional provider-aware multi-view reference images */
+    multiViewImages?: MultiViewImageInput[]
     /** Existing mesh URL or local path (for mesh_to_texture / mesh_to_parts / mesh_to_rig / mesh_to_retopo) */
     meshUrl?: string
     /** Motion duration in seconds (for text_to_motion — MoMask) */
