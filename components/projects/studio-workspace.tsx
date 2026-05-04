@@ -75,6 +75,24 @@ interface StudioWorkspaceProps {
 type NeuralDockMode = "docked" | "collapsed" | "focus"
 type NeuralRunStatus = "running" | "ready" | "failed" | "stopped"
 type NeuralViewerSource = "generated" | "demo" | "input"
+type ToolInputModeId = "text" | "image" | "text-image" | "multi-view" | "mesh" | "mesh-image" | "mesh-text"
+
+interface ToolInputMode {
+    id: ToolInputModeId
+    label: string
+    description: string
+}
+
+const TOOL_INPUT_MODE_KEY = "__toolInputMode"
+const TOOL_INPUT_MODE_IDS = new Set<ToolInputModeId>([
+    "text",
+    "image",
+    "text-image",
+    "multi-view",
+    "mesh",
+    "mesh-image",
+    "mesh-text",
+])
 
 const STUDIO_BUTTON_MOTION =
     "transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-[0.98] disabled:hover:translate-y-0 disabled:hover:shadow-none motion-reduce:transition-none"
@@ -207,6 +225,191 @@ function collectReadyMultiViewImages(tool: ToolEntry, inputs: Record<string, str
         role: image.role,
         imageDataUrl: image.imageUrl,
     }))
+}
+
+function getToolInputModes(tool: ToolEntry): ToolInputMode[] {
+    const hasTextInput = tool.inputs.some((input) => input.type === "text")
+    const hasImageInput = tool.inputs.some((input) => input.type === "image")
+    const hasMeshInput = tool.inputs.some((input) => input.type === "mesh")
+    const hasMultiViewInput = Boolean(tool.multiView?.enabled && hasImageInput)
+
+    if (hasMeshInput) {
+        const modes: ToolInputMode[] = [
+            {
+                id: "mesh",
+                label: "Model",
+                description: "Use an existing project model as the source.",
+            },
+        ]
+        if (hasImageInput) {
+            modes.push({
+                id: "mesh-image",
+                label: "Model + Image",
+                description: "Guide the model step with a visual reference.",
+            })
+        }
+        if (hasTextInput) {
+            modes.push({
+                id: "mesh-text",
+                label: "Model + Text",
+                description: "Guide the model step with written instructions.",
+            })
+        }
+        return modes.length > 1 ? modes : []
+    }
+
+    const modes: ToolInputMode[] = []
+    if (hasTextInput) {
+        modes.push({
+            id: "text",
+            label: "Text",
+            description: "Generate from a written prompt.",
+        })
+    }
+    if (hasImageInput) {
+        modes.push({
+            id: "image",
+            label: "Image",
+            description: "Generate from one reference image.",
+        })
+    }
+    if (hasMultiViewInput) {
+        modes.push({
+            id: "multi-view",
+            label: "Multi-view",
+            description: "Use front, side, and back references when the model supports it.",
+        })
+    }
+    if (hasTextInput && hasImageInput) {
+        modes.push({
+            id: "text-image",
+            label: "Text + Image",
+            description: "Combine a prompt with a single reference image.",
+        })
+    }
+
+    return modes.length > 1 ? modes : []
+}
+
+function resolveDefaultInputMode(tool: ToolEntry, inputs: Record<string, string>): ToolInputModeId | undefined {
+    const modes = getToolInputModes(tool)
+    if (modes.length === 0) return undefined
+    const availableModes = new Set(modes.map((mode) => mode.id))
+    const hasTextValue = tool.inputs.some((input) => input.type === "text" && Boolean(inputs[input.key]))
+    const hasImageValue = tool.inputs.some((input) => input.type === "image" && Boolean(inputs[input.key]))
+    const hasMeshValue = tool.inputs.some((input) => input.type === "mesh" && Boolean(inputs[input.key]))
+    const hasMultiViewValue = Boolean(getMultiViewPrimaryImage(tool, inputs))
+
+    if (hasMeshValue && hasImageValue && availableModes.has("mesh-image")) return "mesh-image"
+    if (hasMeshValue && hasTextValue && availableModes.has("mesh-text")) return "mesh-text"
+    if (hasMeshValue && availableModes.has("mesh")) return "mesh"
+    if (hasMultiViewValue && availableModes.has("multi-view")) return "multi-view"
+    if (hasTextValue && hasImageValue && availableModes.has("text-image")) return "text-image"
+    if (hasImageValue && availableModes.has("image")) return "image"
+    if (hasTextValue && availableModes.has("text")) return "text"
+    return modes[0]?.id
+}
+
+function isInputVisibleForMode(tool: ToolEntry, input: ToolInput, modeId?: ToolInputModeId): boolean {
+    if (!modeId) return true
+    if (input.type === "select" || input.type === "slider") return true
+    if (input.type === "mesh") return modeId === "mesh" || modeId === "mesh-image" || modeId === "mesh-text"
+    if (input.type === "text") return modeId === "text" || modeId === "text-image" || modeId === "mesh-text"
+    if (input.type === "image") {
+        return modeId === "image" || modeId === "text-image" || modeId === "mesh-image" || modeId === "multi-view"
+    }
+    return true
+}
+
+function sanitizeInputsForMode(
+    tool: ToolEntry,
+    inputs: Record<string, string>,
+    modeId?: ToolInputModeId,
+): Record<string, string> {
+    const next = { ...inputs }
+    delete next[TOOL_INPUT_MODE_KEY]
+    if (!modeId) return next
+    for (const input of tool.inputs) {
+        if (input.type === "select" || input.type === "slider") continue
+        if (!isInputVisibleForMode(tool, input, modeId)) {
+            delete next[input.key]
+        }
+    }
+
+    if (modeId !== "multi-view" && tool.multiView?.enabled) {
+        for (const role of tool.multiView.roles) {
+            delete next[getMultiViewInputKey(role)]
+        }
+    }
+
+    if (modeId === "multi-view") {
+        const imageInputKey = getImageInputKey(tool)
+        if (imageInputKey) {
+            delete next[imageInputKey]
+        }
+    }
+
+    return next
+}
+
+function normalizeToolInputMode(value?: string): ToolInputModeId | undefined {
+    return value && TOOL_INPUT_MODE_IDS.has(value as ToolInputModeId)
+        ? value as ToolInputModeId
+        : undefined
+}
+
+function ToolInputModeTabs({
+    modes,
+    activeMode,
+    onChange,
+}: {
+    modes: ToolInputMode[]
+    activeMode?: ToolInputModeId
+    onChange: (mode: ToolInputModeId) => void
+}) {
+    if (modes.length <= 1 || !activeMode) return null
+    const active = modes.find((mode) => mode.id === activeMode)
+
+    return (
+        <div className="space-y-2">
+            <div
+                className="flex flex-wrap gap-1 rounded-2xl border p-1"
+                style={{
+                    borderColor: "hsl(var(--forge-border))",
+                    backgroundColor: "hsl(var(--forge-surface-dim))",
+                }}
+            >
+                {modes.map((mode) => {
+                    const selected = mode.id === activeMode
+                    return (
+                        <button
+                            key={mode.id}
+                            type="button"
+                            onClick={() => onChange(mode.id)}
+                            className={cn("rounded-xl px-3 py-2 text-xs font-semibold", STUDIO_BUTTON_MOTION)}
+                            style={selected
+                                ? {
+                                    backgroundColor: "hsl(var(--forge-accent))",
+                                    color: "white",
+                                    boxShadow: "0 8px 24px hsl(168 75% 32% / 0.22)",
+                                }
+                                : {
+                                    backgroundColor: "transparent",
+                                    color: "hsl(var(--forge-text-muted))",
+                                }}
+                        >
+                            {mode.label}
+                        </button>
+                    )
+                })}
+            </div>
+            {active && (
+                <p className="text-xs leading-relaxed" style={{ color: "hsl(var(--forge-text-subtle))" }}>
+                    {active.description}
+                </p>
+            )}
+        </div>
+    )
 }
 
 function formatStageLabel(category: string): string {
@@ -763,12 +966,21 @@ function ToolDetailView({
     generatedAssets: GeneratedAssetItem[]
     onRequestMeshSelection: (inputKey: string, currentInputs: Record<string, string>) => void
 }) {
+    const inputModes = getToolInputModes(tool)
+    const [activeInputMode, setActiveInputMode] = useState<ToolInputModeId | undefined>(() =>
+        normalizeToolInputMode(inputs[TOOL_INPUT_MODE_KEY]) ?? resolveDefaultInputMode(tool, inputs),
+    )
+    const visibleInputs = tool.inputs.filter((input) => isInputVisibleForMode(tool, input, activeInputMode))
+    const handleInputModeChange = (mode: ToolInputModeId) => {
+        setActiveInputMode(mode)
+        onInputChange(TOOL_INPUT_MODE_KEY, mode)
+    }
     const handleSubmit = () => {
-        onSubmit(tool, inputs)
+        onSubmit(tool, sanitizeInputsForMode(tool, inputs, activeInputMode))
     }
 
     const handleRunNow = () => {
-        onRunNow(tool, inputs)
+        onRunNow(tool, sanitizeInputsForMode(tool, inputs, activeInputMode))
     }
 
     return (
@@ -944,14 +1156,21 @@ function ToolDetailView({
                         >
                             Configuration
                         </h3>
+                        <ToolInputModeTabs
+                            modes={inputModes}
+                            activeMode={activeInputMode}
+                            onChange={handleInputModeChange}
+                        />
 
-                        {tool.inputs.map((input: ToolInput) => (
+                        {visibleInputs.map((input: ToolInput) => (
                             <div key={input.key}>
                                 <label
                                     className="block text-sm font-medium mb-2"
                                     style={{ color: "hsl(var(--forge-text))" }}
                                 >
-                                    {input.label}
+                                    {input.type === "image" && activeInputMode === "multi-view" && tool.multiView?.enabled
+                                        ? "Multi-view references"
+                                        : input.label}
                                     {input.required && (
                                         <span style={{ color: "hsl(var(--forge-accent))" }}>
                                             {" "}
@@ -1015,7 +1234,15 @@ function ToolDetailView({
                                     />
                                 )}
 
-                                {input.type === "image" && (
+                                {input.type === "image" && activeInputMode === "multi-view" && tool.multiView?.enabled && (
+                                    <MultiViewReferenceFields
+                                        tool={tool}
+                                        inputs={inputs}
+                                        onChange={onInputChange}
+                                    />
+                                )}
+
+                                {input.type === "image" && !(activeInputMode === "multi-view" && tool.multiView?.enabled) && (
                                     <div>
                                         {inputs[input.key] ? (
                                             /* Image preview with remove button */
@@ -1094,7 +1321,7 @@ function ToolDetailView({
                                                 />
                                             </label>
                                         )}
-                                        {tool.multiView?.enabled && getResolvedMultiViewPrimaryInputKey(tool) === input.key && (
+                                        {tool.multiView?.enabled && activeInputMode === "multi-view" && getResolvedMultiViewPrimaryInputKey(tool) === input.key && (
                                             <MultiViewReferenceFields
                                                 tool={tool}
                                                 inputs={inputs}
@@ -1939,15 +2166,32 @@ function NeuralRerunFields({
     onChange: (key: string, value: string) => void
     onRequestMeshSelection: (inputKey: string, currentInputs: Record<string, string>) => void
 }) {
+    const inputModes = getToolInputModes(tool)
+    const [activeInputMode, setActiveInputMode] = useState<ToolInputModeId | undefined>(() =>
+        normalizeToolInputMode(inputs[TOOL_INPUT_MODE_KEY]) ?? resolveDefaultInputMode(tool, inputs),
+    )
+    const visibleInputs = tool.inputs.filter((input) => isInputVisibleForMode(tool, input, activeInputMode))
+    const handleInputModeChange = (mode: ToolInputModeId) => {
+        setActiveInputMode(mode)
+        onChange(TOOL_INPUT_MODE_KEY, mode)
+    }
+
     return (
         <div className="space-y-4">
-            {tool.inputs.map((input) => (
+            <ToolInputModeTabs
+                modes={inputModes}
+                activeMode={activeInputMode}
+                onChange={handleInputModeChange}
+            />
+            {visibleInputs.map((input) => (
                 <div key={input.key}>
                     <label
                         className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em]"
                         style={{ color: "hsl(var(--forge-text-subtle))" }}
                     >
-                        {input.label}
+                        {input.type === "image" && activeInputMode === "multi-view" && tool.multiView?.enabled
+                            ? "Multi-view references"
+                            : input.label}
                         {input.required ? " *" : ""}
                     </label>
 
@@ -2027,7 +2271,15 @@ function NeuralRerunFields({
                         />
                     )}
 
-                    {input.type === "image" && (
+                    {input.type === "image" && activeInputMode === "multi-view" && tool.multiView?.enabled && (
+                        <MultiViewReferenceFields
+                            tool={tool}
+                            inputs={inputs}
+                            onChange={onChange}
+                        />
+                    )}
+
+                    {input.type === "image" && !(activeInputMode === "multi-view" && tool.multiView?.enabled) && (
                         <div>
                             {inputs[input.key] ? (
                                 <div className="relative inline-block">
@@ -2096,7 +2348,7 @@ function NeuralRerunFields({
                                     />
                                 </label>
                             )}
-                            {tool.multiView?.enabled && getResolvedMultiViewPrimaryInputKey(tool) === input.key && (
+                            {tool.multiView?.enabled && activeInputMode === "multi-view" && getResolvedMultiViewPrimaryInputKey(tool) === input.key && (
                                 <MultiViewReferenceFields
                                     tool={tool}
                                     inputs={inputs}
@@ -2630,15 +2882,17 @@ export function StudioWorkspace({
     const runNeuralTool = async (tool: ToolEntry, inputs: Record<string, string>, existingStepId?: string) => {
         if (!tool.provider) return
 
-        const stepId = onNeuralRunStart(tool, inputs, existingStepId)
+        const requestedInputMode = normalizeToolInputMode(inputs[TOOL_INPUT_MODE_KEY]) ?? resolveDefaultInputMode(tool, inputs)
+        const scopedInputs = sanitizeInputsForMode(tool, inputs, requestedInputMode)
+        const stepId = onNeuralRunStart(tool, scopedInputs, existingStepId)
         const imageInputKey = getImageInputKey(tool)
         const meshInputKey = getMeshInputKey(tool)
-        const primaryImage = (imageInputKey ? inputs[imageInputKey] : "") || getMultiViewPrimaryImage(tool, inputs)
+        const primaryImage = (imageInputKey ? scopedInputs[imageInputKey] : "") || getMultiViewPrimaryImage(tool, scopedInputs)
         const imageDataUrl = primaryImage || undefined
-        const multiViewImages = collectReadyMultiViewImages(tool, inputs)
-        const resolutionValue = inputs.resolution ? Number(inputs.resolution) : undefined
-        const targetFacesValue = inputs.targetFaces ? Number(inputs.targetFaces) : undefined
-        const carriedViewerUrl = meshInputKey ? inputs[meshInputKey] || null : null
+        const multiViewImages = collectReadyMultiViewImages(tool, scopedInputs)
+        const resolutionValue = scopedInputs.resolution ? Number(scopedInputs.resolution) : undefined
+        const targetFacesValue = scopedInputs.targetFaces ? Number(scopedInputs.targetFaces) : undefined
+        const carriedViewerUrl = meshInputKey ? scopedInputs[meshInputKey] || null : null
         const linkedAsset = findGeneratedAssetByUrl(generatedAssets, carriedViewerUrl)
         const abortController = new AbortController()
 
@@ -2648,8 +2902,8 @@ export function StudioWorkspace({
         setNeuralRun({
             stepId,
             tool,
-            inputs,
-            draftInputs: inputs,
+            inputs: scopedInputs,
+            draftInputs: scopedInputs,
             status: "running",
             dockMode: "docked",
             viewerUrl: carriedViewerUrl,
@@ -2664,12 +2918,12 @@ export function StudioWorkspace({
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     provider: tool.provider,
-                    prompt: inputs.prompt,
+                    prompt: scopedInputs.prompt,
                     imageDataUrl,
                     multiViewImages: multiViewImages.length > 0 ? multiViewImages : undefined,
-                    meshUrl: meshInputKey ? inputs[meshInputKey] : undefined,
+                    meshUrl: meshInputKey ? scopedInputs[meshInputKey] : undefined,
                     resolution: Number.isFinite(resolutionValue) ? resolutionValue : undefined,
-                    textureResolution: inputs.textureResolution,
+                    textureResolution: scopedInputs.textureResolution,
                     targetFaces: Number.isFinite(targetFacesValue) ? targetFacesValue : undefined,
                 }),
                 signal: abortController.signal,
